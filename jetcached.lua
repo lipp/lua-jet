@@ -128,8 +128,9 @@ local rem =
   end
 
 local add = 
-  function(_,url,type,value,schema)
+  function(_,url,description)
     local parts = {}
+    description = description or {}
     for part in url:gmatch('[^%.]+') do
       tinsert(parts,part)
     end
@@ -149,15 +150,10 @@ local add =
 	   print('node occupied',part,tconcat(parts,'.'))
           error('node occupied')
        else
-	  local desc = {
-	     value = value,
-	     schema = schema,
-	     type = type
-	  }	  
-          last[part] = desc
+          last[part] = description
           last:increment()
           print('add',url)
-          m:notify(url..':create',desc)
+          m:notify(url..':create',description)
         end
       elseif not element then 
         last[part] = new_node()        

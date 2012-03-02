@@ -84,7 +84,12 @@ local new_jet =
           function(self,name,setf,initial_value,schema)
             local fullname = domain..name
             self.properties[fullname] = setf
-            zbus:call('jet.add',fullname,'property',inital_value,schema)
+	    local description = {
+	       type = 'property',
+	       value = initial_value,
+	       schema = schema
+	    }
+            zbus:call('jet.add',fullname,description)
 	    return function(new_val)
 		      zbus:call(fullname..':update',new_val)
 		   end
@@ -104,7 +109,12 @@ local new_jet =
           function(self,name,initial_value,schema)
             local fullname = domain..name
 	     self.monitors[fullname] = true
-	     zbus:call('jet.add',fullname,'monitor',initial_value,schema)
+	     local description = {
+		type = 'monitor',
+		value = initial_value,
+		schema = schema
+	     }
+	     zbus:call('jet.add',fullname,description)
 	    return function(new_val)
 		      zbus:call(fullname..':update',new_val)
 		   end
@@ -130,8 +140,12 @@ local new_jet =
         d.add_method = 
           function(self,name,f,schema)
             local fullname = domain..name
-            self.methods[fullname] = f            
-            zbus:call('jet.add',fullname,'method',schema)
+            self.methods[fullname] = f
+	    local description = {
+	       type = 'method',
+	       schema = schema
+	    }
+            zbus:call('jet.add',fullname,'method',description)
           end
 
         d.remove_method = 
