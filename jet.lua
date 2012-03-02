@@ -81,18 +81,10 @@ local new_jet =
         -- @param schema introspection of the property (i.e. min, max)
         -- @param setf callback funrction for setting the property.
         d.add_property = 
-          function(self,name,schema,setf,initial_value)
+          function(self,name,setf,initial_value,schema)
             local fullname = domain..name
             self.properties[fullname] = setf
-            local introspect = {}
-            if type(schema) == 'string' then
-              introspect.clazz = schema
-            else      
-              introspect = schema
-            end
-            introspect.type = 'property'
-            introspect.value = initial_value
-            zbus:call('jet.add',fullname,introspect)
+            zbus:call('jet.add',fullname,'property',inital_value,schema)
 	    return function(new_val)
 		      zbus:call(fullname..':update',new_val)
 		   end
@@ -109,18 +101,10 @@ local new_jet =
 	 end
 
         d.add_monitor = 
-          function(self,name,schema,initial_value)
+          function(self,name,initial_value,schema)
             local fullname = domain..name
 	     self.monitors[fullname] = true
-            local introspect = {}
-            if type(schema) == 'string' then
-              introspect.clazz = schema
-            else      
-              introspect = schema
-            end
-            introspect.type = 'monitor'
-            introspect.value = initial_value
-            zbus:call('jet.add',fullname,introspect)
+	     zbus:call('jet.add',fullname,'monitor',initial_value,schema)
 	    return function(new_val)
 		      zbus:call(fullname..':update',new_val)
 		   end
@@ -144,17 +128,10 @@ local new_jet =
        
 
         d.add_method = 
-          function(self,name,schema,f)
+          function(self,name,f,schema)
             local fullname = domain..name
-            self.methods[fullname] = f
-            local introspect = {}
-            if type(schema) == 'string' then
-              introspect.clazz = schema
-            else      
-              introspect = schema
-            end
-            introspect.type = 'method'
-            zbus:call('jet.add',fullname,introspect)
+            self.methods[fullname] = f            
+            zbus:call('jet.add',fullname,'method',schema)
           end
 
         d.remove_method = 
