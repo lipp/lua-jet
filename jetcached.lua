@@ -2,12 +2,39 @@
 local zbus = require'zbus'
 local zbus_config = require'zbus.json'
 zbus_config.name = 'jet.cached'
-local m = zbus.member(zbus_config)
-local cjson = require'cjson'
+local zm = zbus.member(zbus_config)
 local tinsert = table.insert
 local tconcat = table.concat
 local assert = assert
 local error = error
+local log = 
+   function(...)
+      print('jetcached',...)
+   end
+
+local method_not_found = 
+   function(arg,info)
+      return {
+	 code = -32601,
+	 message = 'Method not found',
+	 data = {
+	    arg = arg,
+	    info = info
+	 }
+      }
+   end
+
+local server_error = 
+   function(arg,info)
+      return {
+	 code = -32000,
+	 message = 'Server error',
+	 data = {
+	    arg = arg,
+	    info = info
+	 }
+      }
+   end
 
 local new_node = 
   function()
@@ -45,7 +72,7 @@ local is_node =
 
 local remove_method = 
   function(url)
-    return url:sub(1,url:find(':')-1)
+    return 
   end
 
 local cache = 
@@ -56,28 +83,34 @@ local cache =
     local parts = {}
     for part in url:gmatch('[^%.]+') do
       tinsert(parts,part)
-    end
+   end
     if url:find('%.%.') or url:sub(#url) == '.' then
       local msg = 'jetcache invalid url:'..url
-      print(msg)
-      error({message=msg,code=123})
+      log(msg)
+      error(method_not_found(url,msg))
     end
     local element = _cache
     local last
     for i=1,#parts do
       local part = parts[i]
-      last = element
+      last = element      
       element = element[part]
+      if not element then
+	 error(method_not_found(url))	 
+      end
     end    
     return element
   end
 
 local update = 
-  function(url,val)
-    local entry = cache(url)
-    if entry then
-      entry.value = val
-    end
+  function(url,_,val)
+     url = remove_method(url)
+     local ok,entry = pcall(cache,url)
+     if not ok then
+	log('error getting cache element',url,entry)
+     else	
+	entry.value = val
+     end     
   end
 
 local rem = 
@@ -88,8 +121,8 @@ local rem =
     end
     if url:find('%.%.') or url:sub(#url) == '.' then
       local msg = 'jetcache invalid url:'..url
-      print(msg)
-      error({message=msg,code=123})
+      log(msg)
+      error(server_error(msg))
     end
     local element = _cache
     local elements = {}
@@ -99,8 +132,8 @@ local rem =
       last = element
       element = element[part]
       if not element then
-	 print('invalid path'..url)
-        error('invalid path '..url)
+	 log('invalid path'..url)
+	 error(server_error('invalid path '..url))
       end
       tinsert(elements,element)      
     end
@@ -108,19 +141,18 @@ local rem =
       local type = element[parts[#parts]].type
       element[parts[#parts]] = nil
       element:decrement()
-      print('rem',url)
-      m:notify(url..':delete',{type=type})
+      log('rem',url)
+      zm:notify(url..':delete',{type=type})
     end
     elements[0] = _cache
     for i=#elements,1,-1 do
       local el = elements[i]
---      print(tconcat(parts,'.',1,i),el:count())
       if el:empty() then
         elements[i-1][parts[i]] = nil
         elements[i-1]:decrement()
         local url = tconcat(parts,'.',1,i)
-        print('rem',url)
-        m:notify(url..':delete',{type='node'})
+        log('rem',url)
+        zm:notify(url..':delete',{type='node'})
       else
         local url = tconcat(parts,'.',1,i)
       end
@@ -136,8 +168,8 @@ local add =
     end
     if url:find('%.%.') or url:sub(#url) == '.' then
       local msg = 'jetcache invalid url:'..url
-      print(msg)
-      error({message=msg,code=123})
+      log(msg)
+      error(server_error(msg))
     end
     local element = _cache
     local last
@@ -147,30 +179,30 @@ local add =
       element = element[part]      
       if i==#parts then
         if element then
-	   print('node occupied',part,tconcat(parts,'.'))
-          error('node occupied')
+	   log('node occupied',part,tconcat(parts,'.'))
+	   error(server_error('node occupied'))
        else
           last[part] = description
           last:increment()
-          print('add',url)
-          m:notify(url..':create',description)
+          log('add',url)
+          zm:notify(url..':create',description)
         end
       elseif not element then 
         last[part] = new_node()        
         element = last[part]        
         last:increment()
         local new_url = tconcat(parts,'.',1,i)        
-        m:notify(new_url..':create',{type='node'})
-        print('add',new_url,parts[i-1],last:count())
+        zm:notify(new_url..':create',{type='node'})
+        log('add',new_url,parts[i-1],last:count())
       end
     end
   end
 
-m:listen_add('^[^:]+:value$',update)
-m:replier_add('^jet.add$',add)
-m:replier_add('^jet.rem$',rem)
+zm:listen_add('^[^:]+:value$',update)
+zm:replier_add('^jet%.add$',add)
+zm:replier_add('^jet%.rem$',rem)
 
-m:replier_add(
+zm:replier_add(
   '^.*:list$',
   function(url)
     --    print('cache',_cache.horst,_cache.horst and _cache.horst.name)
@@ -191,11 +223,11 @@ m:replier_add(
     end
   end)
 
-m:replier_add(
+zm:replier_add(
   '^.*:get$',
   function(url)
     local property_or_monitor = remove_method(url)
     return cache(property_or_monitor).value
   end)
 
-m:loop()
+zm:loop()

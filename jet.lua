@@ -2,6 +2,7 @@ local zbus = require'zbus'
 local zconfig = require'zbus.json'
 local pcall = pcall
 local pairs = pairs
+local ipairs = ipairs
 local setmetatable = setmetatable
 local type = type
 local error = error
@@ -91,7 +92,7 @@ local new_jet =
 	    }
             zbus:call('jet.add',fullname,description)
 	    return function(new_val)
-		      zbus:call(fullname..':update',new_val)
+		      zbus:call(fullname..':value',new_val)
 		   end
           end
 
@@ -116,7 +117,7 @@ local new_jet =
 	     }
 	     zbus:call('jet.add',fullname,description)
 	    return function(new_val)
-		      zbus:call(fullname..':update',new_val)
+		      zbus:call(fullname..':value',new_val)
 		   end
 	 end
 
@@ -133,14 +134,33 @@ local new_jet =
        d.notify_value = 
 	  function(self,name,value)
 	     local fullname = domain..name
-	     zbus:call(fullname..':update',value)
+	     zbus:notify(fullname..':value',value)
 	  end
        
+       d.notify_values = 
+	  function(self,nvp_array)
+	     local len = #nvp_array
+	     for i,nvp in ipairs(nvp_array) do		
+		local fullname = domain..nvp.name
+		zbus:notify_more(fullname..':value',i~=len,nvp.value)
+	     end
+	  end
 
         d.add_method = 
           function(self,name,f,schema)
             local fullname = domain..name
             self.methods[fullname] = f
+	    local description = {
+	       type = 'method',
+	       schema = schema
+	    }
+            zbus:call('jet.add',fullname,'method',description)
+	 end
+
+        d.add_async_method = 
+          function(self,name,f,schema)
+            local fullname = domain..name
+            self.async_methods[fullname] = f
 	    local description = {
 	       type = 'method',
 	       schema = schema
@@ -206,6 +226,14 @@ local new_jet =
     j.notify_value = 
       function(self,node,value)
         self.zbus:notify(node..':value',value)
+     end
+
+    j.notify_values = 
+      function(self,nvp_array)
+	 local len = #nvp_array
+	 for i,nvp in ipairs(nvp_array) do		
+	    self.zbus:notify_more(nvp.name..':value',i~=len,nvp.value)
+	 end
       end
 
     j.on = 
@@ -214,7 +242,7 @@ local new_jet =
           self.listeners = {}
           self.zbus:listen_add(
             '^.*:'..event,
-            function(url,...)
+            function(url,_,...)
               local name = url:match('^(.*):'..event..'$')              
               for _,listener in pairs(self.listeners) do
                 if listener.event==event and name==listener.element then
