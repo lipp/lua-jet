@@ -72,12 +72,12 @@ local is_node =
 
 local remove_method = 
   function(url)
-    return 
+    return url:sub(1,url:find(':')-1)
   end
 
 local cache = 
   function(url)
-    if not url and #url == 0 then
+    if not url or #url==0 then
       return _cache
     end
     local parts = {}
@@ -185,14 +185,14 @@ local add =
           last[part] = description
           last:increment()
           log('add',url)
-          zm:notify(url..':create',description)
+          zm:notify_more(url..':create',false,description)
         end
       elseif not element then 
         last[part] = new_node()        
         element = last[part]        
         last:increment()
         local new_url = tconcat(parts,'.',1,i)        
-        zm:notify(new_url..':create',{type='node'})
+        zm:notify_more(new_url..':create',true,{type='node'})
         log('add',new_url,parts[i-1],last:count())
       end
     end
