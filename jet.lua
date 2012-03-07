@@ -154,7 +154,7 @@ local new_jet =
 	       type = 'method',
 	       schema = schema
 	    }
-            zbus:call('jet.add',fullname,'method',description)
+            zbus:call('jet.add',fullname,description)
 	 end
 
         d.add_async_method = 
@@ -165,7 +165,7 @@ local new_jet =
 	       type = 'method',
 	       schema = schema
 	    }
-            zbus:call('jet.add',fullname,'method',description)
+            zbus:call('jet.add',fullname,description)
           end
 
         d.remove_method = 
