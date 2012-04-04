@@ -14,9 +14,12 @@ local tconcat = table.concat
 module('jet')
 
 local new_jet = 
-   function(name)
+   function(config)
       local j = {}
-      zconfig.name = 'jet.' .. (name or 'unknown')
+      zconfig.name = 'jet.' .. (config.name or 'unknown')
+      zconfig.broker = {
+         ip = config.ip
+      }
       j.zbus = zmember.new(zconfig)    
       j.domains = {}
       j.domain = 

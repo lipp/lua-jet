@@ -1,9 +1,9 @@
 local jet = require'jet'
-local j = jet.new()
+local j = jet.new{name='some_service'}
 local d = j:domain('test')
 local ev = require'ev'
 
-local ok, err = pcall(function()
+--local ok, err = pcall(function()
 local name = 'KLAUS'
 d:add_property('name',
 	       function(new_name)
@@ -132,17 +132,17 @@ local timer_slow = ev.Timer.new(
    function()
       counter_slow = counter_slow + 1
       j:notify_value('test.counter_slow',counter_slow)
-   end,0.1,0.1)
+   end,0.1,2)
 
 local timer_fast = ev.Timer.new(
    function()
       counter_fast = counter_fast + 1
       j:notify_value('test.counter_fast',counter_fast)
-   end,0.02,0.02)
+   end,0.02,2)
 
 j:loop{ios={timer_slow,timer_fast}}
-end)
+-- end)
 
-if not ok then
-   print(err.message,err.code)
-end
+-- if not ok then
+--    print(err.message,err.code,err)
+-- end
