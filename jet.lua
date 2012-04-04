@@ -15,6 +15,7 @@ module('jet')
 
 local new_jet = 
    function(config)
+      config = config or {}
       local j = {}
       zconfig.name = 'jet.' .. (config.name or 'unknown')
       zconfig.broker = {
@@ -195,16 +196,47 @@ local new_jet =
             return d
          end -- domain 
 
-      -- j.fetch = 
-      --    function(self,path,f)
-      --       local fetched = {}
-      --       local log_err = 
-      --          function(...)
-      --             log('fetch error',path,...)
-      --          end        
-      --       url:match('^(.*):'..event..'$'
-      --       self.zbus:call_async(path..':list',
-      --    end
+      
+      j.fetch = 
+         function(self,path,f)
+            print('fetch',path)
+            local fetched = {}
+            print('LISTEN ADD')
+            self.zbus:listen_add(
+               '^'..path..'.*',
+               f)
+            local log_err = 
+               function(...)
+                  print('fetch error',path,...)
+               end   
+            local fetch_recursive
+            local fetch_childs = 
+               function(parent,childs)                
+                  for name,desc in pairs(childs) do
+                     local child_path                     
+                     if parent and parent ~= '' then
+                        child_path = parent..'.'..name
+                     else
+                        child_path = name
+                     end
+                     fetched[child_path] = true
+                     f(child_path..':create',desc)
+                     if desc.type == 'node' then
+                        fetch_recursive(child_path)
+                     end
+                  end
+               end
+            fetch_recursive =
+               function(path)
+                  local childs = self.zbus:call(path..':list')
+                  fetch_childs(path,childs)
+               end
+            self.zbus:call_async(
+               path..':list',
+               function(childs)
+                  fetch_childs(path,childs)
+               end,log_err)
+         end
 
       j.set = 
          function(self,prop,val)
