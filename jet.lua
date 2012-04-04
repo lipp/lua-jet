@@ -199,9 +199,8 @@ local new_jet =
       
       j.fetch = 
          function(self,path,f)
-            print('fetch',path)
+            path = path or ''
             local fetched = {}
-            print('LISTEN ADD')
             self.zbus:listen_add(
                '^'..path..'.*',
                f)
@@ -214,13 +213,13 @@ local new_jet =
                function(parent,childs)                
                   for name,desc in pairs(childs) do
                      local child_path                     
-                     if parent and parent ~= '' then
+                     if parent ~= '' then
                         child_path = parent..'.'..name
                      else
                         child_path = name
                      end
                      fetched[child_path] = true
-                     f(child_path..':create',desc)
+                     f(child_path..':create',true,desc)
                      if desc.type == 'node' then
                         fetch_recursive(child_path)
                      end
