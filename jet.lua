@@ -195,12 +195,23 @@ local new_jet =
             return d
          end -- domain 
 
-      j.set_property = 
+      -- j.fetch = 
+      --    function(self,path,f)
+      --       local fetched = {}
+      --       local log_err = 
+      --          function(...)
+      --             log('fetch error',path,...)
+      --          end        
+      --       url:match('^(.*):'..event..'$'
+      --       self.zbus:call_async(path..':list',
+      --    end
+
+      j.set = 
          function(self,prop,val)
             self.zbus:call(prop..':set',val)
          end
 
-      j.get_property = 
+      j.get = 
          function(self,prop)
             return self.zbus:call(prop..':get')
          end
