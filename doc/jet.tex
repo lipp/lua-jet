@@ -1,0 +1,144 @@
+\documentclass[xelatex,hyperref={pdfpagelabels=false}]{beamer}
+
+\usetheme{hbm}
+
+\usepackage[ngerman]{babel}
+\usepackage[babel,ngerman=guillemets]{csquotes}
+\usepackage{fixltx2e}
+\usepackage{fontspec}
+\usepackage{xltxtra}
+\usepackage{xunicode}
+\usepackage{graphicx}
+
+\usepackage{listings}
+\usepackage{url}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows,backgrounds,fit,decorations.pathmorphing,positioning,chains,calc}
+
+
+\defaultfontfeatures{Mapping=tex-text}
+\setmainfont{Myriad Pro}
+\setsansfont{Myriad Pro}
+\setmonofont{Courier Std}
+
+\beamertemplatenavigationsymbolsempty
+
+\title[jet] % short title, used for footer
+{Funktionsweise von jet & jetcached}
+
+\author{Gerhard Lipp}
+
+\institute[T-GS/HBM]
+{
+    T-GS, Hottinger Baldwin Messtechnik GmbH\\
+    Tel: 49 (0) 6151 8038344\\
+    gerhard.lipp@hbm.com
+}
+
+\date{29. März 2012}
+
+\subject{Informatik}
+
+\begin{document}
+{
+\setbeamertemplate{footline}[hbm title]
+\setbeamertemplate{title page}[hbm]
+\begin{frame}
+  \titlepage
+\end{frame}
+}
+
+\setbeamertemplate{footline}[hbm]
+
+\begin{frame}[fragile]{Was ist jet?}
+\begin{block}{jet}
+\begin{itemize}
+\item Hierarchie
+\item Knoten
+\item Zustand
+\item Methoden
+\end{itemize}
+Kurz: Semantik für zbus.
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Was ist zbus?}
+\begin{block}{jet url}
+Bezeichnet eindeutig eine \emph{Methode} oder einen \emph{Zustand}.
+Impliziert eine \emph{Hierachie}.
+\end{block}
+\begin{listings}{Beispiel}
+system.uuid
+\end{listings}
+\end{frame}
+
+\begin{frame}[fragile]{Was ist zbus?}
+\begin{block}{zbus broker}
+Der zbus broker ist ein Prozess, der die Nachrichten, die beim Aufrufen
+von Methoden und absetzen von Notifications auftreten, verteilt bzw. routet.
+Dazu verwaltet er:
+\begin{itemize}
+  \item Replier (Teilnehmer, die Methoden anbieten)
+  \item Listener (Teilnehmer, die Notifications empfangen wollen)
+\end{itemize}
+Außerdem verwaltet er einen Pool von lokalen Socket URLs, die
+Teilnehmern zur Verfügung gestellt werden können.
+\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Welches Protokoll benutzt zbus?}
+zbus basiert sein Protokol ausschließlich auf ZeroMQ multi-part
+messages und simplen (unformatierten) Strings (für die Registry).
+\end{frame}
+
+\begin{frame}[fragile]{Motivation}
+\begin{itemize}
+  \item Funktionalität (in-)transparent über Prozesse verteilen
+  \item Notifications über Modulgrenzen hinweg ermöglichen
+  \item Effizienter sein als DBus
+  \item Flexibler sein als DBus
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Anforderungen an zbus Teilnehmer}
+\begin{itemize}
+\item zbus Teilnehmer müssen ZeroMQ ``sprechen''
+\item zbus Teilnehmer müssen in der Lage sein, eine
+  ZeroMQ Socketverbindung zum zbus Broker herzustellen. In der Regel
+  wird eine TCP Verbindung benutzt
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Methoden aufrufen}
+%\begin{center}
+\includegraphics[width=0.9\textheight,angle=270]{call_method.pdf}
+%\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{Notifications}
+%\begin{center}
+\includegraphics[width=\textheight,angle=270]{notifications.pdf}
+%\end{center}
+\end{frame}
+
+\begin{frame}[fragile]{Features}
+  \begin{itemize}
+    \item Anmelden von Methoden, und ``subscriben'' von Notifications
+      per Ausdruck (z.B.: ``example.*'')
+    \item Erkennen von nicht eindeutigen Methodenaufrufen
+    \item Batch-Notifications (in einer physicalischen Message)
+    \item ``Externes'' Verbinden an broker (von anderen Netzwerkknoten
+      / Devices)
+  \end{itemize}
+\end{frame}
+
+
+\setbeamertemplate{title page}[hbm last page][Danke schön!]
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\end{document}
+
+
