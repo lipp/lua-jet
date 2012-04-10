@@ -106,7 +106,8 @@ d:add_method('products.delete',
 d:add_method('add_numbers',
              function(a,b) 
 		return a+b
-             end
+             end,
+             {params={{class='double'},{class='double'}},result={class="double"}}
            )
 
 local points = 300
@@ -131,6 +132,7 @@ local timer_slow = ev.Timer.new(
    function()
       counter_slow = counter_slow + 1
       j:post_state('test.counter_slow',counter_slow)
+      j:post_schema('test.counter_slow',{class="int",min=counter_slow})
    end,0.1,arg[1] or 2)
 
 local timer_fast = ev.Timer.new(

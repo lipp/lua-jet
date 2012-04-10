@@ -107,7 +107,7 @@ local cache =
       return element
    end
 
-local update = 
+local on_value_change = 
    function(url,_,val)
       url = remove_method(url)
       local ok,entry = pcall(cache,url)
@@ -214,7 +214,8 @@ local add =
       end
    end
 
-zm:listen_add('^[^:]+:value$',update)
+zm:listen_add('^[^:]+:value$',on_value_change)
+zm:listen_add('^[^:]+:schema$',on_schema_change)
 zm:replier_add('^jet%.add$',add)
 zm:replier_add('^jet%.rem$',rem)
 
