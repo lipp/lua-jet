@@ -13,7 +13,7 @@ local tconcat = table.concat
 
 module('jet')
 
-local new_jet = 
+new = 
    function(config)
       config = config or {}
       local j = {}
@@ -35,27 +35,25 @@ local new_jet =
             local d = {}
             local zbus = self.zbus
             -- holds all 'set' callbacks
-            d.properties = {}
+            d.states = {}
             -- holds all method callbacks
             d.methods = {}
-            -- holds all monitors (just their names as key)
-            d.monitors = {}
             -- register 'set' method for this domain
             zbus:replier_add(
                exp..':set',
                function(url,val)
                   local delim = url:find(':')
                   local name = url:sub(1,delim-1)
-                  local prop = d.properties[name]
+                  local prop = d.states[name]
                   if not prop then
                      error({
-                              message = "no such property:"..url,
+                              message = "no such state:"..url,
                               code = 112
                            })
                   end
                   local ok,res = pcall(prop,val)
                   if ok then
-                     -- if 'd.properties[name]' returned a value, it is treated as 'real' value 
+                     -- if 'd.states[name]' returned a value, it is treated as 'real' value 
                      val = res or val
                      -- notify all interested zbus / jet clients and the jetcached about the new value
                      zbus:notify(name..':value',val)
@@ -81,16 +79,16 @@ local new_jet =
                   return method(...)
                end)
 
-            --- add a property.
-            -- jetcached holds copies of the properties' values and updates them on ':value' notification.
-            -- @param schema introspection of the property (i.e. min, max)
-            -- @param setf callback funrction for setting the property.
-            d.add_property = 
+            --- add a state.
+            -- jetcached holds copies of the states' values and updates them on ':value' notification.
+            -- @param schema introspection of the state (i.e. min, max)
+            -- @param setf callback funrction for setting the state.
+            d.add_state = 
                function(self,name,setf,initial_value,schema)
                   local fullname = domain..name
-                  self.properties[fullname] = setf
+                  self.states[fullname] = setf
                   local description = {
-                     type = 'property',
+                     type = 'state',
                      value = initial_value,
                      schema = schema
                   }
@@ -100,48 +98,29 @@ local new_jet =
                          end
                end
 
-            d.remove_property = 
+            d.remove_state = 
                function(self,name)
                   local fullname = domain..name
-                  if not self.properties[fullname] then
-                     error(fullname..' is not a property of domain '..domain)
+                  if not self.states[fullname] then
+                     error(fullname..' is not a state of domain '..domain)
                   end
                   zbus:call('jet.rem',fullname)
-                  self.properties[fullname] = nil
+                  self.states[fullname] = nil
                end
 
-            d.add_monitor = 
-               function(self,name,initial_value,schema)
-                  local fullname = domain..name
-                  self.monitors[fullname] = true
-                  local description = {
-                     type = 'monitor',
-                     value = initial_value,
-                     schema = schema
-                  }
-                  zbus:call('jet.add',fullname,description)
-                  return function(new_val)
-                            zbus:call(fullname..':value',new_val)
-                         end
-               end
-
-            d.remove_monitor = 
-               function(self,name)
-                  local fullname = domain..name
-                  if not self.monitors[fullname] then
-                     error(fullname..' is not a monitor of domain '..domain)
-                  end
-                  zbus:call('jet.rem',fullname)
-                  self.monitors[fullname] = nil
-               end
-
-            d.notify_value = 
+            d.post_state = 
                function(self,name,value)
                   local fullname = domain..name
                   zbus:notify(fullname..':value',value)
                end
+
+            d.post_schema = 
+               function(self,name,schema)
+                  local fullname = domain..name
+                  zbus:notify(fullname..':schema',schema)
+               end
             
-            d.notify_values = 
+            d.post_states = 
                function(self,nvp_array)
                   local len = #nvp_array
                   for i,nvp in ipairs(nvp_array) do		
@@ -168,28 +147,23 @@ local new_jet =
                      error(fullname..' is not a method of domain '..domain)
                   end
                   zbus:call('jet.rem',fullname)
-                  self.properties[fullname] = nil
+                  self.methods[fullname] = nil
                end
 
-            d.cleanup = 
+            d.remove_all = 
                function(self)
                   pcall(
                      function()
                         -- remove all properties
-                        for prop in pairs(self.properties) do
-                           zbus:call('jet.rem',prop)
+                        for state_name in pairs(self.states) do
+                           zbus:call('jet.rem',state_name)
                         end
-                        self.properties = {}
+                        self.states = {}
                         --remove all methods
                         for method in pairs(self.methods) do
                            zbus:call('jet.rem',method)
                         end
                         self.methods = {}
-                        -- remove all monitors
-                        for monitor in pairs(self.monitors) do
-                           zbus:call('jet.rem',monitor)
-                        end
-                        self.monitors = {}
                      end)
                end
             self.domains[domain] = d
@@ -257,17 +231,22 @@ local new_jet =
             return self.zbus:call(node..':list')
          end
 
-      j.notify_value = 
-         function(self,node,value)
-            self.zbus:notify(node..':value',value)
+      j.post_state = 
+         function(self,state_name,state_value)
+            self.zbus:notify(state_name..':value',state_value)
          end
 
-      j.notify_values = 
+      j.post_states = 
          function(self,nvp_array)
             local len = #nvp_array
             for i,nvp in ipairs(nvp_array) do		
                self.zbus:notify_more(nvp.name..':value',i~=len,nvp.value)
             end
+         end
+
+      j.post_schema = 
+         function(self,name,schema)
+            self.zbus:notify(name..':schema',schema)
          end
 
       j.on = 
@@ -344,7 +323,7 @@ local new_jet =
                                options.exit()
                             end
                             for _,domain in pairs(self.domains) do
-                               domain:cleanup()
+                               domain:remove_all()
                             end
                          end,
                   ios = options.ios or {}
@@ -362,7 +341,6 @@ local new_jet =
       return j 
    end
 
-new = new_jet
 return {
    new = new
 }
