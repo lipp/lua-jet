@@ -186,16 +186,21 @@ new =
          function(self,path,f)
             path = path or ''
             local fetched = {['']=true}
+            local recursive_list_complete
             self.zbus:listen_add(
                '^'..path..'.*',
                function(url_event,more,data)
-                  local parent = url_event:match('(.*)%.%a+') or ''
-                  if fetched[parent] then
-                     local url = url_event:match('(.+):')
-                     fetched[url] = true
-                     f(url_event,more,data)                     
+                  if not recursive_list_complete then
+                     local parent = url_event:match('(.*)%.%a+') or ''
+                     if fetched[parent] then
+                        local url = url_event:match('(.+):')
+                        fetched[url] = true
+                        f(url_event,more,data)                     
+                     end
+                  else
+                     f(url_event,more,data)
                   end
-               end
+               end               
             )
             local log_err = 
                function(...)
@@ -231,6 +236,7 @@ new =
                path..':list',
                function(childs)
                   fetch_childs(path,childs)
+                  recursive_list_complete = true                  
                end,log_err)
          end
 
