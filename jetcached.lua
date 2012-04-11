@@ -118,6 +118,17 @@ local on_value_change =
       end     
    end
 
+local on_schema_change = 
+   function(url,_,schema)
+      url = remove_method(url)
+      local ok,entry = pcall(cache,url)
+      if not ok then
+         log('error getting cache element',url,entry)
+      else	
+         entry.schema = schema
+      end     
+   end
+
 local rem = 
    function(_,url)
       local parts = {}
