@@ -195,8 +195,10 @@ new =
                end   
             local fetch_recursive
             local fetch_childs = 
-               function(parent,childs)                
-                  for name,desc in pairs(childs) do
+               function(parent,childs)
+                  local next = pairs(childs)
+                  local name,desc = next(childs)
+                  while name do
                      local child_path                     
                      if parent ~= '' then
                         child_path = parent..'.'..name
@@ -204,10 +206,12 @@ new =
                         child_path = name
                      end
                      fetched[child_path] = true
-                     f(child_path..':create',true,desc)
+                     local has_next = next(childs,name) and true or false
+                     f(child_path..':create',has_next,desc)
                      if desc.type == 'node' then
                         fetch_recursive(child_path)
                      end
+                     name,desc = next(childs,name)
                   end
                end
             fetch_recursive =
