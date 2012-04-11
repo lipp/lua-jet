@@ -67,12 +67,12 @@ ws_context = websockets.context{
                         function(url_event,more,data)
                            local url,event = url_event:match('^(.*):(%w+)$')
                            local n = {
-                              method = event,
-                              params = {url,data}
+                              method = url_event,
+                              params = {data}
                            }
                            tinsert(notifications,n)
                            if not more then
-                              ws:write(cjson.encode(notifications))
+                              ws:write(cjson.encode(notifications),wsWRITE_TEXT)
                               notifications = {}
                            end
                         end                        
