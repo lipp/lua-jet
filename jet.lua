@@ -185,10 +185,18 @@ new =
       j.fetch = 
          function(self,path,f)
             path = path or ''
-            local fetched = {}
+            local fetched = {['']=true}
             self.zbus:listen_add(
                '^'..path..'.*',
-               f)
+               function(url_event,more,data)
+                  local parent = url_event:match('(.*)%.%a+') or ''
+                  if fetched[parent] then
+                     local url = url_event:match('(.+):')
+                     fetched[url] = true
+                     f(url_event,more,data)                     
+                  end
+               end
+            )
             local log_err = 
                function(...)
                   print('fetch error',path,...)
