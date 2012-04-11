@@ -63,6 +63,14 @@ new =
                   end                
                end)
 
+            local set_read_only = 
+               function()
+                  error({
+                           message = 'state is read_only',
+                           code = 123
+                        })
+               end
+
             -- register call method for this domain
             zbus:replier_add(
                exp..':call',
@@ -86,12 +94,15 @@ new =
             d.add_state = 
                function(self,name,setf,initial_value,schema)
                   local fullname = domain..name
-                  self.states[fullname] = setf
+                  self.states[fullname] = setf or set_read_only
                   local description = {
                      type = 'state',
                      value = initial_value,
                      schema = schema
                   }
+                  if not setf then
+                     description.read_only = true
+                  end
                   zbus:call('jet.add',fullname,description)
                   return function(new_val)
                             zbus:call(fullname..':value',new_val)
