@@ -92,13 +92,16 @@ new =
             -- @param schema introspection of the state (i.e. min, max)
             -- @param setf callback funrction for setting the state.
             d.state = 
-               function(self,name,setf,initial_value,schema)
+               function(self,desc)
+                  local name = desc.name
+                  local setf = desc.set
+                  local initial_value = desc.value
                   local fullname = domain..name
                   self.states[fullname] = setf or set_read_only
                   local description = {
                      type = 'state',
-                     value = initial_value,
-                     schema = schema
+                     value = desc.value,
+                     schema = desc.schema
                   }
                   if not setf then
                      description.read_only = true
@@ -132,12 +135,16 @@ new =
                end
             
             d.method = 
-               function(self,name,f,schema)
+               function(self,desc)
+                  if not desc.call then
+                     error('no "call" specified')
+                  end
+                  local name = desc.name   
                   local fullname = domain..name
-                  self.methods[fullname] = f
+                  self.methods[fullname] = desc.call
                   local description = {
                      type = 'method',
-                     schema = schema
+                     schema = desc.schema
                   }
                   zbus:call('jet.add',fullname,description)
                   local remove = 
