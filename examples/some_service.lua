@@ -3,6 +3,13 @@ local j = jet.new{name='some_service'}
 local d = j:domain('test')
 local ev = require'ev'
 
+local assign = 
+   function(var)
+      return function(new_var)
+                var = new_var
+             end
+   end
+                  
 --local ok, err = pcall(function()
 local name = 'KLAUS'
 d:state('name',
@@ -15,52 +22,28 @@ d:state('name',
         end,name)
 
 local hobby = 'dance'
-d:state('hobby',
-        function(new_hobby)
-           hobby = new_hobby
-        end,hobby)
+d:state('hobby',assign(hobby),hobby)
 
 local freq = 100
-d:state('analog.filter.freq',
-        function(new_freq)
-           freq = new_freq
-        end,freq)
+d:state('analog.filter.freq',assign(freq),freq)
 
 local type = 'bessel'
-d:state('analog.filter.type',
-        function(new)
-           type = new
-        end,type)
+d:state('analog.filter.type',assign(type),type)
 
 local rate = 1000
-d:state('analog.sample_rate',
-        function(new)
-           rate = new
-        end,rate)
+d:state('analog.sample_rate',assign(rate),rate)
 
 local awe = 1000
-d:state('digital.is.great.and.awesome',
-        function(new)
-           awe = new
-        end,awe)
+d:state('digital.is.great.and.awesome',assign(awe),awe)
 
 local fluid = math.pi
-d:state('digital.is.great.and.fluid',
-        function(new)
-           fluid = new
-        end,fluid)
+d:state('digital.is.great.and.fluid',assign(fluid),fluid)
 
 local soon = "hallo"
-d:state('digital.is.great.and.soon',
-        function(new)
-           soon = new
-        end,soon)
+d:state('digital.is.great.and.soon',assign(soon),soon)
 
 local blabla = "aja"
-d:state('digital.was.blabla',
-        function(new)
-           blabla = new
-        end,blabla)
+d:state('digital.was.blabla',assign(blabla),blabla)
 
 local num = 12349
 d:state('digital.magic',
@@ -68,7 +51,6 @@ d:state('digital.magic',
            num = new + 0.1
            return num
         end,num)
-
 
 local products = {}
 d:method('products.create',
@@ -121,17 +103,10 @@ d:method('add_numbers',
       )
 
 local points = 300
-j:domain('horst'):state('skat.points',
-                        function(new) 
-                           points = new 
-                        end,points)
+j:domain('horst'):state('skat.points',assign(points),points)
 
 local fun = 'big'
-j:domain('horst'):state('skat.fun',
-                        function(new) 
-                           fun = new
-                        end,fun)
-
+j:domain('horst'):state('skat.fun',assign(fun),fun)
 
 local counter_slow = 0
 local slow = j:domain('test'):state('counter_slow',counter_slow)
