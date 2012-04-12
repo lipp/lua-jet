@@ -91,7 +91,7 @@ new =
             -- jetcached holds copies of the states' values and updates them on ':value' notification.
             -- @param schema introspection of the state (i.e. min, max)
             -- @param setf callback funrction for setting the state.
-            d.add_state = 
+            d.state = 
                function(self,name,setf,initial_value,schema)
                   local fullname = domain..name
                   self.states[fullname] = setf or set_read_only
@@ -104,43 +104,34 @@ new =
                      description.read_only = true
                   end
                   zbus:call('jet.add',fullname,description)
-                  return function(new_val)
-                            zbus:call(fullname..':value',new_val)
-                         end
-               end
-
-            d.remove_state = 
-               function(self,name)
-                  local fullname = domain..name
-                  if not self.states[fullname] then
-                     error(fullname..' is not a state of domain '..domain)
-                  end
-                  zbus:call('jet.rem',fullname)
-                  self.states[fullname] = nil
-               end
-
-            d.post_state = 
-               function(self,name,value)
-                  local fullname = domain..name
-                  zbus:notify(fullname..':value',value)
-               end
-
-            d.post_schema = 
-               function(self,name,schema)
-                  local fullname = domain..name
-                  zbus:notify(fullname..':schema',schema)
+                  local change = 
+                     function(_self_,what,more)
+                        local val = what.value
+                        local schema = what.schema
+                        if val and schema then
+                           zbus:notify_more(fullname..':schema',true,schema)
+                           zbus:notify_more(fullname..':value',more,val)
+                        elseif val then
+                           zbus:notify_more(fullname..':value',more,val)
+                        elseif schema then
+                           zbus:notify_more(fullname..':schema',more,schema)
+                        end
+                     end
+                  local remove = 
+                     function()
+                        if not self.states[fullname] then
+                           error(fullname..' is not a state of domain '..domain)
+                        end
+                        zbus:call('jet.rem',fullname)
+                        self.states[fullname] = nil
+                     end
+                  return {
+                     remove = remove,
+                     change = change
+                  }                  
                end
             
-            d.post_states = 
-               function(self,nvp_array)
-                  local len = #nvp_array
-                  for i,nvp in ipairs(nvp_array) do		
-                     local fullname = domain..nvp.name
-                     zbus:notify_more(fullname..':value',i~=len,nvp.value)
-                  end
-               end
-
-            d.add_method = 
+            d.method = 
                function(self,name,f,schema)
                   local fullname = domain..name
                   self.methods[fullname] = f
@@ -149,16 +140,17 @@ new =
                      schema = schema
                   }
                   zbus:call('jet.add',fullname,description)
-               end
-
-            d.remove_method = 
-               function(self,name)
-                  local fullname = domain..name
-                  if not self.methods[fullname] then
-                     error(fullname..' is not a method of domain '..domain)
-                  end
-                  zbus:call('jet.rem',fullname)
-                  self.methods[fullname] = nil
+                  local remove = 
+                     function()
+                        if not self.methods[fullname] then
+                           error(fullname..' is not a method of domain '..domain)
+                        end
+                        zbus:call('jet.rem',fullname)
+                        self.methods[fullname] = nil
+                     end
+                  return {
+                     remove = remove
+                  }
                end
 
             d.remove_all = 
@@ -180,7 +172,6 @@ new =
             self.domains[domain] = d
             return d
          end -- domain 
-
       
       j.fetch = 
          function(self,path,f)
@@ -195,7 +186,7 @@ new =
                      if fetched[parent] then
                         local url = url_event:match('(.+):')
                         fetched[url] = true
-                        f(url_event,more,data)                     
+                        f(url_event,false,data)                     
                      end
                   else
                      f(url_event,more,data)
@@ -206,6 +197,7 @@ new =
                function(...)
                   print('fetch error',path,...)
                end   
+            local fetch_more = true
             local fetch_recursive
             local fetch_childs = 
                function(parent,childs)
@@ -218,9 +210,12 @@ new =
                      else
                         child_path = name
                      end
+                     local is_last_child = (not next(childs,name) and parent==path) or false
+                     if is_last_child then
+                        fetch_more = false
+                     end                     
+                     f(child_path..':create',fetch_more,desc)
                      fetched[child_path] = true
-                     local has_next = next(childs,name) and true or false
-                     f(child_path..':create',has_next,desc)
                      if desc.type == 'node' then
                         fetch_recursive(child_path)
                      end
@@ -237,6 +232,7 @@ new =
                function(childs)
                   fetch_childs(path,childs)
                   recursive_list_complete = true                  
+                  fetched = nil
                end,log_err)
          end
 
@@ -258,24 +254,6 @@ new =
       j.list = 
          function(self,node)
             return self.zbus:call(node..':list')
-         end
-
-      j.post_state = 
-         function(self,state_name,state_value)
-            self.zbus:notify(state_name..':value',state_value)
-         end
-
-      j.post_states = 
-         function(self,nvp_array)
-            local len = #nvp_array
-            for i,nvp in ipairs(nvp_array) do		
-               self.zbus:notify_more(nvp.name..':value',i~=len,nvp.value)
-            end
-         end
-
-      j.post_schema = 
-         function(self,name,schema)
-            self.zbus:notify(name..':schema',schema)
          end
 
       j.on = 
