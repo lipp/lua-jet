@@ -6,121 +6,121 @@ local ev = require'ev'
 --local ok, err = pcall(function()
 local name = 'KLAUS'
 d:state('name',
-	       function(new_name)
-		  if #new_name > 3 and #new_name < 10 then
-		     name = new_name
-		  else
-		     error{message='name too long',code=123}
-		  end
-	       end,name)
+        function(new_name)
+           if #new_name > 3 and #new_name < 10 then
+              name = new_name
+           else
+              error{message='name too long',code=123}
+           end
+        end,name)
 
 local hobby = 'dance'
 d:state('hobby',
-	       function(new_hobby)
-		  hobby = new_hobby
-	       end,hobby)
+        function(new_hobby)
+           hobby = new_hobby
+        end,hobby)
 
 local freq = 100
 d:state('analog.filter.freq',
-	       function(new_freq)
-		  freq = new_freq
-	       end,freq)
+        function(new_freq)
+           freq = new_freq
+        end,freq)
 
 local type = 'bessel'
 d:state('analog.filter.type',
-	       function(new)
-		  type = new
-	       end,type)
+        function(new)
+           type = new
+        end,type)
 
 local rate = 1000
 d:state('analog.sample_rate',
-	       function(new)
-		  rate = new
-	       end,rate)
+        function(new)
+           rate = new
+        end,rate)
 
 local awe = 1000
 d:state('digital.is.great.and.awesome',
-	       function(new)
-		  awe = new
-           end,awe)
+        function(new)
+           awe = new
+        end,awe)
 
 local fluid = math.pi
 d:state('digital.is.great.and.fluid',
-           function(new)
-             fluid = new
-           end,fluid)
+        function(new)
+           fluid = new
+        end,fluid)
 
 local soon = "hallo"
 d:state('digital.is.great.and.soon',
-           function(new)
-             soon = new
-           end,soon)
+        function(new)
+           soon = new
+        end,soon)
 
 local blabla = "aja"
 d:state('digital.was.blabla',
-           function(new)
-             blabla = new
-           end,bllabla)
+        function(new)
+           blabla = new
+        end,blabla)
 
 local num = 12349
 d:state('digital.magic',
-           function(new)
-             num = new + 0.1
-             return num
-           end,num)
+        function(new)
+           num = new + 0.1
+           return num
+        end,num)
 
 d:method('delete_prop',
-             function(prop) 
-               d:remove_state(prop)
-               return 
-             end
-           )
+         function(prop) 
+            d:remove_state(prop)
+            return 
+         end
+      )
 
 d:method('products.create',
-             function(prop) 
-               local a = 1
-               local b = 2
-               local c = 3
-               d:state('products.'..prop..'.a',function(new)
-                                                        a = new
-                                                      end,a)
-               d:state('products.'..prop..'.b',function(new)
-                                                        b = new
-                                                      end,b)
-               d:state('products.'..prop..'.c',function(new)
-                                                        c = new
-                                                      end,c)
-               return 
-             end
-           )
+         function(prop) 
+            local a = 1
+            local b = 2
+            local c = 3
+            d:state('products.'..prop..'.a',function(new)
+                                               a = new
+                                            end,a)
+            d:state('products.'..prop..'.b',function(new)
+                                               b = new
+                                            end,b)
+            d:state('products.'..prop..'.c',function(new)
+                                               c = new
+                                            end,c)
+            return 
+         end
+      )
 
 d:method('products.delete',
-             function(product) 
-		d:remove_state('products.'..product..'.a')
-		d:remove_state('products.'..product..'.b')
-		d:remove_state('products.'..product..'.c')
-               return 
-             end
-           )
+         function(product) 
+            d:remove_state('products.'..product..'.a')
+            d:remove_state('products.'..product..'.b')
+            d:remove_state('products.'..product..'.c')
+            return 
+         end
+      )
 
 d:method('add_numbers',
-             function(a,b) 
-		return a+b
-             end,
-             {params={{class='double'},{class='double'}},result={class="double"}}
-           )
+         function(a,b) 
+            return a+b
+         end,
+         {params={{class='double'},{class='double'}},result={class="double"}}
+      )
 
 local points = 300
 j:domain('horst'):state('skat.points',
-                               function(new) 
-                                 points = new 
-                               end,points)
+                        function(new) 
+                           points = new 
+                        end,points)
 
 local fun = 'big'
 j:domain('horst'):state('skat.fun',
-                               function(new) 
-                                 fun = new
-                               end,fun)
+                        function(new) 
+                           fun = new
+                        end,fun)
 
 
 local counter_slow = 0
