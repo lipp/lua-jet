@@ -69,37 +69,47 @@ d:state('digital.magic',
            return num
         end,num)
 
-d:method('delete_prop',
-         function(prop) 
-            d:remove_state(prop)
-            return 
-         end
-      )
 
+local products = {}
 d:method('products.create',
-         function(prop) 
+         function(name) 
+            if products[name] then
+               error{
+                  message = 'product already exists:'..name,
+                  code = 123
+               }
+            end
+            products[name] = {}            
             local a = 1
+            products[name].a = d:state('products.'..name..'.a',
+                    function(new)
+                       a = new
+                    end,a)
             local b = 2
+            products[name].b = d:state('products.'..name..'.b',
+                    function(new)
+                       b = new
+                    end,b)
             local c = 3
-            d:state('products.'..prop..'.a',function(new)
-                                               a = new
-                                            end,a)
-            d:state('products.'..prop..'.b',function(new)
-                                               b = new
-                                            end,b)
-            d:state('products.'..prop..'.c',function(new)
-                                               c = new
-                                            end,c)
-            return 
+            products[name].c = d:state('products.'..name..'.c',
+                    function(new)
+                       c = new
+                    end,c)
+            
          end
       )
 
 d:method('products.delete',
-         function(product) 
-            d:remove_state('products.'..product..'.a')
-            d:remove_state('products.'..product..'.b')
-            d:remove_state('products.'..product..'.c')
-            return 
+         function(name) 
+            if not products[name] then
+               error{
+                  message = 'product does not exists:'..name,
+                  code = 123
+               }
+            end
+            products[name].a:remove()
+            products[name].b:remove()
+            products[name].c:remove()
          end
       )
 
@@ -158,8 +168,3 @@ local timer_fast = ev.Timer.new(
    end,0.0001,arg[2] or 1)
 
 j:loop{ios={timer_slow,timer_fast}}
--- end)
-
--- if not ok then
---    print(err.message,err.code,err)
--- end
