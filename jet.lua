@@ -10,6 +10,9 @@ local print = print
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
+local log = function(...)
+               print('jet module',...)
+            end
 
 module('jet')
 
@@ -34,17 +37,18 @@ new =
             end
             local d = {}
             local zbus = self.zbus
+
             -- holds all 'set' callbacks
-            d.states = {}
+            d._states = {}
             -- holds all method callbacks
-            d.methods = {}
+            d._methods = {}
             -- register 'set' method for this domain
             zbus:replier_add(
                exp..':set',
                function(url,val)
                   local delim = url:find(':')
                   local name = url:sub(1,delim-1)
-                  local prop = d.states[name]
+                  local prop = d._states[name]
                   if not prop then
                      error({
                               message = "no such state:"..url,
@@ -77,7 +81,7 @@ new =
                function(url,...)
                   local delim = url:find(':')
                   local name = url:sub(1,delim-1)
-                  local method = d.methods[name]
+                  local method = d._methods[name]
                   if not method then
                      error({
                               message = "no such method:" ..url,
@@ -87,77 +91,120 @@ new =
                   return method(...)
                end)
 
-            --- add a state.
-            -- jetcached holds copies of the states' values and updates them on ':value' notification.
-            -- @param schema introspection of the state (i.e. min, max)
-            -- @param setf callback funrction for setting the state.
             d.state = 
-               function(self,desc)
-                  local name = desc.name
-                  local setf = desc.set
-                  local initial_value = desc.value
-                  local fullname = domain..name
-                  self.states[fullname] = setf or set_read_only
-                  local description = {
-                     type = 'state',
-                     value = desc.value,
-                     schema = desc.schema
+               function(self,descs) 
+                  local name,desc = pairs(descs)(descs)
+                  local states = self:states{
+                     [name] = desc
                   }
-                  if not setf then
-                     description.read_only = true
-                  end
-                  zbus:call('jet.add',fullname,description)
-                  local change = 
-                     function(_self_,what,more)
-                        local val = what.value
-                        local schema = what.schema
-                        if val and schema then
-                           zbus:notify_more(fullname..':schema',true,schema)
-                           zbus:notify_more(fullname..':value',more,val)
+                  return states[name]
+               end
+
+            d.states = 
+               function(self,descs)
+                  local states = {}
+                  local much = {}
+                  for name,desc in pairs(descs) do
+                     print('add state',name)
+                     local setf = desc.set
+                     local initial_value = desc.value
+                     local fullname = domain..name
+                     self._states[fullname] = setf or set_read_only
+                     local description = {
+                        type = 'state',
+                        value = desc.value,
+                        schema = desc.schema
+                     }
+                     if not setf then
+                        description.read_only = true
+                     end
+                     local change = 
+                        function(_self_,what,more)
+                           local val = what.value
+                           local schema = what.schema
+                           if val and schema then
+                              zbus:notify_more(fullname..':schema',true,schema)
+                              zbus:notify_more(fullname..':value',more,val)
                         elseif val then
                            zbus:notify_more(fullname..':value',more,val)
                         elseif schema then
                            zbus:notify_more(fullname..':schema',more,schema)
                         end
                      end
-                  local remove = 
-                     function()
-                        if not self.states[fullname] then
-                           error(fullname..' is not a state of domain '..domain)
+                     local remove = 
+                        function()
+                           if not self._states[fullname] then
+                              error(fullname..' is not a state of domain '..domain)
+                           end
+                           print('REM',fullname)
+                           zbus:call('jet.rem',fullname)
+                           self._states[fullname] = nil
                         end
-                        zbus:call('jet.rem',fullname)
-                        self.states[fullname] = nil
+                     states[name] = {
+                        remove = remove,
+                        change = change
+                     }  
+                     much[fullname] = description
+                     print('add state end',name)
+                  end
+                  zbus:call('jet.add_much',much)                
+                  local remove_all = 
+                     function()
+                        local state_names = {}
+                        for name in pairs(states) do
+                           tinsert(state_names,domain..name)
+                        end
+                        zbus:call('jet.rem_much',state_names)                
                      end
-                  return {
-                     remove = remove,
-                     change = change
-                  }                  
+                  return states,remove_all
+               end
+
+            d.method = 
+               function(self,descs) 
+                  local name,desc = pairs(descs)(descs)
+                  local methods = self:methods{
+                     [name] = desc
+                  }
+                  return methods[name]
                end
             
-            d.method = 
-               function(self,desc)
-                  if not desc.call then
-                     error('no "call" specified')
-                  end
-                  local name = desc.name   
-                  local fullname = domain..name
-                  self.methods[fullname] = desc.call
-                  local description = {
-                     type = 'method',
-                     schema = desc.schema
-                  }
-                  zbus:call('jet.add',fullname,description)
-                  local remove = 
-                     function()
-                        if not self.methods[fullname] then
-                           error(fullname..' is not a method of domain '..domain)
-                        end
-                        zbus:call('jet.rem',fullname)
-                        self.methods[fullname] = nil
+            d.methods = 
+               function(self,descs)
+                  local methods = {}
+                  local much = {}
+                  for name,desc in pairs(descs) do
+                     if not desc.call then
+                        error('no "call" specified')
                      end
-                  return {
-                     remove = remove
-                  }
+                     local fullname = domain..name
+                     self._methods[fullname] = desc.call
+                     local description = {
+                        type = 'method',
+                        schema = desc.schema
+                     }
+                     local remove = 
+                        function()
+                           if not self._methods[fullname] then
+                              error(fullname..' is not a method of domain '..domain)
+                           end
+                           zbus:call('jet.rem',fullname)
+                           self._methods[fullname] = nil
+                        end
+                     methods[name] = {
+                        remove = remove
+                     }
+                     much[fullname] = description
+                  end
+                  zbus:call('jet.add_much',much)
+                  local remove_all = 
+                     function()
+                        local method_names = {}
+                        for name in pairs(method) do
+                           tinsert(method_names,domain..name)
+                        end
+                        zbus:call('jet.rem_much',method_names)                
+                     end                  
+                  return methods,remove_all
                end
 
             d.remove_all = 
@@ -165,20 +212,28 @@ new =
                   pcall(
                      function()
                         -- remove all properties
-                        for state_name in pairs(self.states) do
-                           zbus:call('jet.rem',state_name)
+                        local state_names = {}
+                        for name in pairs(self._states) do
+                           tinsert(state_names,name)
                         end
-                        self.states = {}
+                        zbus:call('jet.rem_much',state_names)                
+                        self._states = {}
                         --remove all methods
-                        for method in pairs(self.methods) do
-                           zbus:call('jet.rem',method)
+                        local method_names = {}
+                        for name in pairs(self._methods) do
+                           tinsert(method_names,name)
                         end
-                        self.methods = {}
+                        zbus:call('jet.rem_much',method_names)                
+                        self._methods = {}
                      end)
                end
             self.domains[domain] = d
             return d
          end -- domain 
+
+      j.unfetch = 
+         function()
+         end
       
       j.fetch = 
          function(self,path,f)
@@ -206,6 +261,7 @@ new =
                end   
             local fetch_more = true
             local fetch_recursive
+            local fetch_count = 0
             local fetch_childs = 
                function(parent,childs)
                   local next = pairs(childs)
@@ -221,7 +277,16 @@ new =
                      if is_last_child then
                         fetch_more = false
                      end                     
-                     f(child_path..':create',fetch_more,desc)
+                     if fetch_more then
+                        fetch_count = fetch_count + 1
+                     end
+                     local more = fetch_count < 20 and fetch_more
+--                     print('fetch_more',fetch_more,'fetch_count',fetch_count,more,is_last_child)
+                     f(child_path..':create',more,desc)
+                     if fetch_count == 20 then
+                        fetch_count = 0
+                     end
+--                     f(child_path..':create',false,desc)
                      fetched[child_path] = true
                      if desc.type == 'node' then
                         fetch_recursive(child_path)
