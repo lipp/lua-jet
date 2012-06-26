@@ -1,4 +1,4 @@
-#!/usr/bin/env lua
+#!/usr/bin/lua
 local zmember = require'zbus.member'
 local zbus_config = require'zbus.json'
 zbus_config.name = 'jet.cached'
@@ -130,7 +130,7 @@ local on_schema_change =
    end
 
 local rem = 
-   function(_,url)
+   function(_,url,more)
       local parts = {}
       for part in url:gmatch('[^%.]+') do
          tinsert(parts,part)
@@ -163,7 +163,7 @@ local rem =
          element[parts[#parts]] = nil
          element:decrement()
          log('rem',url)
-         zm:notify(url..':delete',{type=type})
+         zm:notify_more(url..':delete',more,{type=type})
       end
       elements[0] = _cache
       for i=#elements,1,-1 do
@@ -173,7 +173,7 @@ local rem =
             elements[i-1]:decrement()
             local url = tconcat(parts,'.',1,i)
             log('rem',url)
-            zm:notify(url..':delete',{type='node'})
+            zm:notify_more(url..':delete',more,{type='node'})
          else
             local url = tconcat(parts,'.',1,i)
          end
@@ -181,7 +181,8 @@ local rem =
    end
 
 local add = 
-   function(_,url,description)
+   function(_,url,description,more)
+      log('jetcache.add',url,more)
       local parts = {}
       description = description or {}
       for part in url:gmatch('[^%.]+') do
@@ -206,13 +207,13 @@ local add =
          if i==#parts then
             if element then
                local msg = 'node '..part.. '('..tconcat(parts,'.')..') occupied'
-               log(msg)           
+               log(msg,element)           
                error(server_error(msg))
             else
                last[part] = description
                last:increment()
-               log('add',url)
-               zm:notify_more(url..':create',false,description)
+            --   log('add',url)
+               zm:notify_more(url..':create',more,description)
             end
          elseif not element then 
             last[part] = new_node()        
@@ -220,15 +221,47 @@ local add =
             last:increment()
             local new_url = tconcat(parts,'.',1,i)        
             zm:notify_more(new_url..':create',true,{type='node'})
-            log('add',new_url,parts[i-1],last:count())
          end
       end
    end
 
+local add_much = 
+   function(_,much)
+      local added = {}
+      local next = pairs(much)
+      local url,desc = next(much)
+      while url do
+         local url2,desc2 = url,desc
+         url,desc = next(much,url)
+         local ok,err = pcall(add,_,url2,desc2,url)
+         if ok then
+            tinsert(added,url)
+         else
+            for _,rem_url in ipairs(added) do
+               pcall(rem,_,url)
+            end
+            error(err)
+         end
+      end
+   end
+
+local rem_much = 
+   function(_,url_array)
+      log('remove_much')
+      local len = #url_array
+      for i,url in ipairs(url_array) do
+         log('DEMY',url,i~=len)
+         pcall(rem,_,url,i~=len)
+      end
+   end
+
+
 zm:listen_add('^[^:]+:value$',on_value_change)
 zm:listen_add('^[^:]+:schema$',on_schema_change)
 zm:replier_add('^jet%.add$',add)
+zm:replier_add('^jet%.add_much$',add_much)
 zm:replier_add('^jet%.rem$',rem)
+zm:replier_add('^jet%.rem_much$',rem_much)
 
 zm:replier_add(
    '^.*:list$',
@@ -255,7 +288,15 @@ zm:replier_add(
    '^.*:get$',
    function(url)
       local property_or_monitor = remove_method(url)
-      return cache(property_or_monitor).value
+      local ok,val = pcall(function()
+               return cache(property_or_monitor).value
+            end)
+      print('jetcached:get',url,ok,val)
+      if property_or_monitor=='system.uuid' then
+         return '0xabcfdf'
+      else
+         return val
+      end
    end)
 
 zm:loop()
