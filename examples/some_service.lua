@@ -112,13 +112,6 @@ d:method{
 }
 }
 
-local points = 300
-j:domain('horst'):state{
-   name = 'skat.points',
-   set = assign(points),
-   value = points
-}
-
 local counter_slow = 0
 local slow = j:domain('test'):state{
    ['counter_slow'] = {
