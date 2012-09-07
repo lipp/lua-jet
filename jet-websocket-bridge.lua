@@ -23,6 +23,7 @@ ws_context = websockets.context{
    port = arg[1] or 8004,
    on_add_fd = 
       function(fd)	
+         assert(fd > -1)
 	 local io = ev.IO.new(
 	    function()
 	       ws_context:service(0)
@@ -32,6 +33,7 @@ ws_context = websockets.context{
       end,
    on_del_fd = 
       function(fd)
+         assert(fd > -1)
 	 ws_ios[fd]:stop(ev.Loop.default)
 	 ws_ios[fd] = nil
       end,
@@ -63,7 +65,7 @@ ws_context = websockets.context{
                   if method == 'fetch' then
                      local notifications = {}
                      jeti:fetch(
-                        '',
+                        '.*',
                         function(url_event,more,data)
                            local url,event = url_event:match('^(.*):(%w+)$')
                            local n = {

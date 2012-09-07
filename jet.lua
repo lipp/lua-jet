@@ -55,12 +55,14 @@ new =
                               code = 112
                            })
                   end
-                  local ok,res = pcall(prop,val)
+                  local ok,res,dont_notify = pcall(prop,val)
                   if ok then
                      -- if 'd.states[name]' returned a value, it is treated as 'real' value 
                      val = res or val
                      -- notify all interested zbus / jet clients and the jetcached about the new value
-                     zbus:notify(name..':value',val)
+                     if not dont_notify then
+                        zbus:notify(name..':value',val)
+                     end
                   else
                      -- forward error
                      error(res)
@@ -105,7 +107,6 @@ new =
                   local states = {}
                   local much = {}
                   for name,desc in pairs(descs) do
-                     print('add state',name)
                      local setf = desc.set
                      local initial_value = desc.value
                      local fullname = domain..name
@@ -126,6 +127,7 @@ new =
                               zbus:notify_more(fullname..':schema',true,schema)
                               zbus:notify_more(fullname..':value',more,val)
                         elseif val then
+                           _self_.value = val
                            zbus:notify_more(fullname..':value',more,val)
                         elseif schema then
                            zbus:notify_more(fullname..':schema',more,schema)
@@ -136,16 +138,16 @@ new =
                            if not self._states[fullname] then
                               error(fullname..' is not a state of domain '..domain)
                            end
-                           print('REM',fullname)
                            zbus:call('jet.rem',fullname)
                            self._states[fullname] = nil
                         end
                      states[name] = {
+                        set = setf,
+                        value = desc.value,
                         remove = remove,
                         change = change
                      }  
                      much[fullname] = description
-                     print('add state end',name)
                   end
                   zbus:call('jet.add_much',much)                
                   local remove_all = 
@@ -231,82 +233,29 @@ new =
             return d
          end -- domain 
 
-      j.unfetch = 
-         function()
-         end
+      j.unfetch = function(self,path)
+         self.zbus:listen_remove('^'..path)
+      end
       
-      j.fetch = 
-         function(self,path,f)
-            path = path or ''
-            local fetched = {['']=true}
-            local recursive_list_complete
-            self.zbus:listen_add(
-               '^'..path..'.*',
-               function(url_event,more,data)
-                  if not recursive_list_complete then
-                     local parent = url_event:match('(.*)%.%a+') or ''
-                     if fetched[parent] then
-                        local url = url_event:match('(.+):')
-                        fetched[url] = true
-                        f(url_event,false,data)                     
-                     end
-                  else
-                     f(url_event,more,data)
-                  end
-               end               
-            )
-            local log_err = 
-               function(...)
-                  print('fetch error',path,...)
-               end   
-            local fetch_more = true
-            local fetch_recursive
-            local fetch_count = 0
-            local fetch_childs = 
-               function(parent,childs)
-                  local next = pairs(childs)
-                  local name,desc = next(childs)
-                  while name do
-                     local child_path                     
-                     if parent ~= '' then
-                        child_path = parent..'.'..name
-                     else
-                        child_path = name
-                     end
-                     local is_last_child = (not next(childs,name) and parent==path) or false
-                     if is_last_child then
-                        fetch_more = false
-                     end                     
-                     if fetch_more then
-                        fetch_count = fetch_count + 1
-                     end
-                     local more = fetch_count < 20 and fetch_more
---                     print('fetch_more',fetch_more,'fetch_count',fetch_count,more,is_last_child)
-                     f(child_path..':create',more,desc)
-                     if fetch_count == 20 then
-                        fetch_count = 0
-                     end
---                     f(child_path..':create',false,desc)
-                     fetched[child_path] = true
-                     if desc.type == 'node' then
-                        fetch_recursive(child_path)
-                     end
-                     name,desc = next(childs,name)
-                  end
-               end
-            fetch_recursive =
-               function(path)
-                  local childs = self.zbus:call(path..':list')
-                  fetch_childs(path,childs)
-               end
-            self.zbus:call_async(
-               path..':list',
-               function(childs)
-                  fetch_childs(path,childs)
-                  recursive_list_complete = true                  
-                  fetched = nil
-               end,log_err)
+      j.fetch = function(self,expr,f)
+         -- to prevent missing events during fetch call,
+         -- register listener first. events which occur until
+         -- return of this call will be forwarded to this
+         -- process and will be queued by the socket
+         -- and will be automatically worked off later on.
+         -- NOTE: this process is single threaded and this call will
+         -- never ever be preempted, so dont worry about f being
+         -- called between
+         -- HERE
+         self.zbus:listen_add('^'..expr,f)
+         local matches = self.zbus:call('jet.fetch',expr)            
+         for i,match in ipairs(matches) do
+            local name = match.name
+            match.name = nil
+            f(name..':create',i~=#matches,match)
          end
+         -- AND HERE
+      end
 
       j.set = 
          function(self,prop,val)
@@ -396,17 +345,16 @@ new =
             self.looping = true
             if not self.unlooped then
                local options = options or {}
-               self.zbus:loop{
-                  exit = function()
-                            if options.exit then
-                               options.exit()
-                            end
-                            for _,domain in pairs(self.domains) do
-                               domain:remove_all()
-                            end
-                         end,
-                  ios = options.ios or {}
-               }
+               local oexit = options.exit
+               options.exit = function()
+                  if oexit then
+                     oexit()
+                  end
+                  for _,domain in pairs(self.domains) do
+                     domain:remove_all()
+                  end
+               end
+               self.zbus:loop(options)
             end
          end
 

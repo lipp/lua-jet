@@ -64,7 +64,7 @@ local new_node =
          })
    end
 
-local _cache = new_node()
+local root = new_node()
 local is_node = 
    function(candidate)
       return getmetatable(candidate) ~= nil
@@ -78,7 +78,7 @@ local remove_method =
 local cache = 
    function(url)
       if not url or #url==0 then
-         return _cache
+         return root
       end
       local parts = {}
       for part in url:gmatch('[^%.]+') do
@@ -89,7 +89,7 @@ local cache =
          log(msg)
          error(method_not_found(url,msg))
       end
-      local element = _cache
+      local element = root
       local last
       for i=1,#parts do
          local part = parts[i]
@@ -140,7 +140,7 @@ local rem =
          log(msg)
          error(server_error(msg))
       end
-      local element = _cache
+      local element = root
       local elements = {}
       local last
       for i=1,#parts-1 do
@@ -162,17 +162,17 @@ local rem =
          local type = element[parts[#parts]].type
          element[parts[#parts]] = nil
          element:decrement()
-         log('rem',url)
+         log('rem',url,more)
          zm:notify_more(url..':delete',more,{type=type})
       end
-      elements[0] = _cache
+      elements[0] = root
       for i=#elements,1,-1 do
          local el = elements[i]
          if el:empty() then
             elements[i-1][parts[i]] = nil
             elements[i-1]:decrement()
             local url = tconcat(parts,'.',1,i)
-            log('rem',url)
+            log('rem 2',url,more)
             zm:notify_more(url..':delete',more,{type='node'})
          else
             local url = tconcat(parts,'.',1,i)
@@ -182,7 +182,7 @@ local rem =
 
 local add = 
    function(_,url,description,more)
-      log('jetcache.add',url,more)
+--      log('jetcache.add',url,more)
       local parts = {}
       description = description or {}
       for part in url:gmatch('[^%.]+') do
@@ -193,7 +193,7 @@ local add =
          log(msg)
          error(server_error(msg))
       end
-      local element = _cache
+      local element = root
       local last
       for i=1,#parts do
          local part = parts[i]
@@ -207,19 +207,20 @@ local add =
          if i==#parts then
             if element then
                local msg = 'node '..part.. '('..tconcat(parts,'.')..') occupied'
-               log(msg,element)           
+               log(msg,element)
                error(server_error(msg))
             else
                last[part] = description
                last:increment()
-            --   log('add',url)
+--               log('add',url,more)
                zm:notify_more(url..':create',more,description)
             end
-         elseif not element then 
-            last[part] = new_node()        
-            element = last[part]        
+         elseif not element then
+            last[part] = new_node()
+            element = last[part]
             last:increment()
-            local new_url = tconcat(parts,'.',1,i)        
+            local new_url = tconcat(parts,'.',1,i)
+--            log('add 2',new_url)
             zm:notify_more(new_url..':create',true,{type='node'})
          end
       end
@@ -247,10 +248,10 @@ local add_much =
 
 local rem_much = 
    function(_,url_array)
-      log('remove_much')
+--      log('remove_much')
       local len = #url_array
       for i,url in ipairs(url_array) do
-         log('DEMY',url,i~=len)
+--         log('DEMY',url,i~=len)
          pcall(rem,_,url,i~=len)
       end
    end
@@ -266,7 +267,7 @@ zm:replier_add('^jet%.rem_much$',rem_much)
 zm:replier_add(
    '^.*:list$',
    function(url)
-      --    print('cache',_cache.horst,_cache.horst and _cache.horst.name)
+      --    print('cache',root.horst,root.horst and root.horst.name)
       local name = remove_method(url)
       local element = cache(name)
       if not is_node(element) then      
@@ -285,18 +286,56 @@ zm:replier_add(
    end)
 
 zm:replier_add(
+   '^jet%.fetch$',
+   function(_,expr)
+--      log('fetch',expr)      
+      local matches = {}
+      local explore_childs
+      
+      explore_childs = function(node,prevname)
+         for childname,child in pairs(node) do
+            local fullname
+            if prevname then
+               fullname = prevname..'.'..childname
+            else
+               fullname = childname
+            end
+            if fullname:match(expr) then
+               if is_node(child) then                  
+                  tinsert(matches,{name=fullname,type='node'})
+               else
+                  child.name = fullname
+                  tinsert(matches,child)
+               end
+            end
+            if is_node(child) then      
+               explore_childs(child,fullname)
+            end
+         end
+      end
+      explore_childs(root)
+      return matches
+   end)
+ 
+zm:replier_add(
    '^.*:get$',
    function(url)
       local property_or_monitor = remove_method(url)
-      local ok,val = pcall(function()
-               return cache(property_or_monitor).value
-            end)
-      print('jetcached:get',url,ok,val)
-      if property_or_monitor=='system.uuid' then
-         return '0xabcfdf'
-      else
-         return val
-      end
+      return cache(property_or_monitor).value
    end)
 
-zm:loop()
+local daemonize
+for _,opt in ipairs(arg) do
+   if opt == '-d' or opt == '--daemon' then      
+      local ffi = require'ffi'
+      if not ffi then
+         log('daemonizing failed: ffi (luajit) is required.')
+         os.exit(1)
+      end
+      ffi.cdef'int daemon(int nochdir, int noclose)'
+      daemonize = function()
+         assert(ffi.C.daemon(1,1)==0)
+      end
+   end
+end
+zm:loop{daemonize=daemonize}
