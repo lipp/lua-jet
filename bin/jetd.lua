@@ -43,7 +43,7 @@ local route_message = function(client,message)
    end
 end
 
-local post = function(notification)
+local queue = function(notification)
    local path = notification.path
    --   print('POST',notification.path,notification.event)
    for client in pairs(clients) do      
@@ -102,7 +102,7 @@ local matcher = function(config)
    return f
 end
 
-local notify = function(client,message)
+local post = function(client,message)
    local notification = message.params
    local path = notification.path
    local error
@@ -113,7 +113,7 @@ local notify = function(client,message)
             state.element[k] = v
          end
       end
-      post(notification)
+      queue(notification)
    elseif methods[path] then
       local method = methods[path]
       if notification.event == 'change' then
@@ -121,7 +121,7 @@ local notify = function(client,message)
             method.element[k] = v
          end
       end
-      post(notification)
+      queue(notification)
    else
       error = {
          code = 123,
@@ -135,7 +135,7 @@ local notify = function(client,message)
             error = error
          }
       else
-         log('notify failed',cjson.encode(message))
+         log('post failed',cjson.encode(message))
       end   
    end
 end
@@ -281,7 +281,7 @@ local increment_nodes = function(path)
       else
          print('new node',path) 
          nodes[path] = 1
-         post
+         queue
          {
             event = 'add',
             path = path,
@@ -308,7 +308,7 @@ local decrement_nodes = function(path)
       else
          nodes[path] = nil
          print('delete node',path)
-         post
+         queue
          {
             event = 'remove',
             path = path,
@@ -335,7 +335,7 @@ local add = function(client,message)
          element = element
       }
       methods[path] = method
-      post
+      queue
       {
          path = path,
          event = 'add',
@@ -355,7 +355,7 @@ local remove = function(client,message)
       decrement_nodes(path)
       local el = methods[path].element
       methods[path] = nil
-      post
+      queue
       {
          path = path,
          event = 'remove',
@@ -433,7 +433,7 @@ local services = {
    add = sync(add),   
    call = async(call),   
    fetch = async(fetch),
-   notify = sync(notify),
+   post = sync(post),
    echo = sync(function(client,message)
                   return message.params
                end)
@@ -542,7 +542,7 @@ local accept_client = function(loop,accept_io)
       client.fetchers = {}
       for path,method in pairs(methods) do
          if method.client == client then
-            post
+            queue
             {
                event = 'remove',
                path = path,
