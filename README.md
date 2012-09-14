@@ -56,19 +56,7 @@ MAY contain the fields:
 
 ### Sideeffects
 
-MUST post a Notification for the newly added element, like:
-```Javascript
-{
-        "method":...
-        "params":{
-                "event":"add",
-                "path": path,
-                "data": element
-        }
-}
-```
-
-MAY post a Notification for implicitly added nodes, like:
+MUST post Notifications for implicitly added nodes, like:
 ```Javascript
 {
         "method":...
@@ -78,6 +66,18 @@ MAY post a Notification for implicitly added nodes, like:
                 "data": {
                         "type":"node"
                 }               
+        }
+}
+```
+
+MUST post a Notification for the newly added element, like:
+```Javascript
+{
+        "method":...
+        "params":{
+                "event":"add",
+                "path": path,
+                "data": element
         }
 }
 ```
@@ -133,6 +133,33 @@ Removes the (leave) element with the specified path. __call__ and __set__ messag
 ### path (String)
 
 The element's path, '/' (forward-slash) for delimiting nodes.
+
+### Sideeffects
+
+MUST post a Notification for the newly removed element, like:
+```Javascript
+{
+        "method":...
+        "params":{
+                "event":"remove",
+                "path": path,
+        }
+}
+```
+
+MUST post Notifications for implicitly removed (otherwise empty) nodes, like:
+```Javascript
+{
+        "method":...
+        "params":{
+                "event":"remove",
+                "path": subpath,
+                "data": {
+                        "type":"node"
+                }               
+        }
+}
+```
 
 ## call [path,args]
 
