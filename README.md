@@ -1,24 +1,52 @@
-# About
+# Conventions
 
-jet is a message based framework for distributed applications in Lua (and other languages).
+As described [here](http://www.jsonrpc.org/specification#conventions)
 
-jet is zbus + hierarchy + JSON.
+# Message wireformat
 
-# Concepts
-jet differs three types of entities:
+32bit big-endian denoting the payload length, followed by the message payload, which MUST be JSON.
 
-- properties
-- methods
-- monitors
+# Message types
 
-# Caching
+## Request Object
 
-# Commands
+A message with payload as defined [here](http://www.jsonrpc.org/specification#request_object).
 
-## jet.add
+## Response Object
 
-Adds the specified entity to the node cache. jet.add recursively adds nodes if neccessary.
-The arguments are the (full) name of the entity and a description. Hierarchy is implied by '.', e.g. 'some.thing.bla' implies that 'some' and 'thing' are nodes. This has not to worry you: jet checks this for you and automatically creates (and posts) the the nodes (from inside out). The description will be returned from '...:list' on the corresonding parent node.
+A message with payload as defined [here](http://www.jsonrpc.org/specification#response_object).
+
+## Notification Object
+
+A message with payload as defined [here](http://www.jsonrpc.org/specification#notification).
+
+## Batch
+
+A message with a JSON Array as payload, which contains an arbitrary sequence of Response/Request/Notification Objects.
+
+
+# Jet Services
+
+The jet daemon provides several services which may be used through:
+- sending a Request Object; the daemon will process the request and reply with a corresponding Response Object
+- sending a Notification Object; the daemon will process the request but will NOT reply
+
+To execute a jet service set the Request's/Notification's field 'method' to the service name and set the field 'params' as required by the service.
+
+## add [path,element]
+
+Adds an element to the internal jet tree. The element may either describe a method or a state.
+
+### params
+
+#### element
+
+An Object
+
+
+
+
+
 
 
 
