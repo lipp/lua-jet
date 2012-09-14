@@ -28,20 +28,82 @@ A message with a JSON Array as payload, which contains an arbitrary sequence of 
 # Jet Services
 
 The jet daemon provides several services which may be used through:
-- sending a Request Object; the daemon will process the request and reply with a corresponding Response Object
-- sending a Notification Object; the daemon will process the request but will NOT reply
+- sending a __Request Object__; the daemon will process the request and reply with a corresponding __Response Object__
+- sending a __Notification Object__; the daemon will process the request but will __NOT__ reply
 
-To execute a jet service set the Request's/Notification's field 'method' to the service name and set the field 'params' as required by the service.
+To execute a jet service set the Request's/Notification's field __method__ to the service name and set the field __params__ as required by the service.
 
 ## add [path,element]
 
 Adds an element to the internal jet tree. The element may either describe a method or a state.
 
-### params
+### path (String)
 
-#### element
+The element's path, '/' (forward-slash) for delimiting nodes.
 
-An Object
+### element (Object)
+
+MUST contain the fields:
+
+- __type__: either 'state' or 'method'
+
+MAY contain the fields:
+
+- __schema__: a string which describes the element
+- __value__: the current value, only applies for states
+
+### Sideeffects
+
+MUST post a Notification for the newly added element, like:
+```Javascript
+{
+        "method":...
+        "params":{
+                "event":"add",
+                "path": path,
+                "data": element
+        }
+}
+```
+
+MAY post a Notification for implicitly added nodes, like:
+```Javascript
+{
+        "method":...
+        "params":{
+                "event":"add",
+                "path": subpath,
+                "data": {
+                        "type":"node"
+                }               
+        }
+}
+```
+
+## remove [path]
+
+### path (String)
+
+## call [path,args]
+
+### path (String)
+
+### args (Array)
+
+## notify [path,notification]
+
+### path (String)
+
+### notification (Object)
+
+## fetch [id,matcher]
+
+### id (String)
+
+### matcher (String or Object)
+
+## unfetch [id]
+
 
 
 
