@@ -154,6 +154,11 @@ new = function(config)
       loop:loop()
    end
 
+   j.close = function()
+      sock:shutdown()
+      sock:close()      
+   end
+
    local id = 0
    local batch = {}
    local batching
@@ -252,8 +257,8 @@ new = function(config)
 
    j.fetch = function(self,id,expr,f,callbacks)
       local add_fetcher = function()
-         request_dispatchers[id] = function(peer,...)
-            f(...)
+         request_dispatchers[id] = function(peer,message)
+            f(message.params)
          end
       end
       service('fetch',{id,expr},add_fetcher,callbacks)
