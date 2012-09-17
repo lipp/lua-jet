@@ -56,6 +56,15 @@ local start = function()
                horst_echo_3:remove()
             end
          }
+         local bla = 0
+         jet:state
+         {
+            path = 'popo/bla',
+            set = function(self,value)
+               bla = value
+            end,
+            value = bla
+         }
       end)
 end
 local s = ev.Timer.new(start,0.0001)

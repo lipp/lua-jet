@@ -41,7 +41,7 @@ end
 local clients = {}
 local nodes = {}
 local states = {}
-local methods = {}
+local leaves = {}
 local routes = {}
 
 local route_message = function(client,message)
@@ -108,19 +108,11 @@ local post = function(client,message)
    local notification = message.params
    local path = notification.path
    local error
-   local state = states[path]
-   if state then
+   local leave = leaves[path]
+   if leave then
       if notification.event == 'change' then
          for k,v in pairs(notification.data) do
             state.element[k] = v
-         end
-      end
-      publish(notification)
-   elseif methods[path] then
-      local method = methods[path]
-      if notification.event == 'change' then
-         for k,v in pairs(notification.data) do
-            method.element[k] = v
          end
       end
       publish(notification)
@@ -170,7 +162,7 @@ local fetch = function(client,message)
          for _,notification in ipairs(node_notifications) do
             client:queue(notification)
          end
-         for path,method in pairs(methods) do
+         for path,leave in pairs(leaves) do
             if matcher(path) then
                client:queue
                {
@@ -178,29 +170,11 @@ local fetch = function(client,message)
                   params = {
                      path = path,
                      event = 'add',
-                     data = method.element
+                     data = leave.element
                   }
                }
             end
          end
-         for path,states in pairs(states) do
-            if matcher(path) then
-               client:queue
-               {
-                  method = id,
-                  params = {
-                     path = path,
-                     event = 'add',
-                     data = {
-                        type = 'state',      
-                        --                        schema = method.element.schema,
-                        --                        value = method.element.value
-                     }            
-                  }
-               }
-            end
-         end
-         --         client:send(notifications)
       end
       client.fetchers[id] = matcher
       if message.id then
@@ -222,11 +196,54 @@ local fetch = function(client,message)
    end
 end
 
+local set = function(client,message)
+   if #message.params == 2 then
+      local path = message.params[1]
+      --   log('call',path)
+      if leaves[path] then
+         tremove(message.params,1)
+         local id
+         if message.id then
+            id = message.id..tostring(client)        
+            assert(not routes[id])
+            -- save route to forward reply
+            routes[id] = {
+               receiver = client,
+               id = message.id
+            }        
+         end
+         leaves[path].client:queue
+         {
+            id = id, -- maybe nil
+            method = path,
+            params = message.params
+         }
+      elseif message.id then
+         client:queue
+         {
+            id = message.id, 
+            error = {
+               code = 123,
+               message = 'jet state unknown',
+               data = path
+            }
+         }
+      end
+   else
+      local error = invalid_params{expected = '[path,value]',got = message.params}
+      client:queue
+      {
+         id = message.id,
+         error = error
+      }
+   end
+end
+
 local call = function(client,message)
    if #message.params > 0 then
       local path = message.params[1]
       --   log('call',path)
-      if methods[path] then
+      if leaves[path] then
          tremove(message.params,1)
          --      log('call',path,'method found')
          local id
@@ -239,7 +256,7 @@ local call = function(client,message)
                id = message.id
             }        
          end
-         methods[path].client:queue
+         leaves[path].client:queue
          {
             id = id, -- maybe nil
             method = path,
@@ -323,7 +340,7 @@ local add = function(client,message)
 --   print('ADD',cjson.encode(message))
    if #message.params == 2 then
       local path = message.params[1]
-      if nodes[path] or states[path] or methods[path] then
+      if nodes[path] or leaves[path] then
          error(invalid_params{occupied = path})
       end
       increment_nodes(path)
@@ -332,8 +349,8 @@ local add = function(client,message)
          client = client,
          element = element
       }
-      methods[path] = method
-      print('method added',path,client)
+      leaves[path] = method
+      print('leave added',path,client)
       publish
       {
          path = path,
@@ -435,6 +452,7 @@ local services = {
    add = sync(add),   
    remove = sync(remove),   
    call = async(call),   
+   set = async(set),   
    fetch = async(fetch),
    post = sync(post),
    echo = sync(function(client,message)
@@ -551,19 +569,19 @@ local accept_client = function(loop,accept_io)
       --      log('releasing',client)
       if client then
          client.fetchers = {}
-         for path,method in pairs(methods) do
+         for path,leave in pairs(leaves) do
             --         print('REL',method.client,client)
-            if method.client == client then
+            if leave.client == client then
                publish
                {
                   event = 'remove',
                   path = path,
-                  data = {
-                     type = 'node'
+                  data = {                     
+                     type = leave.element.type
                   }
                }
                decrement_nodes(path)
-               methods[path] = nil
+               leaves[path] = nil
             end
          end
          flush_clients()

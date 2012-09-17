@@ -48,7 +48,7 @@ new = function(config)
    local dispatch_response = function(self,message)
       local callbacks = response_dispatchers[message.id]
       response_dispatchers[message.id] = nil
---      log('response',cjson.encode(message),callbacks,message.result,message.error)
+      --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
          if message.result then
             if callbacks.success then
@@ -70,7 +70,7 @@ new = function(config)
    local dispatch_notification = function(self,message)
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
---         log('NOTIF',cjson.encode(message))
+         --         log('NOTIF',cjson.encode(message))
          local ok,err = pcall(dispatcher,self,message)
          if not ok then
             log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
@@ -79,7 +79,7 @@ new = function(config)
       --log('notification',cjson.encode(message))
    end
    local dispatch_request = function(self,message)
---      log('dispatch_request',self,cjson.encode(message))
+      --      log('dispatch_request',self,cjson.encode(message))
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
          local error
@@ -247,7 +247,7 @@ new = function(config)
    j.call = function(self,path,params,callbacks)
       params = params or {}
       tinsert(params,1,path)
---      print('CBS'
+      --      print('CBS'
       service('call',params,nil,callbacks)
    end
 
@@ -308,7 +308,7 @@ new = function(config)
       return ref
    end
 
-   j.state = function(desc,callbacks)
+   j.state = function(self,desc,callbacks)
       local el = {}
       el.type = 'state'
       el.schema = desc.schema
