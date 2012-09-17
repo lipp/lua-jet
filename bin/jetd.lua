@@ -16,6 +16,18 @@ local log = function(...)
    print('jetd',...)
 end
 
+local info = function(...)
+   log('info',...)
+end
+
+local err = function(...)
+   log('err',...)
+end
+
+local debug = function(...)
+   log('debug',...)
+end
+
 local invalid_params = function(data)
    local err = {
       code = -32602,
@@ -37,41 +49,31 @@ local route_message = function(client,message)
    if route then
       routes[message.id] = nil
       message.id = route.id
-      route.receiver:send(message)      
+      route.receiver:queue(message)      
    else
       log('unknown route id:',cjson.encode(message))
    end
 end
 
-local queue = function(notification)
+local publish = function(notification)
+   debug('publish',cjson.encode(notification))
    local path = notification.path
-   --   print('POST',notification.path,notification.event)
    for client in pairs(clients) do      
-      --      print('POST',client,'?')
       for fetch_id,matcher in pairs(client.fetchers) do
-         --         print('POST',fetch_id,'?')
          if matcher(path) then
-            --            print('MATCH',path,fetch_id)
-            if not client.notifications then
-               client.notifications = {}
-            end
-            local notification = {
+            client:queue
+            {
                method = fetch_id,
                params = notification
-            }
-            tinsert(client.notifications,notification)
+            }            
          end
       end
    end
 end
 
-local flush = function()
-   --   print('FLUSHING')
+local flush_clients = function()
    for client in pairs(clients) do
-      if client.notifications and #client.notifications > 0 then
-         client:send(client.notifications)
-         client.notifications = nil
-      end
+      client:flush()
    end
 end
 
@@ -113,7 +115,7 @@ local post = function(client,message)
             state.element[k] = v
          end
       end
-      queue(notification)
+      publish(notification)
    elseif methods[path] then
       local method = methods[path]
       if notification.event == 'change' then
@@ -121,7 +123,7 @@ local post = function(client,message)
             method.element[k] = v
          end
       end
-      queue(notification)
+      publish(notification)
    else
       error = {
          code = 123,
@@ -129,7 +131,7 @@ local post = function(client,message)
          data = path
       }
       if message.id then
-         client:send
+         client:queue
          {
             id = message.id,
             error = error
@@ -145,9 +147,6 @@ local fetch = function(client,message)
       local id = message.params[1]
       local matcher = matcher(message.params[2]) 
       if not client.fetchers[id] then
-         if not client.notifications then
-            client.notifications = {}
-         end
          local node_notifications = {}
          for path in pairs(nodes) do
             if matcher(path) then
@@ -169,11 +168,12 @@ local fetch = function(client,message)
          end
          table.sort(node_notifications,compare_path_length)
          for _,notification in ipairs(node_notifications) do
-            tinsert(client.notifications,notification)
+            client.queue(notification)
          end
          for path,method in pairs(methods) do
             if matcher(path) then
-               local notification = {
+               client:queue
+               {
                   method = id,
                   params = {
                      path = path,
@@ -181,12 +181,12 @@ local fetch = function(client,message)
                      data = method.element
                   }
                }
-               tinsert(client.notifications,notification)
             end
          end
          for path,states in pairs(states) do
             if matcher(path) then
-               local notification = {
+               client:queue
+               {
                   method = id,
                   params = {
                      path = path,
@@ -198,14 +198,13 @@ local fetch = function(client,message)
                      }            
                   }
                }
-               tinsert(client.notifications,notification)
             end
          end
          --         client:send(notifications)
       end
       client.fetchers[id] = matcher
       if message.id then
-         client:send
+         client:queue
          {
             id = message.id,
             result = {}
@@ -214,7 +213,7 @@ local fetch = function(client,message)
    else
       if message.id then
          local error = invalid_params{expected = '[fetch_name,expression] or [fetch_name,{"match":[...],"unmatch":[...]}',got = '[]'}
-         client:send
+         client:queue
          {
             id = message.id,
             error = error
@@ -240,15 +239,14 @@ local call = function(client,message)
                id = message.id
             }        
          end
-         --      table.remove(message.params,1)
-         methods[path].client:send
+         methods[path].client:queue
          {
             id = id, -- maybe nil
             method = path,
             params = message.params
          }
       elseif message.id then
-         client:send
+         client:queue
          {
             id = message.id, 
             error = {
@@ -260,7 +258,7 @@ local call = function(client,message)
       end
    else
       local error = invalid_params{expected = '[path,...]',got = '[]'}
-      client:send
+      client:queue
       {
          id = message.id,
          error = error
@@ -281,7 +279,7 @@ local increment_nodes = function(path)
       else
          print('new node',path) 
          nodes[path] = 1
-         queue
+         publish
          {
             event = 'add',
             path = path,
@@ -308,7 +306,7 @@ local decrement_nodes = function(path)
       else
          nodes[path] = nil
          print('delete node',path)
-         queue
+         publish
          {
             event = 'remove',
             path = path,
@@ -335,7 +333,8 @@ local add = function(client,message)
          element = element
       }
       methods[path] = method
-      queue
+      print('method added',path,client)
+      publish
       {
          path = path,
          event = 'add',
@@ -347,20 +346,23 @@ local add = function(client,message)
 end
 
 local remove = function(client,message)
+   debug('remove')
    if #message.params == 1 then
+      debug('remove',111)
       local path = message.params[1]
       if not states[path] and not methods[path] then
          error(invalid_params{invalid_path = path})
       end
-      decrement_nodes(path)
+      info('removing',path)
       local el = methods[path].element
       methods[path] = nil
-      queue
+      publish
       {
          path = path,
          event = 'remove',
          data = el
       }
+      decrement_nodes(path)
       --      cache.add(client,path,element)
    else
       error(invalid_params{expected = '[path]',got = message.params})
@@ -372,7 +374,7 @@ local sync = function(f)
       local ok,result = pcall(f,client,message)
       if message.id then
          if ok then
-            client:send
+            client:queue
             {
                id = message.id,
                result = result or {}
@@ -388,7 +390,7 @@ local sync = function(f)
                   data = result
                }
             end     
-            client:send
+            client:queue
             {
                id = message.id,
                error = error
@@ -416,7 +418,7 @@ local async = function(f)
                   data = err
                }
             end     
-            client:send
+            client:queue
             {
                id = message.id,
                error = err
@@ -431,6 +433,7 @@ end
 
 local services = {
    add = sync(add),   
+   remove = sync(remove),   
    call = async(call),   
    fetch = async(fetch),
    post = sync(post),
@@ -465,7 +468,7 @@ local dispatch_request = function(client,message)
          data = message.method
       }         
    end
-   client:send
+   client:queue
    {
       id = message.id,
       error = error
@@ -489,7 +492,7 @@ local dispatch_single_message = function(client,message)
       elseif message.result or message.error then
          route_message(client,message)
       else
-         client:send
+         client:queue
          {
             id = message.id,
             error = {
@@ -515,10 +518,9 @@ local dispatch_message = function(client,message,err)
          end
       else
          dispatch_single_message(client,message)
-      end
-      flush()
+      end   
    else      
-      client:send
+      client:queue
       {
          error = {
             code  = -32700,
@@ -526,48 +528,84 @@ local dispatch_message = function(client,message,err)
          }
       }
    end
+   flush_clients()
 end
 
 --local clients = {}
 
 local listener = assert(socket.bind('*',port))
 local accept_client = function(loop,accept_io)
-   local client = listener:accept()
-   if not client then
+   local sock = listener:accept()
+   if not sock then
       log('accepting client failed')
       return 
    end
-   local release_client = function(client)
+   local client = {}
+   local release_client = function(_)
       --      log('releasing',client)
-      client.fetchers = {}
-      for path,method in pairs(methods) do
-         if method.client == client then
-            queue
-            {
-               event = 'remove',
-               path = path,
-               data = {
-                  type = 'node'
+      if client then
+         client.fetchers = {}
+         for path,method in pairs(methods) do
+            --         print('REL',method.client,client)
+            if method.client == client then
+               publish
+               {
+                  event = 'remove',
+                  path = path,
+                  data = {
+                     type = 'node'
+                  }
                }
-            }
-            decrement_nodes(path)
-            methods[path] = nil
+               decrement_nodes(path)
+               methods[path] = nil
+            end
          end
+         flush_clients()
+         client:close()
+         clients[client] = nil
+         client = nil
       end
-      flush()
-      client:close()
-      clients[client] = nil
    end
    local args = {
       loop = loop,
-      on_message = dispatch_message,
+      on_message = function(_,...)
+--         print(client,_)
+         dispatch_message(client,...)
+      end,
       on_close = release_client,
-      on_error = log
+      on_error = function(_,...)
+         err('socket error',...)
+         release_client()
+      end
    }
-   local wrapped = jsocket.wrap(client,args)
-   wrapped.fetchers = {}
-   wrapped:read_io():start(loop)
-   clients[wrapped] = wrapped
+   local jsock = jsocket.wrap(sock,args)
+   client.close = function()
+         jsock:close()
+   end
+   client.queue = function(self,message)
+--      print('queing',self,jsock,assert(cjson.encode(message)))
+      if not self.messages then
+         self.messages = {}
+      end
+      tinsert(self.messages,message)
+   end     
+   client.flush = function(self)
+      if self.messages then
+--         print('flushing',self,jsock)
+         local num = #self.messages
+         if num == 1 then
+            jsock:send(self.messages[1])
+         elseif num > 1 then
+            jsock:send(self.messages)
+         else
+            assert(false,'messages must contain at least one element if not nil')
+         end
+         self.messages = nil
+      end
+   end
+   client.fetchers = {}   
+   jsock:read_io():start(loop)
+   clients[client] = client
 end
 
 listener:settimeout(0)

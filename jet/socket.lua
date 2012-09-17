@@ -56,23 +56,27 @@ local wrap = function(sock,args)
    local loop = args.loop
    local send_buffer = ''
    local wrapped = {}
-   local append = function(message_object)
+   local append = function(message_object)      
       local json_message = cjson.encode(message_object)
+--      log('appending',json_message)
       send_buffer = send_buffer..spack('>I',#json_message)..json_message
    end
    local send_message = function(loop,write_io)
       local sent,err,sent_so_far = sock:send(send_buffer,pos)
       if sent then
-         log('sent',#send_buffer,send_buffer:sub(5))
+--         log('sent',#send_buffer,send_buffer:sub(5))
          assert(sent==#send_buffer)
          send_buffer = ''
          write_io:stop(loop)
-      elseif err == 'timeout' then                                    
+      elseif err == 'timeout' then                  
+         log('sent timeout',pos)                  
          pos = sent_so_far
       elseif err == 'closed' then
+         log('sent closed',pos) 
          write_io:stop(loop)
          on_close(wrapped)
       else
+         log('sent error',err) 
          write_io:stop(loop)
          on_close(wrapped)           
          log('unknown error:'..err)
@@ -87,9 +91,10 @@ local wrap = function(sock,args)
    -- the message format is 32bit big endian integer
    -- denoting the size of the JSON following   
    wrapped.send = function(_,message_object)  
---      log(cjson.encode(message_object))
+      log(cjson.encode(message_object))
       append(message_object)      
       if not send_io:is_active() then
+         log('strting io')
          send_io:start(loop)
       end
    end

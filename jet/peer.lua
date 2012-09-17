@@ -15,10 +15,10 @@ local tconcat = table.concat
 local unpack = unpack
 local assert = assert
 local log = function(...)
-   print('jet.client',...)
+   print('jet.peer',...)
 end
 
-module('jet.client')
+module('jet.peer')
 
 local error_object = function(err)
    local error
@@ -43,7 +43,7 @@ new = function(config)
    if not sock then
       error('could not connect to jetd with ip:'..ip..' port:'..port)
    end
-   local method_dispatchers = {}
+   local request_dispatchers = {}
    local response_dispatchers = {}
    local dispatch_response = function(self,message)
       local callbacks = response_dispatchers[message.id]
@@ -51,11 +51,15 @@ new = function(config)
 --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
          if message.result then
---            log('response','success',message.id)       
-            callbacks.success(message.result)
+            if callbacks.success then
+               --            log('response','success',message.id)       
+               callbacks.success(message.result)
+            end
          elseif message.error then
---            log('response','error',message.id)       
-            callbacks.error(message.error)
+            if callbacks.error then
+               --            log('response','error',message.id)       
+               callbacks.error(message.error)
+            end
          else
             log('invalid result:',cjson.encode(message))
          end
@@ -64,7 +68,7 @@ new = function(config)
       end
    end
    local dispatch_notification = function(self,message)
-      local dispatcher = method_dispatchers[message.method]
+      local dispatcher = request_dispatchers[message.method]
       if dispatcher then
 --         log('NOTIF',cjson.encode(message))
          local ok,err = pcall(dispatcher,self,message)
@@ -74,17 +78,9 @@ new = function(config)
       end
       --log('notification',cjson.encode(message))
    end
-   -- local dispatch_result = function(self,message)
-   --    local callbacks = response_dispatchers[message.id]
-   --    if callbacks then
-   --       callbacks.success(message.result)
-   --    else
-   --       log('invalid result id:',id)
-   --    end
-   -- end
    local dispatch_request = function(self,message)
 --      log('dispatch_request',self,cjson.encode(message))
-      local dispatcher = method_dispatchers[message.method]
+      local dispatcher = request_dispatchers[message.method]
       if dispatcher then
          local error
          --      log('dispatch_call',method_name,method)
@@ -106,8 +102,7 @@ new = function(config)
          error = error
       }
    end
-   local dispatch_single_message = function(self,message)
---      log('dispatch_single_message',cjson.encode(message))
+   local dispatch_single_message = function(self,message)      
       if message.id then
          if message.method and message.params then
             dispatch_request(self,message)
@@ -162,12 +157,47 @@ new = function(config)
    local id = 0
    local batch = {}
    local batching
-   send = function(method,params,callbacks)
+   service = function(method,params,complete,callbacks)
       local rpc_id
+      -- Only make a Request, if callbacks are specified.
+      -- Make complete call in case of success.      
+      -- If no id is specified in the message, no Response 
+      -- is expected, aka Notification.
       if callbacks then
          id = id + 1
          rpc_id = id
-         response_dispatchers[id] = callbacks
+         if complete then
+            if callbacks.success then
+               local success = callbacks.success
+               callbacks.success = function(result)
+                  complete(true)
+                  success()
+               end
+            else
+               callbacks.success = function()
+                  complete(true)
+               end
+            end
+
+            if callbacks.error then
+               local error = callbacks.error
+               callbacks.error = function(result)
+                  complete(false)
+                  error()
+               end
+            else
+               callbacks.error = function()
+                  complete(false)
+               end
+            end      
+         end
+         response_dispatchers[id] = callbacks        
+      else       
+         -- There will be no response, so call complete either way
+         -- and hope everything is ok
+         if complete then
+            complete(true)
+         end
       end
       local message = {
          id = rpc_id,
@@ -175,8 +205,10 @@ new = function(config)
          params = params
       }
       if batching then
+         log('batching',cjson.encode(message))
          tinsert(batch,message)
       else
+         log('sendinf',cjson.encode(message))
          sock:send(message)
       end
    end
@@ -184,66 +216,56 @@ new = function(config)
    j.batch = function(self,action)
       batching = true
       action()
+      batching = false
+      log('TATA',cjson.encode(batch))
       sock:send(batch)
       batch = {}
-      batching = false
    end
 
-   j.add = function(self,path,el,callbacks)
-      local dispatch = el.dispatch
-      el.dispatch = nil
-      assert(not method_dispatchers[path])
-      method_dispatchers[path] = dispatch
-      send('add',{path,el},callbacks)   
+   j.add = function(self,path,el,dispatch,callbacks)
+      assert(not request_dispatchers[path])
+      assert(type(path) == 'string')
+      assert(type(el) == 'table')
+      assert(type(dispatch) == 'function')
+      local assign_dispatcher = function(success)
+         log('assigned',path)
+         request_dispatchers[path] = dispatch
+      end
+      service('add',{path,el},assign_dispatcher,callbacks)   
+   end
+
+   j.remove = function(_,path,callbacks)
+      log('really remove',path)
+      service('remove',{path},nil,callbacks)
    end
 
    j.call = function(self,path,params,callbacks)
       params = params or {}
       tinsert(params,1,path)
 --      print('CBS'
-      send('call',params,callbacks)
+      service('call',params,nil,callbacks)
    end
 
    j.notify = function(self,notification,callbacks)
-      send('notify',notification,callbacks)
+      service('notify',notification,nil,callbacks)
    end
 
    j.fetch = function(self,id,expr,f,callbacks)
-      local f_strip_client = function(client,...)
-         f(...)
-      end
-      if callbacks then
-         local add_fetcher = function()
---            log('add fetcher')
-            method_dispatchers[id] = f_strip_client
-         end        
-         if callbacks.success then
-            local old = callbacks.success
-            callbacks.success = function(...)
-               add_fetcher()
-               old(...)
-               callbacks.success = old
-            end
-         else
-            callbacks.success = add_fetcher
+      local add_fetcher = function()
+         request_dispatchers[id] = function(peer,...)
+            f(...)
          end
-      else
-         method_dispatchers[id] = f_strip_client
       end
-      send('fetch',{id,expr},callbacks)
+      service('fetch',{id,expr},add_fetcher,callbacks)
    end
 
-   j.remove = function(path,callbacks)
-      rpc('remove',{path},callbacks)
-   end
-
-   j.method = function(desc)
+   j.method = function(self,desc,callbacks)
       local el = {}
       el.type = 'method'
       el.schema = desc.schema
+      local dispatch
       if not desc.async then         
-         el.dispatch = function(self,message)
---            log('method dispatch',cjson.encode(message))
+         dispatch = function(self,message)
             local ok,result = pcall(desc.call,self,unpack(message.params))
             if message.id then
                if ok then
@@ -262,20 +284,33 @@ new = function(config)
             end
          end
       else
-         el.dispatch = function(self,message)
+         dispatch = function(self,message)
             desc.call(self,message)
          end
       end
-      return el
+      
+      self:add(desc.path,el,dispatch,callbacks)
+      local ref = {         
+         remove = function(_,callbacks)
+            log('removing',desc.path)
+            self:remove(desc.path,callbacks)
+         end,
+         add = function(_,callbacks)
+            log('adding',desc.path)
+            self:add(desc.path,el,callbacks)
+         end
+      }
+      return ref
    end
 
-   j.state = function(desc)
+   j.state = function(desc,callbacks)
       local el = {}
       el.type = 'state'
       el.schema = desc.schema
       el.value = desc.value
+      local dispatch
       if not desc.async then         
-         el.dispatch = function(self,message)
+         dispatch = function(self,message)
             local value = message.params[1]
             local ok,result,dont_notify = pcall(desc.set,self,value)
             if ok then
@@ -304,7 +339,7 @@ new = function(config)
       else
          assert(nil,'async states not supported yet')
       end
-      return el
+      self:add(desc.path,el,dispatch,callbacks)
    end
    return j
 end

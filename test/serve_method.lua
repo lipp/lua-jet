@@ -1,20 +1,62 @@
-local jet = require'jet.client'.new()
+local jet = require'jet.peer'.new()
 local ev = require'ev'
 local loop = ev.Loop.default
 local echo = function(self,...)
    return {...}
 end
+
+
 local start = function()
-jet:add('test/blabla',jet.method{call = echo})
-jet:batch(
-   function()
-      jet:add('test/echo',jet.method{call = echo})
-      jet:add('test/echo1',jet.method{call = echo})
-      jet:add('test/echo2',jet.method{call = echo})
-      jet:add('test/echo3',jet.method{call = echo})
-      jet:add('horst/echo2',jet.method{call = echo})
-      jet:add('horst/echo3',jet.method{call = echo})
-   end)
+   jet:method
+   {
+      path = 'test/blabla',
+      call = echo
+   }
+   jet:batch(
+      function()
+         local test_echo = jet:method
+         {
+            path = 'test/echo',
+            call = echo
+         }
+         jet:method
+         {
+            path = 'test/echo1',
+            call = echo
+         }
+         jet:method
+         {
+            path = 'test/echo2',
+            call = echo
+         }
+         local horst_echo_3 = jet:method
+         {
+            path = 'horst/echo3',
+            call = echo
+         }
+
+         local horst_echo_2 = jet:method
+         {
+            path = 'horst/echo2',
+            call = echo
+         }
+         
+         jet:method
+         {
+            path = 'test/toggle_echo',
+            call = function(self)
+               print('TOGGLE',test_echo)
+               if test_echo then
+                  test_echo:remove({succes=function() print('asd') end,error = function() print('ppp') end})
+                  test_echo = nil
+               else
+                  test_echo:add()
+               end
+               horst_echo_2:remove()
+               horst_echo_3:remove()
+            end
+         }
+      end)
 end
 local s = ev.Timer.new(start,0.0001)
 s:start(loop)

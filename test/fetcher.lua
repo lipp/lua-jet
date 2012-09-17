@@ -1,4 +1,4 @@
-local jet = require'jet.client'.new()
+local jet = require'jet.peer'.new()
 local cjson = require'cjson'
 jet:fetch('test_fetch','.*',
           function(params)             
