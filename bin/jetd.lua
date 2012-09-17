@@ -20,7 +20,7 @@ local info = function(...)
    log('info',...)
 end
 
-local err = function(...)
+local crit = function(...)
    log('err',...)
 end
 
@@ -168,7 +168,7 @@ local fetch = function(client,message)
          end
          table.sort(node_notifications,compare_path_length)
          for _,notification in ipairs(node_notifications) do
-            client.queue(notification)
+            client:queue(notification)
          end
          for path,method in pairs(methods) do
             if matcher(path) then
@@ -511,22 +511,28 @@ local dispatch_single_message = function(client,message)
 end
 
 local dispatch_message = function(client,message,err)
-   if message then
-      if #message > 0 then
-         for i,message in ipairs(message) do
-            dispatch_single_message(client,message)
+   local ok,err = pcall(
+      function()
+         if message then
+            if #message > 0 then
+               for i,message in ipairs(message) do
+                  dispatch_single_message(client,message)
+               end
+            else
+               dispatch_single_message(client,message)
+            end   
+         else      
+            client:queue
+            {
+               error = {
+                     code  = -32700,
+                     messsage = 'Parse error'
+               }
+            }
          end
-      else
-         dispatch_single_message(client,message)
-      end   
-   else      
-      client:queue
-      {
-         error = {
-            code  = -32700,
-            messsage = 'Parse error'
-         }
-      }
+      end)
+   if not ok then
+      crit('dispatching message',cjson.encode(message),err)      
    end
    flush_clients()
 end
