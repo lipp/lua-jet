@@ -53,14 +53,11 @@ local wrap = function(sock,args)
    local on_message = args.on_message
    local on_close = args.on_close
    local on_error = args.on_error
+   local encode = not args.dont_encode
+   local decode = not args.dont_decode
    local loop = args.loop
    local send_buffer = ''
    local wrapped = {}
-   local append = function(message_object)      
-      local json_message = cjson.encode(message_object)
---      log('appending',json_message)
-      send_buffer = send_buffer..spack('>I',#json_message)..json_message
-   end
    local send_message = function(loop,write_io)
       local sent,err,sent_so_far = sock:send(send_buffer,pos)
       if sent then
@@ -90,11 +87,14 @@ local wrap = function(sock,args)
    --
    -- the message format is 32bit big endian integer
    -- denoting the size of the JSON following   
-   wrapped.send = function(_,message_object)  
-      log(cjson.encode(message_object))
-      append(message_object)      
+   wrapped.send = function(_,message)  
+--      log(cjson.encode(message_object))
+      if encode then
+         message = cjson.encode(message)      
+      end
+      send_buffer = send_buffer..spack('>I',#message)..message
       if not send_io:is_active() then
-         log('strting io')
+--         log('strting io')
          send_io:start(loop)
       end
    end
@@ -144,15 +144,19 @@ local wrap = function(sock,args)
                json_message,err,sub = sock:receive(len,json_message)
                if json_message then    
 --                  log('recv',json_message)
-                  local ok,message = pcall(cjson.decode,json_message)
-                  if ok then                  
-                     len = nil
-                     len_bin = nil
-                     json_message = nil                  
-                     on_message(wrapped,message)
-                  else                  
-                     on_message(wrapped,nil,message)
-                  end            
+                  if decode then
+                     local ok,message = pcall(cjson.decode,json_message)
+                     if ok then                  
+                        on_message(wrapped,message)
+                     else                  
+                        on_message(wrapped,nil,message)
+                     end
+                  else
+                     on_message(wrapped,json_message)
+                  end
+                  len = nil
+                  len_bin = nil
+                  json_message = nil                  
                elseif err == 'timeout' then
                   json_message = sub
                   return
