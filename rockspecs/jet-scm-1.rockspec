@@ -11,16 +11,17 @@ description = {
 dependencies = {
   'lua >= 5.1',
   'lua-cjson >= 1.0',
-  'zbus'
 }
 build = {
   type = 'none',
   install = {
     lua = {
-      ["jet"] = 'jet.lua'
+      ["jet.peer"] = 'jet/peer.lua'
+      ["jet.socket"] = 'jet/socket.lua'
     },
     bin = {
-      'jetcached.lua'
+      'bin/jetd.lua',
+      'bin/jet-ws.lua'  
     }
   }
 }
