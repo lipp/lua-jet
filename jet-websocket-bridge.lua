@@ -1,6 +1,5 @@
 #!/usr/bin/env lua
-local cjson = require'cjson'
-local tinsert = table.insert
+local socket = require'socket'
 local ev = require'ev'
 local websockets = require'websockets'
 local wsWRITE_TEXT = websockets.WRITE_TEXT
@@ -48,53 +47,42 @@ ws_context = websockets.context{
       ['jet'] =
          function(ws)	  
             clients = clients + 1
-            local jeti = require'jet'.new{name='jet-websocket-bridge'..clients}
-            local io = jeti.zbus:listen_io()
+            local jet_sock = socket.connect('localhost',33326)
+            local io
+            assert(jet_sock)
+            local args = {
+               loop = ev.Loop.default,
+               dont_encode = true,
+               dont_decode = true,
+               on_message = function(sock,message)
+                  log('<=',message)
+                  ws:write(message,wsWRITE_TEXT)
+               end,
+               on_close = function()
+                  clients = clients - 1
+                  assert(clients >= 0)
+                  ws:close()
+               end,
+               on_error = function()
+                  clients = clients - 1
+                  assert(clients >= 0)
+                  ws:close()
+               end
+            }
+            local jet_sock = require'jet.socket'.wrap(jet_sock,args)
+            io = jet_sock.read_io()
             io:start(ev.Loop.default)
             ws:on_closed(
                function()
                   clients = clients - 1
                   io:stop(ev.Loop.default)
-                  jeti.zbus:close()
+                  jet_sock:close()
                end)
             ws:on_receive(
       	       function(ws,data)
-		  local req = cjson.decode(data)
-		  local resp = {id=req.id}
-                  local method = req.method
-                  if method == 'fetch' then
-                     local notifications = {}
-                     jeti:fetch(
-                        '.*',
-                        function(url_event,more,data)
-                           local url,event = url_event:match('^(.*):(%w+)$')
-                           local n = {
-                              method = url_event,
-                              params = {data}
-                           }
-                           tinsert(notifications,n)
-                           if not more then
-                              ws:write(cjson.encode(notifications),wsWRITE_TEXT)
-                              notifications = {}
-                           end
-                        end                        
-                     )
-                  elseif jeti[method] then
-                     local result = {pcall(jeti[method],jeti,unpack(req.params))}
-                     if result[1] then 
-                        table.remove(result,1);
-                        resp.result = result
-                     else
-                        resp.error = result[2]
-                     end
-                  else
-                     resp.error = {
-                        code = -32601,
-                        messgae = 'Method not found',
-                        data = method
-                     }
-                  end
-      		  ws:write(cjson.encode(resp),wsWRITE_TEXT)
+                  log('=>',data)
+                  -- send data and dont encode to JSON (already is supposed to be JSON)
+                  jet_sock:send(data,true)
       	       end)
          end        
    }      
