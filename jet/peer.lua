@@ -236,22 +236,32 @@ new = function(config)
          log('assigned',path)
          request_dispatchers[path] = dispatch
       end
-      service('add',{path,el},assign_dispatcher,callbacks)   
+      local params = {
+         path = path,
+         element = el
+      }
+      service('add',params,assign_dispatcher,callbacks)   
    end
 
    j.remove = function(_,path,callbacks)
-      log('really remove',path)
-      service('remove',{path},nil,callbacks)
+      local params = {
+         path = path
+      }
+      service('remove',params,nil,callbacks)
    end
 
    j.call = function(self,path,params,callbacks)
-      params = params or {}
-      tinsert(params,1,path)
-      --      print('CBS'
+      local params = {
+         path = path,
+         args = params
+      }      
       service('call',params,nil,callbacks)
    end
 
    j.notify = function(self,notification,callbacks)
+      assert(notification.path)
+      assert(notification.event)
+      assert(notification.data)
       service('notify',notification,nil,callbacks)
    end
 
@@ -260,8 +270,17 @@ new = function(config)
          request_dispatchers[id] = function(peer,message)
             f(message.params)
          end
+      end      
+      local params = {
+         id = id,
+      }
+      if type(expr) == 'string' then
+         params.match = {expr}
+      else
+         params.match = expr.match
+         params.unmatch = expr.unmatch
       end
-      service('fetch',{id,expr},add_fetcher,callbacks)
+      service('fetch',params,add_fetcher,callbacks)
    end
 
    j.method = function(self,desc,callbacks)
@@ -316,7 +335,7 @@ new = function(config)
       local dispatch
       if not desc.async then         
          dispatch = function(self,message)
-            local value = message.params[1]
+            local value = message.params.value
             local ok,result,dont_notify = pcall(desc.set,self,value)
             if ok then
                local messages = {}

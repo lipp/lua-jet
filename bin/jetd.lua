@@ -77,41 +77,72 @@ local flush_clients = function()
    end
 end
 
-local matcher = function(config)
+local matcher = function(match,unmatch)
    local f
-   if type(config) == 'string' then
+   if not unmatch and #match == 1 then
       f = function(path)
          return path:match(config)
-      end
-   end
-   if config.match and config.unmatch then
-      if type(config.match) == 'table' and #config.match > 0 then
-         f = function(path)
-            for _,unmatch in ipairs(config.unmatch) do               
-               if path:match(unmatch) then
-                  return false
-               end
+      end  
+   else
+      f = function(path)
+         for _,unmatch in ipairs(unmatch) do               
+            if path:match(unmatch) then
+               return false
             end
-            for _,match in ipairs(config.match) do
-               if path:match(match) then
-                  return true
-               end
+         end
+         for _,match in ipairs(match) do
+            if path:match(match) then
+               return true
             end
-         end         
-      end
+         end
+      end         
    end
    assert(f and type(f) == 'function')
    return f
 end
 
+local checked = function(params,key,typename)
+   local p = params[key]
+   if p then      
+      if typename then
+         if type(p) == typename then
+            return p
+         else
+            error(invalid_params{wrong_type=key,got=params})   
+         end
+      else
+         return p
+      end
+   else
+      error(invalid_params{missing_param=key,got=params})   
+   end   
+end
+
+local optional = function(params,key,typename)
+   local p = params[key]
+   if p then      
+      if typename then
+         if type(p) == typename then
+            return p
+         else
+            error(invalid_params{wrong_type=key,got=params})   
+         end
+      else
+         return p
+      end
+   end
+end
+
 local post = function(client,message)
    local notification = message.params
-   local path = notification.path
+   local path = checked(notification,'path','string')
+   local event = checked(notification,'event','string')
+   local data = checked(notification,'data','table')
    local error
    local leave = leaves[path]
    if leave then
-      if notification.event == 'change' then
-         for k,v in pairs(notification.data) do
+      if event == 'change' then
+         for k,v in pairs(data) do
             state.element[k] = v
          end
       end
@@ -119,7 +150,7 @@ local post = function(client,message)
    else
       error = {
          code = 123,
-         message 'invalid path',
+         message = 'invalid path',
          data = path
       }
       if message.id then
@@ -135,150 +166,125 @@ local post = function(client,message)
 end
 
 local fetch = function(client,message)
-   if #message.params == 2 then
-      local id = message.params[1]
-      local matcher = matcher(message.params[2]) 
-      if not client.fetchers[id] then
-         local node_notifications = {}
-         for path in pairs(nodes) do
-            if matcher(path) then
-               local notification = {                  
-                  method = id,
-                  params = {
-                     path = path,
-                     event = 'add',  
-                     data = {
-                        type = 'node'
-                     }
+   local params = message.params
+   local id = checked(params,'id','string')
+   local match = checked(params,'match','table')
+   local unmatch = optional(params,'unmatch','table')
+   local matcher = matcher(match,unmatch)
+   if not client.fetchers[id] then
+      local node_notifications = {}
+      for path in pairs(nodes) do
+         if matcher(path) then
+            local notification = {                  
+               method = id,
+               params = {
+                  path = path,
+                  event = 'add',  
+                  data = {
+                     type = 'node'
                   }
                }
-               tinsert(node_notifications,notification)
-            end
+            }
+            tinsert(node_notifications,notification)
          end
-         local compare_path_length = function(not1,not2)
-            return #not1.params.path < #not2.params.path
-         end
-         table.sort(node_notifications,compare_path_length)
-         for _,notification in ipairs(node_notifications) do
-            client:queue(notification)
-         end
-         for path,leave in pairs(leaves) do
-            if matcher(path) then
-               client:queue
-               {
-                  method = id,
-                  params = {
-                     path = path,
-                     event = 'add',
-                     data = leave.element
-                  }
+      end
+      local compare_path_length = function(not1,not2)
+         return #not1.params.path < #not2.params.path
+      end
+      table.sort(node_notifications,compare_path_length)
+      for _,notification in ipairs(node_notifications) do
+         client:queue(notification)
+      end
+      for path,leave in pairs(leaves) do
+         if matcher(path) then
+            client:queue
+            {
+               method = id,
+               params = {
+                  path = path,
+                  event = 'add',
+                  data = leave.element
                }
-            end
+            }
          end
       end
-      client.fetchers[id] = matcher
-      if message.id then
-         client:queue
-         {
-            id = message.id,
-            result = {}
-         }
-      end
-   else
-      if message.id then
-         local error = invalid_params{expected = '[fetch_name,expression] or [fetch_name,{"match":[...],"unmatch":[...]}',got = '[]'}
-         client:queue
-         {
-            id = message.id,
-            error = error
-         }
-      end
+   end
+   client.fetchers[id] = matcher
+   if message.id then
+      client:queue
+      {
+         id = message.id,
+         result = {}
+      }
    end
 end
 
 local set = function(client,message)
-   if #message.params == 2 then
-      local path = message.params[1]
-      --   log('call',path)
-      if leaves[path] then
-         tremove(message.params,1)
-         local id
-         if message.id then
-            id = message.id..tostring(client)        
-            assert(not routes[id])
-            -- save route to forward reply
-            routes[id] = {
-               receiver = client,
-               id = message.id
-            }        
-         end
-         leaves[path].client:queue
-         {
-            id = id, -- maybe nil
-            method = path,
-            params = message.params
-         }
-      elseif message.id then
-         client:queue
-         {
-            id = message.id, 
-            error = {
-               code = 123,
-               message = 'jet state unknown',
-               data = path
-            }
-         }
+   local params = message.params   
+   local path = checked(params,'path','string')
+   local value = checked(params,'value')
+   if leaves[path] then     
+      local id
+      if message.id then
+         id = message.id..tostring(client)        
+         assert(not routes[id])
+         -- save route to forward reply
+         routes[id] = {
+            receiver = client,
+            id = message.id
+         }        
       end
-   else
-      local error = invalid_params{expected = '[path,value]',got = message.params}
+      leaves[path].client:queue
+      {
+         id = id, -- maybe nil
+         method = path,
+         params = {
+            value = value
+         }
+      }
+   elseif message.id then
       client:queue
       {
-         id = message.id,
-         error = error
+         id = message.id, 
+         error = {
+            code = 123,
+            message = 'jet state unknown',
+            data = path
+         }
       }
    end
 end
 
 local call = function(client,message)
-   if #message.params > 0 then
-      local path = message.params[1]
-      --   log('call',path)
-      if leaves[path] then
-         tremove(message.params,1)
-         --      log('call',path,'method found')
-         local id
-         if message.id then
-            id = message.id..tostring(client)        
-            assert(not routes[id])
-            -- save route to forward reply
-            routes[id] = {
-               receiver = client,
-               id = message.id
-            }        
-         end
-         leaves[path].client:queue
-         {
-            id = id, -- maybe nil
-            method = path,
-            params = message.params
-         }
-      elseif message.id then
-         client:queue
-         {
-            id = message.id, 
-            error = {
-               code = 123,
-               message = 'jet method unknown',
-               data = path
-            }
-         }
+   local params = message.params   
+   local path = checked(params,'path','string')
+   local args = optional(params,'args','table')
+   if leaves[path] then
+      local id
+      if message.id then
+         id = message.id..tostring(client)        
+         assert(not routes[id])
+         -- save route to forward reply
+         routes[id] = {
+            receiver = client,
+            id = message.id
+         }        
       end
-   else
-      local error = invalid_params{expected = '[path,...]',got = '[]'}
+      leaves[path].client:queue
+      {
+         id = id, -- maybe nil
+         method = path,
+         params = args
+      }
+   elseif message.id then
       client:queue
       {
-         id = message.id,
-         error = error
+         id = message.id, 
+         error = {
+            code = 123,
+            message = 'jet method unknown',
+            data = path
+         }
       }
    end
 end
@@ -335,55 +341,45 @@ local decrement_nodes = function(path)
    end   
 end
 
-
 local add = function(client,message)
---   print('ADD',cjson.encode(message))
-   if #message.params == 2 then
-      local path = message.params[1]
-      if nodes[path] or leaves[path] then
-         error(invalid_params{occupied = path})
-      end
-      increment_nodes(path)
-      local element = message.params[2]
-      local method = {
-         client = client,
-         element = element
-      }
-      leaves[path] = method
-      print('leave added',path,client)
-      publish
-      {
-         path = path,
-         event = 'add',
-         data = element
-      }
-   else
-      error(invalid_params{expected = '[path,element]',got = message.params})
+   local params = message.params
+   local path = checked(params,'path','string')
+   if nodes[path] or leaves[path] then
+      error(invalid_params{occupied = path})
    end
+   increment_nodes(path)
+   local element = checked(params,'element','table')
+   if not element.type then
+      error(invalid_params{missing_param ='element.type',got=params})
+   end   
+   local leave = {
+      client = client,
+      element = element
+   }
+   leaves[path] = leave
+   publish
+   {
+      path = path,
+      event = 'add',
+      data = element
+   }
 end
 
 local remove = function(client,message)
-   debug('remove')
-   if #message.params == 1 then
-      debug('remove',111)
-      local path = message.params[1]
-      if not states[path] and not methods[path] then
-         error(invalid_params{invalid_path = path})
-      end
-      info('removing',path)
-      local el = methods[path].element
-      methods[path] = nil
-      publish
-      {
-         path = path,
-         event = 'remove',
-         data = el
-      }
-      decrement_nodes(path)
-      --      cache.add(client,path,element)
-   else
-      error(invalid_params{expected = '[path]',got = message.params})
+   local params = message.params
+   local path = checked(params,'path','string')
+   if not states[path] and not methods[path] then
+      error(invalid_params{invalid_path = path})
    end
+   local element = assert(leaves[path].element)
+   leaves[path] = nil
+   publish
+   {
+      path = path,
+      event = 'remove',
+      data = element
+   }
+   decrement_nodes(path)
 end
 
 local sync = function(f)
@@ -543,8 +539,8 @@ local dispatch_message = function(client,message,err)
             client:queue
             {
                error = {
-                     code  = -32700,
-                     messsage = 'Parse error'
+                  code  = -32700,
+                  messsage = 'Parse error'
                }
             }
          end
@@ -593,7 +589,7 @@ local accept_client = function(loop,accept_io)
    local args = {
       loop = loop,
       on_message = function(_,...)
---         print(client,_)
+         --         print(client,_)
          dispatch_message(client,...)
       end,
       on_close = release_client,
@@ -604,10 +600,10 @@ local accept_client = function(loop,accept_io)
    }
    local jsock = jsocket.wrap(sock,args)
    client.close = function()
-         jsock:close()
+      jsock:close()
    end
    client.queue = function(self,message)
---      print('queing',self,jsock,assert(cjson.encode(message)))
+      --      print('queing',self,jsock,assert(cjson.encode(message)))
       if not self.messages then
          self.messages = {}
       end
@@ -615,7 +611,7 @@ local accept_client = function(loop,accept_io)
    end     
    client.flush = function(self)
       if self.messages then
---         print('flushing',self,jsock)
+         --         print('flushing',self,jsock)
          local num = #self.messages
          if num == 1 then
             jsock:send(self.messages[1])

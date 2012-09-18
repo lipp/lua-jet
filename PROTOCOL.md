@@ -35,7 +35,7 @@ The jet daemon provides several services which may be used through:
 
 To execute a jet service set the Request's/Notification's field __method__ to the service name and set the field __params__ as required by the service.
 
-## add [path,element]
+## add
 
 Adds an element to the internal jet tree. The element may either describe a method or a state. After adding, the peer gets forwarded __set__ (state) and __call__ (method) Requests / Notifications. The peer is responsible for processing the message and reply with a Response Object if the message is a Request.
 
@@ -59,11 +59,14 @@ MAY contain the fields:
 {
         "id": 7384, // optional
         "method":"add",
-        "params":["foo/bar/state",{
+        "params":{
+                "path":"foo/bar/state",
+                "element": {
                 "type": "state",
                 "value": 123,
                 "schema": {"class":"number"} // optional
-        }]  
+                }
+        }  
         
 }
 ```
@@ -116,7 +119,9 @@ var set_forward =
 {
         "id": 231, // optional
         "method":"a/b/c",
-        "params":[123]
+        "params":{
+                "value":123
+        }
 }
 ```
 
@@ -140,7 +145,7 @@ var call_forward =
 ```
 
 
-## remove [path]
+## remove
 
 Removes the (leave) element with the specified path. __call__ and __set__ messages will no longer be forwarded.
 
@@ -153,7 +158,9 @@ The element's path, '/' (forward-slash) for delimiting nodes.
 {
         "id": 7384, // optional
         "method":"remove",
-        "params":["foo/bar/state"]        
+        "params":{
+                "path":"foo/bar/state"
+        }
 }
 ```
 
@@ -187,7 +194,7 @@ MUST post Notifications for implicitly removed (otherwise empty) nodes, like:
 }
 ```
 
-## call [path,arg1,arg2,...]
+## call
 
 Calls a previously a added method with the specified arguments. The method may have been registered by the calling process or any other process connected to jet. 
 
@@ -206,7 +213,10 @@ The arguments which will be forwarded to the peer as Array.
 {
         "id": 7384, // optional
         "method":"call",
-        "params":["foo/bar/sum",1,2,3]        
+        "params":{
+                "path":"foo/bar/sum",
+                "args":[1,2,3]
+       }
 }
 ```
 
@@ -229,7 +239,10 @@ The desired value's type cannot be determined previously and will be accepted / 
 {
         "id": 7384, // optional
         "method":"set",
-        "params":["foo/bar/state",{"a":56.2,"b":33}]        
+        "params":{
+                "path":"foo/bar/state",
+                "value": {"a":56.2,"b":33}
+        }               
 }
 ```
 
@@ -237,7 +250,7 @@ The desired value's type cannot be determined previously and will be accepted / 
 
 Even if the service returns with no error, the actual state's value might differ from the requested one. The peer SHOULD listen to state changes via fetch to retrieve the 'real' new value.
 
-## post [path,notification]
+## post
 
 Posts the specified notification to all 'fetchers', which match on path's value.
 
@@ -253,22 +266,29 @@ MUST contain the fields:
 - __path__
 
 
-## fetch [id,matcher]
+## fetch
 
 ### id (String)
 
 An id which will be delivered back to the peer, whenever a notification is being posted, where the path is matched by matcher.
 
-### matcher (String or Object)
+### match (Array)
 
-If matcher is a String, it must be a Lua pattern.
+An Array with Lua patterns. Length must be > 0.
+
+### unmatch (Array,optional)
+
+An Array with Lua patterns.
 
 ### Example 
 ```Javascript
 {
         "id": 7384, // optional
         "method":"fetch",
-        "params":["all_stuff",".*"]        
+        "params":{
+           "id": "all_stuff",
+           "match":[".*"]
+        }   
 }
 ```
 
@@ -276,10 +296,11 @@ If matcher is a String, it must be a Lua pattern.
 {
         "id": 7384, // optional
         "method":"fetch",
-        "params":["fency_stuff",{
+        "params":{
+                "id":"fency_stuff",
                 "match":["a/b/.*","a/c/.*"],
                 "unmatch": ["a/b/c/e"]
-        }]
+        }
 }
 ```
 
