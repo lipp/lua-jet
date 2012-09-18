@@ -243,7 +243,7 @@ new = function(config)
       assert(type(dispatch) == 'function')
       local assign_dispatcher = function(success)
          if success then
-            log('assigned',path)
+--            log('assigned',path)
             request_dispatchers[path] = dispatch
          end
       end
@@ -253,15 +253,15 @@ new = function(config)
       }
       service('add',params,assign_dispatcher,callbacks)   
       local ref = {         
-         remove = function(_,callbacks)
-            log('removing',path)
+         remove = function(ref,callbacks)
+            assert(ref:is_added())
             self:remove(path,callbacks)
          end,
          is_added = function()
             return request_dispatchers[path] ~= nil
          end,
-         add = function(_,callbacks)
-            log('adding',path)
+         add = function(ref,callbacks)
+            assert(not ref:is_added())
             self:add(path,el,dispatch,callbacks)
          end
       }
@@ -387,7 +387,26 @@ new = function(config)
       else
          assert(nil,'async states not supported yet')
       end
-      self:add(desc.path,el,dispatch,callbacks)
+      local ref = self:add(desc.path,el,dispatch,callbacks)
+      ref.value = function(self,value)
+         if value then
+            desc.value = value
+            queue
+            {
+               method = 'post',
+               params = {
+                  event = 'change',
+                  path = desc.path,
+                  data = {
+                     value = value
+                  }
+               }
+            }
+         else
+            return desc.value
+         end
+      end
+      return ref
    end
    return j
 end
