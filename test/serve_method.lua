@@ -46,14 +46,13 @@ local start = function()
             path = 'test/toggle_echo',
             call = function(self)
                print('TOGGLE',test_echo)
-               if test_echo then
+               if test_echo:is_added() then
                   test_echo:remove({succes=function() print('asd') end,error = function() print('ppp') end})
-                  test_echo = nil
                else
                   test_echo:add()
                end
-               horst_echo_2:remove()
-               horst_echo_3:remove()
+--               horst_echo_2:remove()
+--               horst_echo_3:remove()
             end
          }
          local bla = 0
@@ -62,6 +61,10 @@ local start = function()
             path = 'popo/bla',
             set = function(self,value)
                bla = value
+               if type(bla) == 'number' then
+                  bla = bla + 0.1
+                  return bla
+               end
             end,
             value = bla
          }
