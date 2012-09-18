@@ -41,22 +41,9 @@ local start = function()
             call = echo
          }
          
-         jet:method
-         {
-            path = 'test/toggle_echo',
-            call = function(self)
-               print('TOGGLE',test_echo)
-               if test_echo:is_added() then
-                  test_echo:remove({succes=function() print('asd') end,error = function() print('ppp') end})
-               else
-                  test_echo:add()
-               end
---               horst_echo_2:remove()
---               horst_echo_3:remove()
-            end
-         }
+
          local bla = 0
-         jet:state
+         local bla_state = jet:state
          {
             path = 'popo/bla',
             set = function(self,value)
@@ -67,6 +54,21 @@ local start = function()
                end
             end,
             value = bla
+         }
+
+         jet:method
+         {
+            path = 'test/toggle_echo',
+            call = function(self)
+               print('TOGGLE',test_echo)
+               if test_echo:is_added() then
+                  test_echo:remove({succes=function() print('asd') end,error = function() print('ppp') end})
+               else
+                  test_echo:add()
+               end
+               local old = bla_state:value()
+               bla_state:value(old+0.3)
+            end
          }
       end)
 end
