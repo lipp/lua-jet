@@ -43,6 +43,20 @@ new = function(config)
    if not sock then
       error('could not connect to jetd with ip:'..ip..' port:'..port)
    end
+   local messages = {}
+   local queue = function(message)
+      assert(message)
+      tinsert(messages,message)
+   end
+   local flush = function()      
+      local n = #messages
+      if n == 1 then
+         sock:send(messages[1])
+      elseif n > 1 then
+         sock:send(messages)
+      end
+      messages = {}
+   end
    local request_dispatchers = {}
    local response_dispatchers = {}
    local dispatch_response = function(self,message)
@@ -96,7 +110,7 @@ new = function(config)
             message = 'Method not found'
          }         
       end
-      sock:send
+      queue
       {
          id = message.id,
          error = error
@@ -127,7 +141,7 @@ new = function(config)
             dispatch_single_message(self,message)
          end
       else      
-         self:send
+         queue
          {
             error = {
                code  = -32700,
@@ -135,6 +149,7 @@ new = function(config)
             }
          }
       end
+      flush()
    end
    local args = {
       on_message = dispatch_message,
@@ -160,8 +175,6 @@ new = function(config)
    end
 
    local id = 0
-   local batch = {}
-   local batching
    service = function(method,params,complete,callbacks)
       local rpc_id
       -- Only make a Request, if callbacks are specified.
@@ -210,10 +223,8 @@ new = function(config)
          params = params
       }
       if batching then
-         log('batching',cjson.encode(message))
-         tinsert(batch,message)
+         queue(message)
       else
-         log('sendinf',cjson.encode(message))
          sock:send(message)
       end
    end
@@ -222,9 +233,7 @@ new = function(config)
       batching = true
       action()
       batching = false
-      log('TATA',cjson.encode(batch))
-      sock:send(batch)
-      batch = {}
+      flush()
    end
 
    j.add = function(self,path,el,dispatch,callbacks)
@@ -233,21 +242,42 @@ new = function(config)
       assert(type(el) == 'table')
       assert(type(dispatch) == 'function')
       local assign_dispatcher = function(success)
-         log('assigned',path)
-         request_dispatchers[path] = dispatch
+         if success then
+            log('assigned',path)
+            request_dispatchers[path] = dispatch
+         end
       end
       local params = {
          path = path,
          element = el
       }
       service('add',params,assign_dispatcher,callbacks)   
+      local ref = {         
+         remove = function(_,callbacks)
+            log('removing',path)
+            self:remove(path,callbacks)
+         end,
+         is_added = function()
+            return request_dispatchers[path] ~= nil
+         end,
+         add = function(_,callbacks)
+            log('adding',path)
+            self:add(path,el,dispatch,callbacks)
+         end
+      }
+      return ref
    end
 
    j.remove = function(_,path,callbacks)
       local params = {
          path = path
       }
-      service('remove',params,nil,callbacks)
+      local remove_dispatcher = function(success)
+         if success then
+            request_dispatchers[path] = nil
+         end
+      end
+      service('remove',params,remove_dispatcher,callbacks)
    end
 
    j.call = function(self,path,params,callbacks)
@@ -293,13 +323,13 @@ new = function(config)
             local ok,result = pcall(desc.call,self,unpack(message.params))
             if message.id then
                if ok then
-                  self:send
+                  queue
                   {
                      id = message.id,
                      result = result or {}
                   }
                else               
-                  self:send
+                  queue
                   {
                      id = message.id,
                      error = error_object(result)
@@ -312,18 +342,7 @@ new = function(config)
             desc.call(self,message)
          end
       end
-      
-      self:add(desc.path,el,dispatch,callbacks)
-      local ref = {         
-         remove = function(_,callbacks)
-            log('removing',desc.path)
-            self:remove(desc.path,callbacks)
-         end,
-         add = function(_,callbacks)
-            log('adding',desc.path)
-            self:add(desc.path,el,callbacks)
-         end
-      }
+      local ref = self:add(desc.path,el,dispatch,callbacks)
       return ref
    end
 
@@ -337,23 +356,28 @@ new = function(config)
          dispatch = function(self,message)
             local value = message.params.value
             local ok,result,dont_notify = pcall(desc.set,self,value)
+            print('set state',desc.path,ok,result,dont_notify)
             if ok then
-               local messages = {}
-               messages[1] = {
+               queue
+               {
                   id = message.id,
                   result = result or {}
                }
                if not dont_notify then
-                  messages[2] = {
-                     method = 'change',
+                  queue
+                  {
+                     method = 'post',
                      params = {
-                        value = result or value
+                        event = 'change',
+                        path = desc.path,
+                        data = {
+                           value = result or value
+                        }
                      }
                   }
                end
-               self:send(messages)
             else
-               self:send
+               queue
                {
                   id = message.id,
                   error = error_object(result)
