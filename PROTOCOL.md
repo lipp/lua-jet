@@ -54,6 +54,20 @@ MAY contain the fields:
 - __schema__: a string which describes the element
 - __value__: the current value, only applies for states
 
+### Example 
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"add",
+        "params":["foo/bar/state",{
+                "type": "state",
+                "value": 123,
+                "schema": {"class":"number"} // optional
+        }]  
+        
+}
+```
+
 ### Sideeffects
 
 MUST post Notifications for implicitly added nodes, like:
@@ -134,6 +148,15 @@ Removes the (leave) element with the specified path. __call__ and __set__ messag
 
 The element's path, '/' (forward-slash) for delimiting nodes.
 
+### Example 
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"remove",
+        "params":["foo/bar/state"]        
+}
+```
+
 ### Sideeffects
 
 MUST post a Notification for the newly removed element, like:
@@ -143,6 +166,9 @@ MUST post a Notification for the newly removed element, like:
         "params":{
                 "event":"remove",
                 "path": path,
+                "data": {
+                        "type": "method" // "method" or "state"
+                }
         }
 }
 ```
@@ -161,7 +187,7 @@ MUST post Notifications for implicitly removed (otherwise empty) nodes, like:
 }
 ```
 
-## call [path,args]
+## call [path,arg1,arg2,...]
 
 Calls a previously a added method with the specified arguments. The method may have been registered by the calling process or any other process connected to jet. 
 
@@ -171,9 +197,18 @@ The jet daemon will try to forward the request to a peer.
 
 The element's path, '/' (forward-slash) for delimiting nodes.
 
-### args (Array)
+### args 
 
-The arguments Array which will be forwarded to the peer.
+The arguments which will be forwarded to the peer as Array.
+
+### Example 
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"call",
+        "params":["foo/bar/sum",1,2,3]        
+}
+```
 
 ## set [path,value]
 
@@ -188,6 +223,15 @@ The element's path, '/' (forward-slash) for delimiting nodes.
 ### value (any JSON)
 
 The desired value's type cannot be determined previously and will be accepted / refused be the processing peer on message arrival.
+
+### Example 
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"set",
+        "params":["foo/bar/state",{"a":56.2,"b":33}]        
+}
+```
 
 ### Sideeffects
 
@@ -218,6 +262,26 @@ An id which will be delivered back to the peer, whenever a notification is being
 ### matcher (String or Object)
 
 If matcher is a String, it must be a Lua pattern.
+
+### Example 
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"fetch",
+        "params":["all_stuff",".*"]        
+}
+```
+
+```Javascript
+{
+        "id": 7384, // optional
+        "method":"fetch",
+        "params":["fency_stuff",{
+                "match":["a/b/.*","a/c/.*"],
+                "unmatch": ["a/b/c/e"]
+        }]
+}
+```
 
 ### Sideeffects
 
