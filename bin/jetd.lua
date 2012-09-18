@@ -80,8 +80,9 @@ end
 local matcher = function(match,unmatch)
    local f
    if not unmatch and #match == 1 then
+      local match = match[1]
       f = function(path)
-         return path:match(config)
+         return path:match(match)
       end  
    else
       f = function(path)
@@ -143,7 +144,7 @@ local post = function(client,message)
    if leave then
       if event == 'change' then
          for k,v in pairs(data) do
-            state.element[k] = v
+            leave.element[k] = v
          end
       end
       publish(notification)
@@ -368,7 +369,7 @@ end
 local remove = function(client,message)
    local params = message.params
    local path = checked(params,'path','string')
-   if not states[path] and not methods[path] then
+   if not leaves[path] then
       error(invalid_params{invalid_path = path})
    end
    local element = assert(leaves[path].element)
@@ -528,13 +529,22 @@ local dispatch_message = function(client,message,err)
    local ok,err = pcall(
       function()
          if message then
-            if #message > 0 then
+            if message == cjson.null then
+               client:queue
+               {
+                  error = {
+                     code = -32600,
+                     message = 'Invalid Request',
+                     data = 'message is null'
+                  }
+               }            
+            elseif #message > 0 then
                for i,message in ipairs(message) do
                   dispatch_single_message(client,message)
                end
             else
                dispatch_single_message(client,message)
-            end   
+            end         
          else      
             client:queue
             {
