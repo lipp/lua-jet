@@ -1,7 +1,7 @@
 local jet = require'jet.peer'.new()
 local ev = require'ev'
 local loop = ev.Loop.default
-local echo = function(self,...)
+local echo = function(...)
    return {...}
 end
 
@@ -46,7 +46,7 @@ local start = function()
          local bla_state = jet:state
          {
             path = 'popo/bla',
-            set = function(self,value)
+            set = function(value)
                bla = value
                if type(bla) == 'number' then
                   bla = bla + 0.1
@@ -59,7 +59,7 @@ local start = function()
          jet:method
          {
             path = 'test/toggle_echo',
-            call = function(self)
+            call = function()
                print('TOGGLE',test_echo)
                if test_echo:is_added() then
                   test_echo:remove({succes=function() print('asd') end,error = function() print('ppp') end})
