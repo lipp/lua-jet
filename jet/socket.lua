@@ -18,8 +18,7 @@ local pcall = pcall
 
 module('jet.socket')
 
-local sync = function()
-   local sock = socket.connect('localhost',33326)
+local wrap_sync = function(sock)
    assert(sock)
    local wrapped = {}
    sock:setoption('tcp-nodelay',true)
@@ -88,10 +87,11 @@ local wrap = function(sock,args)
    -- the message format is 32bit big endian integer
    -- denoting the size of the JSON following   
    wrapped.send = function(_,message)  
---      log(cjson.encode(message_object))
+--      log('sending',cjson.encode(message))
       if encode then
          message = cjson.encode(message)      
       end
+--      assert(cjson.decode(message) ~= cjson.null)
       send_buffer = send_buffer..spack('>I',#message)..message
       if not send_io:is_active() then
 --         log('strting io')
@@ -143,7 +143,7 @@ local wrap = function(sock,args)
                --         print('eee4',len)       
                json_message,err,sub = sock:receive(len,json_message)
                if json_message then    
---                  log('recv',json_message)
+--                  log('recv',len,json_message)
                   if decode then
                      local ok,message = pcall(cjson.decode,json_message)
                      if ok then                  
@@ -180,8 +180,10 @@ local wrap = function(sock,args)
    return wrapped
 end
 
-return {
+local mod = {
    wrap = wrap,
-   sync = sync
-       }
+   wrap_sync = wrap_sync
+}
+
+return mod
 
