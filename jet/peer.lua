@@ -63,7 +63,7 @@ new = function(config)
             if response.result then
                return response.result
             elseif response.error then
-               error('jet peer service call failed:'..cjson.encode(response.error),2)
+               error(response.error,2)
             else
                assert(false,'invalid response:'..cjson.encode(response))
             end
