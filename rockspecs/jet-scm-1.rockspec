@@ -16,7 +16,7 @@ build = {
   type = 'none',
   install = {
     lua = {
-      ["jet.peer"] = 'jet/peer.lua'
+      ["jet.peer"] = 'jet/peer.lua',
       ["jet.socket"] = 'jet/socket.lua'
     },
     bin = {
