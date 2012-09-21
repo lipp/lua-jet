@@ -263,7 +263,8 @@ The element's path, '/' (forward-slash) for delimiting nodes.
 MUST contain the fields:
 
 - __event__: MUST be 'change' for now
-- __path__
+- __path__: The effected elements path
+- __data__: An Object containing all elements which have changed (up to now only supports 'value' and 'schema')
 
 
 ## fetch
@@ -318,16 +319,20 @@ var incoming_post =
         "params":{
                 "path":"a/b/c",
                 "event": "change",
-                "data": 83373.22
+                "data": {
+                   "value": 2231
+                }       
         }
 }
 var post_forward = 
 {
-        "method":"foo",
+        "method":"all_stuff",
         "params": {
                 "path":"a/b/c",
                 "event": "change",
-                "data": 83373.22
+                "data": {
+                   "value": 2231
+                }       
         }
 }
 ```
