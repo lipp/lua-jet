@@ -392,7 +392,7 @@ new = function(config)
             dispatch = function(self,message)
                local value = message.params.value
                local ok,result,dont_notify = pcall(desc.set,value)
-               print('set state',desc.path,ok,result,dont_notify)
+--               print('set state',desc.path,ok,result,dont_notify)
                if ok then
                   queue
                   {
