@@ -56,7 +56,7 @@ local route_message = function(client,message)
 end
 
 local publish = function(notification)
-   debug('publish',cjson.encode(notification))
+--   debug('publish',cjson.encode(notification))
    local path = notification.path
    for client in pairs(clients) do      
       for fetch_id,matcher in pairs(client.fetchers) do
@@ -139,7 +139,6 @@ local post = function(client,message)
    local path = checked(notification,'path','string')
    local event = checked(notification,'event','string')
    local data = checked(notification,'data','table')
-   local error
    local leave = leaves[path]
    if leave then
       if event == 'change' then
@@ -149,11 +148,7 @@ local post = function(client,message)
       end
       publish(notification)
    else
-      error = {
-         code = 123,
-         message = 'invalid path',
-         data = path
-      }
+      local error = invalid_params{invalid_path=path}
       if message.id then
          client:queue
          {
@@ -243,16 +238,17 @@ local set = function(client,message)
             value = value
          }
       }
-   elseif message.id then
-      client:queue
-      {
-         id = message.id, 
-         error = {
-            code = 123,
-            message = 'jet state unknown',
-            data = path
+   else
+      local error = invalid_params{invalid_path=path}
+      if message.id then
+         client:queue
+         {
+            id = message.id, 
+            error = error
          }
-      }
+      else
+         log('set failed',cjson.encode(error))
+      end
    end
 end
 
@@ -277,16 +273,17 @@ local call = function(client,message)
          method = path,
          params = args
       }
-   elseif message.id then
-      client:queue
-      {
-         id = message.id, 
-         error = {
-            code = 123,
-            message = 'jet method unknown',
-            data = path
+   else
+      local error = invalid_params{invalid_path=path}
+      if message.id then
+         client:queue
+         {
+            id = message.id, 
+            error = error
          }
-      }
+      else
+         log('call failed',cjson.encode(error))
+      end
    end
 end
 
@@ -301,7 +298,7 @@ local increment_nodes = function(path)
       if count then
          nodes[path] = count+1
       else
-         print('new node',path) 
+--         print('new node',path) 
          nodes[path] = 1
          publish
          {
@@ -312,7 +309,7 @@ local increment_nodes = function(path)
             }
          }
       end
-      print('node',node,nodes[path])
+--      print('node',node,nodes[path])
    end   
 end
 
@@ -326,10 +323,10 @@ local decrement_nodes = function(path)
       local count = nodes[path]
       if count > 1 then
          nodes[path] = count-1
-         print('node',path,nodes[path])
+--         print('node',path,nodes[path])
       else
          nodes[path] = nil
-         print('delete node',path)
+--         print('delete node',path)
          publish
          {
             event = 'remove',
@@ -346,7 +343,7 @@ local add = function(client,message)
    local params = message.params
    local path = checked(params,'path','string')
    if nodes[path] or leaves[path] then
-      error(invalid_params{occupied = path})
+      error(invalid_params{occupied_path = path})
    end
    increment_nodes(path)
    local element = checked(params,'element','table')
