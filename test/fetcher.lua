@@ -1,6 +1,6 @@
 local jet = require'jet.peer'.new()
 local cjson = require'cjson'
-jet:fetch('test_fetch','.*',
+jet:fetch('.*',
           function(params)             
              print('fetching',cjson.encode(params))
           end)

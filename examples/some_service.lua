@@ -1,3 +1,4 @@
+#!/usr/bin/env lua
 local jet = require'jet.peer'.new()
 local ev = require'ev'
 
@@ -26,7 +27,9 @@ local hobby = 'dance'
 jet:state
 { 
    path = 'hobby',
-   set = assign(hobby), 
+   set = function()
+      return true,1,nil
+   end, 
    value = hobby
 }
  

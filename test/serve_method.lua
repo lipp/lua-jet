@@ -1,6 +1,7 @@
-local jet = require'jet.peer'.new()
+
 local ev = require'ev'
 local loop = ev.Loop.default
+local jet = require'jet.peer'.new{loop=loop}
 local echo = function(...)
    return {...}
 end
@@ -73,6 +74,4 @@ local start = function()
       end)
 end
 local s = ev.Timer.new(start,0.0001)
-s:start(loop)
-jet:io():start(loop)
 loop:loop()
