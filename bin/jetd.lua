@@ -104,7 +104,7 @@ end
 
 local checked = function(params,key,typename)
    local p = params[key]
-   if p then      
+   if p ~= nil then      
       if typename then
          if type(p) == typename then
             return p
