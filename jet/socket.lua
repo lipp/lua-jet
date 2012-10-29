@@ -3,7 +3,6 @@ local socket = require'socket'
 local cjson = require'cjson'
 require'pack' -- blends pack/unpack into string table
 
-local loop = ev.Loop.default
 local print = print
 local pairs = pairs
 local tinsert = table.insert
@@ -102,80 +101,84 @@ local wrap = function(sock,args)
       sock:shutdown()
       sock:close()
    end
+   local read_io
    wrapped.read_io = function()
-      local len
-      local len_bin
-      local json_message
-      local _
-      local receive_message = function(loop,read_io)
---         print('eee2')
-         while true do
-            if not len_bin or #len_bin < 4 then
-               --         print('eee3')
-               local err,sub 
-               len_bin,err,sub = sock:receive(4,len_bin)
-               --            print(len_bin,err,sub)
-               if len_bin then
-                  _,len = sunpack(len_bin,'>I')               
-                  --            print(#len_bin,len,_)
-               elseif err == 'timeout' then
-                  len_bin = sub
-                  return                                   
-               elseif err == 'closed' then
-                  read_io:stop(loop)
-                  on_close(wrapped)
-                  return
-               else
-                  log('WTF?!',err)
-                  read_io:stop(loop)
-                  on_error(wrapped,err)
-               end         
-            end
-            if len then 
-               if len > 1000000 then
-                  local err = 'message too big:'..len..'bytes'
-                  print('jet.socket error',err)
-                  on_error(wrapped,err)
-                  read_io:stop(loop)
-                  sock:close()
-                  return
-               end
-               --         print('eee4',len)       
-               json_message,err,sub = sock:receive(len,json_message)
-               if json_message then    
---                  log('recv',len,json_message)
-                  if decode then
-                     local ok,message = pcall(cjson.decode,json_message)
-                     if ok then                  
-                        on_message(wrapped,message)
-                     else                  
-                        on_message(wrapped,nil,message)
-                     end
+      if not read_io then
+         local len
+         local len_bin
+         local json_message
+         local _
+         local receive_message = function(loop,read_io)
+            --         print('eee2')
+            while true do
+               if not len_bin or #len_bin < 4 then
+                  --         print('eee3')
+                  local err,sub 
+                  len_bin,err,sub = sock:receive(4,len_bin)
+                  --            print(len_bin,err,sub)
+                  if len_bin then
+                     _,len = sunpack(len_bin,'>I')               
+                     --            print(#len_bin,len,_)
+                  elseif err == 'timeout' then
+                     len_bin = sub
+                     return                                   
+                  elseif err == 'closed' then
+                     read_io:stop(loop)
+                     on_close(wrapped)
+                     return
                   else
-                     on_message(wrapped,json_message)
+                     log('WTF?!',err)
+                     read_io:stop(loop)
+                     on_error(wrapped,err)
+                  end         
+               end
+               if len then 
+                  if len > 1000000 then
+                     local err = 'message too big:'..len..'bytes'
+                     print('jet.socket error',err)
+                     on_error(wrapped,err)
+                     read_io:stop(loop)
+                     sock:close()
+                     return
                   end
-                  len = nil
-                  len_bin = nil
-                  json_message = nil                  
-               elseif err == 'timeout' then
-                  json_message = sub
-                  return
-               elseif err == 'closed' then
-                  read_io:stop(loop)
-                  on_close(wrapped)
-                  return
-               else
-                  read_io:stop(loop)
-                  on_error(wrapped,err)
-                  return
+                  --         print('eee4',len)       
+                  json_message,err,sub = sock:receive(len,json_message)
+                  if json_message then    
+                     --                  log('recv',len,json_message)
+                     if decode then
+                        local ok,message = pcall(cjson.decode,json_message)
+                        if ok then                  
+                           on_message(wrapped,message)
+                        else                  
+                           on_message(wrapped,nil,message)
+                        end
+                     else
+                        on_message(wrapped,json_message)
+                     end
+                     len = nil
+                     len_bin = nil
+                     json_message = nil                  
+                  elseif err == 'timeout' then
+                     json_message = sub
+                     return
+                  elseif err == 'closed' then
+                     read_io:stop(loop)
+                     on_close(wrapped)
+                     return
+                  else
+                     read_io:stop(loop)
+                     on_error(wrapped,err)
+                     return
+                  end
                end
             end
-         end
             --         print('eee5',len)       
+         end
+         local fd = sock:getfd()
+         assert(fd > -1)      
+         read_io = ev.IO.new(receive_message,fd,ev.READ)
       end
-      local fd = sock:getfd()
-      assert(fd > -1)      
-      return ev.IO.new(receive_message,fd,ev.READ)
+      return read_io
    end
    return wrapped
 end

@@ -82,16 +82,20 @@ new = function(config)
       local messages = {}
       local queue = function(message)
          assert(message)
+--         print(ip,sock,cjson.encode(message))
          tinsert(messages,message)
       end
-      local flush = function()      
-         local n = #messages
+      local will_flush
+      local flush = function(reason)  
+         local n = #messages         
+--         print('FLUSHING',n,reason,ip,messages)
          if n == 1 then
             sock:send(messages[1])
          elseif n > 1 then
             sock:send(messages)
          end
          messages = {}
+         will_flush = false
       end
       local request_dispatchers = {}
       local response_dispatchers = {}
@@ -126,7 +130,7 @@ new = function(config)
                log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
             end
          end
-         --log('notification',cjson.encode(message))
+--         log('notification',cjson.encode(message))
       end
       local dispatch_request = function(self,message)
          --      log('dispatch_request',self,cjson.encode(message))
@@ -168,6 +172,7 @@ new = function(config)
          end
       end
       local dispatch_message = function(self,message,err)
+         will_flush = true
          if message then
             if #message > 0 then
                for i,message in ipairs(message) do
@@ -185,7 +190,7 @@ new = function(config)
                }
             }
          end
-         flush()
+         flush('dispatch_message')
       end
       local args = {
          on_message = dispatch_message,
@@ -193,25 +198,33 @@ new = function(config)
          on_close = log,
          loop = loop
       }
-      sock = jsocket.wrap(sock,args)
+      sock = jsocket.wrap(sock,args)     
       local j = {}
+      if not config.dont_start_io then
+         j.read_io = sock:read_io()
+         j.read_io:start(loop)
+      end
 
-      j.io = function()
-         return sock:read_io()
+      j.io = function(self)
+         if not self.read_io then            
+            j.read_io = sock:read_io()
+         end
+         return j.read_io
       end
 
       j.loop = function()
-         sock:read_io():start(loop)
          loop:loop()
       end
 
-      j.close = function()
-         sock:shutdown()
+      j.close = function(self)
+         if self.read_io then
+            self.read_io:stop(loop)
+         end
          sock:close()      
       end
 
       local id = 0
-      service = function(method,params,complete,callbacks)
+      local service = function(method,params,complete,callbacks)
          local rpc_id
          -- Only make a Request, if callbacks are specified.
          -- Make complete call in case of success.      
@@ -258,7 +271,7 @@ new = function(config)
             method = method,
             params = params
          }
-         if batching then
+         if will_flush then
             queue(message)
          else
             sock:send(message)
@@ -266,9 +279,8 @@ new = function(config)
       end
 
       j.batch = function(self,action)
-         batching = true
+         will_flush = true
          action()
-         batching = false
          flush()
       end
 
@@ -324,6 +336,14 @@ new = function(config)
          service('call',params,nil,callbacks)
       end
 
+      j.set = function(self,path,value,callbacks)
+         local params = {
+            path = path,
+            value = value
+         } 
+         service('set',params,nil,callbacks)
+      end
+
       j.notify = function(self,notification,callbacks)
          assert(notification.path)
          assert(notification.event)
@@ -331,7 +351,11 @@ new = function(config)
          service('notify',notification,nil,callbacks)
       end
 
-      j.fetch = function(self,id,expr,f,callbacks)
+      local fetch_id = 0
+
+      j.fetch = function(self,expr,f,callbacks)
+         local id = '__f__'..fetch_id
+         fetch_id = fetch_id + 1
          local add_fetcher = function()
             request_dispatchers[id] = function(peer,message)
                f(message.params)
@@ -347,14 +371,19 @@ new = function(config)
             params.unmatch = expr.unmatch
          end
          service('fetch',params,add_fetcher,callbacks)
+         local ref = {
+            unfetch = function(_,callbacks)
+               service('unfetch',{id=id},nil,callbacks)
+            end
+         }         
       end
 
-      j.method = function(self,desc,callbacks)
+      j.method = function(self,desc,add_callbacks)
          local el = {}
          el.type = 'method'
          el.schema = desc.schema
          local dispatch
-         if not desc.async then         
+         if desc.call then  
             dispatch = function(self,message)
                local ok,result = pcall(desc.call,unpack(message.params))
                if message.id then
@@ -373,26 +402,55 @@ new = function(config)
                   end
                end
             end
-         else
+         elseif desc.call_async then
             dispatch = function(self,message)
-               desc.call(self,message)
+               local reply = function(resp,dont_flush)
+                  if message.id then
+                     local response = {
+                        id = message.id
+                     }                              
+                     if type(resp.result) ~= 'nil' and not resp.error then
+                        response.result = resp.result                  
+                     elseif error then
+                        response.error = resp.error
+                     else
+                        response.error = 'jet.peer Invalid async method response '..desc.path
+                     end
+                     queue(response)
+                     if not will_flush and not dont_flush then
+                        flush('call_async')
+                     end                  
+                  end
+               end
+               
+               local ok,result = pcall(desc.call_async,reply,unpack(message.params))
+               if not ok and message.id then
+                  queue
+                  {
+                     id = message.id,
+                     error = error_object(result)
+                  }               
+               end
             end
+         else 
+            assert(false,'invalid method desc'..(desc.path or '?'))
          end
-         local ref = self:add(desc.path,el,dispatch,callbacks)
+         local ref = self:add(desc.path,el,dispatch,add_callbacks)
          return ref
       end
 
-      j.state = function(self,desc,callbacks)
+      j.state = function(self,desc,add_callbacks)
          local el = {}
          el.type = 'state'
          el.schema = desc.schema
          el.value = desc.value
+--         print(self,ip)
          local dispatch
-         if not desc.async then         
+         if desc.set then         
             dispatch = function(self,message)
                local value = message.params.value
                local ok,result,dont_notify = pcall(desc.set,value)
---               print('set state',desc.path,ok,result,dont_notify)
+               --               print('set state',desc.path,ok,result,dont_notify)
                if ok then
                   queue
                   {
@@ -420,12 +478,72 @@ new = function(config)
                   }
                end
             end
+         elseif desc.set_async then
+            dispatch = function(self,message)
+               local value = message.params.value
+               assert(value ~= nil,'params.value is required')
+               local reply = function(resp,dont_flush)
+                  if message.id then
+                     local response = {
+                        id = message.id
+                     }                              
+                     if type(resp.result) ~= 'nil' and not resp.error then
+                        response.result = resp.result                  
+                     elseif error then
+                        response.error = resp.error
+                     else
+                        response.error = 'jet.peer Invalid async state response '..desc.path
+                     end
+                     queue(response)
+                  end
+                  if resp.result and not resp.dont_notify then
+                     queue
+                     {
+                        method = 'post',
+                        params = {
+                           event = 'change',
+                           path = desc.path,
+                           data = {
+                              value = resp.value or value
+                           }
+                        }
+                     }
+                  end     
+--                  print('dont flush',dont_flush)
+                  if not will_flush and not dont_flush then
+                     flush('set_aync')
+                  end
+               end           
+               local ok,result = pcall(desc.set_async,reply,value)
+               if not ok and message.id then
+                  queue
+                  {
+                     id = message.id,
+                     error = error_object(result)
+                  }               
+               end
+            end
          else
-            assert(nil,'async states not supported yet')
-         end
-         local ref = self:add(desc.path,el,dispatch,callbacks)
+            dispatch = function(self,message)
+               if message.id then
+                  queue
+                  {
+                     id = message.id,
+                     error = error_object
+                     {
+                        code = -32602, 
+                        message = 'Invalid params', 
+                        data = {
+                           read_only = true
+                        }
+                     }
+                  }
+               end
+            end
+         end         
+         local ref = self:add(desc.path,el,dispatch,add_callbacks)
          ref.value = function(self,value)
-            if value then
+            if value ~= nil then
                desc.value = value
                queue
                {
@@ -438,6 +556,9 @@ new = function(config)
                      }
                   }
                }
+               if not will_flush then
+                  flush()
+               end
             else
                return desc.value
             end
