@@ -219,7 +219,8 @@ local set = function(client,message)
    local params = message.params   
    local path = checked(params,'path','string')
    local value = checked(params,'value')
-   if leaves[path] then     
+   local leave = leaves[path]
+   if leave and leave.element.type == 'state' then     
       local id
       if message.id then
          id = message.id..tostring(client)        
@@ -230,7 +231,7 @@ local set = function(client,message)
             id = message.id
          }        
       end
-      leaves[path].client:queue
+      leave.client:queue
       {
          id = id, -- maybe nil
          method = path,
@@ -239,16 +240,20 @@ local set = function(client,message)
          }
       }
    else
-      local error = invalid_params{invalid_path=path}
+      local error
+      if leave then
+         error = invalid_params{path_is_not_state=path}
+      else
+         error = invalid_params{invalid_path=path}
+      end
       if message.id then
          client:queue
          {
             id = message.id, 
             error = error
          }
-      else
-         log('set failed',cjson.encode(error))
       end
+      log('set failed',cjson.encode(error))
    end
 end
 
@@ -256,7 +261,8 @@ local call = function(client,message)
    local params = message.params   
    local path = checked(params,'path','string')
    local args = optional(params,'args','table')
-   if leaves[path] then
+   local leave = leaves[path]
+   if leave and leave.element.type == 'method' then
       local id
       if message.id then
          id = message.id..tostring(client)        
@@ -265,25 +271,29 @@ local call = function(client,message)
          routes[id] = {
             receiver = client,
             id = message.id
-         }        
+         }                 
       end
-      leaves[path].client:queue
+      leave.client:queue
       {
          id = id, -- maybe nil
          method = path,
          params = args
       }
    else
-      local error = invalid_params{invalid_path=path}
+      local error
+      if leave then
+         error = invalid_params{path_is_not_method=path}
+      else
+         error = invalid_params{invalid_path=path}
+      end
       if message.id then
          client:queue
          {
             id = message.id, 
             error = error
          }
-      else
-         log('call failed',cjson.encode(error))
       end
+      log('call failed',cjson.encode(error))
    end
 end
 
