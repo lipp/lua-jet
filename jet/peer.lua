@@ -71,7 +71,7 @@ new = function(config)
       end
       local j_sync = {}
       j_sync.call = function(_,path,params,as_notification)
-         return service('call',{path=path,args=params},as_notification)
+         return service('call',{path=path,args=params or {}},as_notification)
       end
       j_sync.set = function(_,path,value,as_notification)
          return service('set',{path=path,value=value},as_notification)
@@ -331,7 +331,7 @@ new = function(config)
       j.call = function(self,path,params,callbacks)
          local params = {
             path = path,
-            args = params
+            args = params or {}
          }      
          service('call',params,nil,callbacks)
       end
