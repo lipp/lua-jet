@@ -195,7 +195,7 @@ new = function(config)
       local args = {
          on_message = dispatch_message,
          on_error = log,
-         on_close = log,
+         on_close = function() end,
          loop = loop
       }
       sock = jsocket.wrap(sock,args)     
@@ -219,7 +219,10 @@ new = function(config)
       j.close = function(self)
          if self.read_io then
             self.read_io:stop(loop)
-         end
+            self.read_io:clear_pending(loop)
+         end         
+         request_dispatchers = nil
+         response_dispatchers = nil
          sock:close()      
       end
 
@@ -285,10 +288,10 @@ new = function(config)
       end
 
       j.add = function(self,path,el,dispatch,callbacks)
-         assert(not request_dispatchers[path])
-         assert(type(path) == 'string')
-         assert(type(el) == 'table')
-         assert(type(dispatch) == 'function')
+         assert(not request_dispatchers[path],path)
+         assert(type(path) == 'string',path)
+         assert(type(el) == 'table',el)
+         assert(type(dispatch) == 'function',dispatch)
          local assign_dispatcher = function(success)
             if success then
                --            log('assigned',path)
