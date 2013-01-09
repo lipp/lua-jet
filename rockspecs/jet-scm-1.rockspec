@@ -11,6 +11,9 @@ description = {
 dependencies = {
   'lua >= 5.1',
   'lua-cjson >= 1.0',
+  'luasocket',
+  'lua-ev',
+  'lpack'
 }
 build = {
   type = 'none',

@@ -16,6 +16,7 @@ install:
   - sudo luarocks install luasocket
   - sudo luarocks install lua-ev
   - sudo luarocks install lua-cjson
+  - sudo luarocks install lpack
 
 script: "busted spec"
 
