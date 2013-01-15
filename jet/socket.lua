@@ -56,18 +56,19 @@ local wrap = function(sock,args)
    local loop = args.loop
    local send_buffer = ''
    local wrapped = {}
+   local send_pos
    local send_message = function(loop,write_io)
-      local sent,err,sent_so_far = sock:send(send_buffer,pos)
+      local sent,err,sent_so_far = sock:send(send_buffer,send_pos)
       if sent then
 --         log('sent',#send_buffer,send_buffer:sub(5))
          assert(sent==#send_buffer)
          send_buffer = ''
          write_io:stop(loop)
       elseif err == 'timeout' then                  
-         log('sent timeout',pos)                  
-         pos = sent_so_far
+         log('sent timeout',send_pos)                  
+         send_pos = sent_so_far
       elseif err == 'closed' then
-         log('sent closed',pos) 
+--         log('sent closed',pos) 
          write_io:stop(loop)
          on_close(wrapped)
       else
@@ -92,6 +93,7 @@ local wrap = function(sock,args)
       end
 --      assert(cjson.decode(message) ~= cjson.null)
       send_buffer = send_buffer..spack('>I',#message)..message
+      send_pos = 0
       if not send_io:is_active() then
 --         log('strting io')
          send_io:start(loop)
