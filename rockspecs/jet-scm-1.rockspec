@@ -19,8 +19,9 @@ build = {
   type = 'none',
   install = {
     lua = {
-      ["jet.peer"] = 'jet/peer.lua',
-      ["jet.socket"] = 'jet/socket.lua'
+      ['jet.peer'] = 'jet/peer.lua',
+      ['jet.socket'] = 'jet/socket.lua',
+      ['jet.daemon'] = 'jet/daemon.lua'
     },
     bin = {
       'bin/jetd.lua',
