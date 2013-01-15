@@ -17,7 +17,6 @@ local assert = assert
 local log = function(...)
    print('jet.peer',...)
 end
-
 module('jet.peer')
 
 local error_object = function(err)
@@ -195,7 +194,7 @@ new = function(config)
       local args = {
          on_message = dispatch_message,
          on_error = log,
-         on_close = function() end,
+         on_close = config.on_close or function() end,
          loop = loop
       }
       sock = jsocket.wrap(sock,args)     
@@ -216,13 +215,16 @@ new = function(config)
          loop:loop()
       end
 
-      j.close = function(self)
+      j.close = function(self,options)
+         options = options or {}
          if self.read_io then
             self.read_io:stop(loop)
-            self.read_io:clear_pending(loop)
+            if options.clear_pending then
+               self.read_io:clear_pending(loop)
+            end
          end         
-         request_dispatchers = nil
-         response_dispatchers = nil
+--         request_dispatchers = nil
+--         response_dispatchers = nil
          sock:close()      
       end
 
@@ -294,7 +296,7 @@ new = function(config)
          assert(type(dispatch) == 'function',dispatch)
          local assign_dispatcher = function(success)
             if success then
-               --            log('assigned',path)
+--               log('request_dispatzcjet assigned',path)
                request_dispatchers[path] = dispatch
             end
          end
@@ -304,7 +306,8 @@ new = function(config)
          }
          service('add',params,assign_dispatcher,callbacks)   
          local ref = {         
-            remove = function(ref,callbacks)
+            remove = function(ref,callbacks)               
+--               print('removing',path)
                assert(ref:is_added())
                self:remove(path,callbacks)
             end,
@@ -324,9 +327,11 @@ new = function(config)
             path = path
          }
          local remove_dispatcher = function(success)
-            if success then
+--            if success then
+            assert(success)
+   --            print('remove_dispatcher',path,request_dispatchers)
                request_dispatchers[path] = nil
-            end
+  --          end
          end
          service('remove',params,remove_dispatcher,callbacks)
       end
@@ -359,10 +364,14 @@ new = function(config)
       j.fetch = function(self,expr,f,callbacks)
          local id = '__f__'..fetch_id
          fetch_id = fetch_id + 1
+         local ref
          local add_fetcher = function()
+--            print('fetch ',id,expr)
             request_dispatchers[id] = function(peer,message)
-               f(message.params)
+               local params = message.params
+               f(params.path,params.event,params.data or {},ref)
             end
+--            print('request_dispatchers assigned',id,request_dispatchers[id])
          end      
          local params = {
             id = id,
@@ -374,11 +383,16 @@ new = function(config)
             params.unmatch = expr.unmatch
          end
          service('fetch',params,add_fetcher,callbacks)
-         local ref = {
+         ref = {
             unfetch = function(_,callbacks)
-               service('unfetch',{id=id},nil,callbacks)
+               local remove_dispatcher = function()                  
+--                  print('unfetch ',id,expr)
+                  request_dispatchers[id] = nil
+               end
+               service('unfetch',{id=id},remove_dispatcher,callbacks)
             end
-         }         
+         }
+         return ref
       end
 
       j.method = function(self,desc,add_callbacks)
