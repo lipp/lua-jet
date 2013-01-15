@@ -13,7 +13,7 @@ Jet prescribes simple concepts to allow building very complex distributed applic
 
 ## Build status
 
-[![Build Status](https://travis-ci.org/lipp/jet.png?branch=master)](undefined)
+[![Build Status](https://travis-ci.org/lipp/jet.png?branch=master)](https://travis-ci.org/lipp/jet/builds)
 
 # Concepts
 
