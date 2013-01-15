@@ -1,8 +1,8 @@
 local jet = require'jet.peer'.new()
 local cjson = require'cjson'
 jet:fetch('.*',
-          function(params)             
-             print('fetching',cjson.encode(params))
+          function(path,event,data)             
+             print('fetching',path,event,cjson.encode(data))
           end)
 
 -- jet:fetch('test_fetch2','.*2',

@@ -4,14 +4,14 @@
 local jet = require'jet.peer'.new{ip=arg[1]}
 local cjson = require'cjson'
 local remapped
-local remap = function(notification)  
-   print(cjson.encode(notification))
-   if notification.event == 'add' then
+local remap = function(path,event,data)  
+   print(path,event,cjson.encode(data))
+   if event == 'add' then
       assert(not remapped)
       remapped = jet:state
       {
          path ='remapped',
-         value = notification.data.value,
+         value = data.value,
          set_async = function(reply,new_value)
             local forward = {
                success = function(res)
@@ -31,8 +31,8 @@ local remap = function(notification)
             jet:set('name',new_value,forward)
          end
       }
-   elseif notification.event == 'change' then
-      remapped:value(notification.data.value)
+   elseif event == 'change' then
+      remapped:value(data.value)
    end   
 
 end
