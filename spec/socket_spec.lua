@@ -1,4 +1,4 @@
-require('busted')
+require'busted'
 package.path = package.path..'../'
 
 local ev = require'ev'
@@ -7,39 +7,75 @@ local jetsocket = require'jet.socket'
 local loop = ev.Loop.default
 local port = 12349
 
+local echo_listener = assert(socket.bind('*',port))
+local accept_echo = function()
+   local sock = echo_listener:accept()
+   local io = jetsocket.wrap(
+      sock,{
+         loop = loop,
+         on_message = function(wrapped,message)
+            wrapped:send(message)
+         end,
+         on_close = function() end,
+         on_error = function() end
+           }):read_io()
+   io:start(loop)
+end
+echo_listener:settimeout(0)
+local echo_server_io = ev.IO.new(
+   accept_echo,
+   echo_listener:getfd(),
+   ev.READ)
+
 describe(
-   'The object returned by jet.socket.wrap_async', 
+   'A message socket', 
    function()
-      setup(
+      before(
          function()
-            local echo_listener = assert(socket.bind('*',port))
-            local accept_echo = function()
-               local sock = echo_listener:accept()
-               local wrapped = jetsocket.wrap_async(
-                  sock,{
-                     on_message = function(wrapped,...)
-                        print('echoing',...)
-                        wrapped:send({...})
-                     end
-                       })
-            end
-            echo_listener:settimeout(0)
-            ev.IO.new(accept_echo,echo_listener:getfd(),ev.READ):start(loop)
+            echo_server_io:start(loop)
          end)
-      it(
-         'should be thoroughly testes', 
+
+      after(
          function()
-            ev.Timer.new(
-               function() 
-                  assert.is_true(false)
-               end,0.1):start(loop)
-            
---            loop()
+            echo_server_io:stop(loop)
          end)
-      teardown(
+
+      describe(
+         'when connecting to echo server',
          function()
-            loop:unloop()
+            local sock
+            before(
+               function()
+                  sock = socket.connect('localhost',port)
+               end)
+
+            after(
+               function()
+                  sock:close()
+               end)
+
+            it(
+               'can echo messages',
+               async,
+               function(done)
+                  local message = {
+                     1,2,3
+                  }
+                  local wrapped = jetsocket.wrap(
+                     sock,{
+                        on_message = function(wrapped,echoed)
+                           assert.is.same(message,echoed)
+                           done()                                                
+                        end,
+                        loop = loop,
+                        on_close = function() end,
+                        on_error = function() end
+                          })
+                  wrapped:read_io():start(loop)
+                  wrapped:send(message)                     
+               end)           
          end)
-      loop:loop()
    end)
+
+return 'ev',loop
 
