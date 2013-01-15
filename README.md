@@ -5,6 +5,16 @@ Jet is a connection-oriented protocol on top of JSON-RPC. By defining messages a
 This package provides the Jet protocol, a daemon (which happens to be written in Lua) and Lua peer bindings.
 Jet prescribes simple concepts to allow building very complex distributed applications. It tries to be simpler and more transparent than DBus, while at the same time being more flexible.
 
+## Installation
+
+    $ git clone https://github.com/lipp/jet.git
+    $ cd jet
+    $ sudo luarocks make rockspecs/jet-scm-1.rockspec
+
+## Build status
+
+[![Build Status](https://travis-ci.org/lipp/jet.png?branch=master)](undefined)
+
 # Concepts
 
 Nodes, Methods and States  are the only conceptual elements viewed from the "outside". In short:
