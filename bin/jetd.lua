@@ -84,13 +84,21 @@ local matcher = function(match,unmatch)
       f = function(path)
          return path:match(match)
       end  
-   else
+   elseif type(match) == 'table' and type(unmatch) == 'table' then
       f = function(path)
          for _,unmatch in ipairs(unmatch) do               
             if path:match(unmatch) then
                return false
             end
          end
+         for _,match in ipairs(match) do
+            if path:match(match) then
+               return true
+            end
+         end
+      end         
+   else
+      f = function(path)
          for _,match in ipairs(match) do
             if path:match(match) then
                return true
@@ -328,7 +336,7 @@ local decrement_nodes = function(path)
    for part in path:gmatch('[^/]+') do
       tinsert(parts,part)
    end
-   for i=1,#parts-1 do 
+   for i=#parts-1,1,-1 do 
       local path = tconcat(parts,'/',1,i)
       local count = nodes[path]
       if count > 1 then
