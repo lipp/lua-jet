@@ -14,6 +14,7 @@ local sunpack = string.unpack
 local error = error
 local log = print
 local pcall = pcall
+local type = type
 
 module('jet.socket')
 
@@ -38,22 +39,19 @@ end
 
 local wrap = function(sock,args)
    assert(sock)
-   assert(args.on_close)
-   assert(args.on_message)
-   assert(args.on_error)
-   assert(args.loop)
+   args = args or {}
    -- set non blocking
    sock:settimeout(0)
    -- send message asap
    sock:setoption('tcp-nodelay',true)
    -- enable keep alive for detecting broken connections
    sock:setoption('keepalive',true)   
-   local on_message = args.on_message
-   local on_close = args.on_close
-   local on_error = args.on_error
+   local on_message = args.on_message or function() end
+   local on_close = args.on_close or function() end
+   local on_error = args.on_error or function() end
    local encode = not args.dont_encode
    local decode = not args.dont_decode
-   local loop = args.loop
+   local loop = args.loop or ev.Loop.default
    local send_buffer = ''
    local wrapped = {}
    local send_pos
@@ -71,10 +69,12 @@ local wrap = function(sock,args)
 --         log('sent closed',pos) 
          write_io:stop(loop)
          on_close(wrapped)
+         sock:close()
       else
          log('sent error',err) 
          write_io:stop(loop)
          on_close(wrapped)           
+         sock:close()
          log('unknown error:'..err)
       end
    end
@@ -103,6 +103,18 @@ local wrap = function(sock,args)
       sock:shutdown()
       sock:close()
    end
+   wrapped.on_message = function(_,f)
+      assert(type(f) == 'function')
+      on_message = f
+   end
+   wrapped.on_close = function(_,f)
+      assert(type(f) == 'function')
+      on_close = f
+   end
+   wrapped.on_error = function(_,f)
+      assert(type(f) == 'function')
+      on_error = f
+   end
    local read_io
    wrapped.read_io = function()
       if not read_io then
@@ -117,7 +129,6 @@ local wrap = function(sock,args)
                   --         print('eee3')
                   local err,sub 
                   len_bin,err,sub = sock:receive(4,len_bin)
-                  --            print(len_bin,err,sub)
                   if len_bin then
                      _,len = sunpack(len_bin,'>I')               
                      --            print(#len_bin,len,_)
@@ -127,11 +138,13 @@ local wrap = function(sock,args)
                   elseif err == 'closed' then
                      read_io:stop(loop)
                      on_close(wrapped)
+                     sock:close()
                      return
                   else
                      log('WTF?!',err)
                      read_io:stop(loop)
                      on_error(wrapped,err)
+                     sock:close()
                   end         
                end
                if len then 
@@ -166,10 +179,12 @@ local wrap = function(sock,args)
                   elseif err == 'closed' then
                      read_io:stop(loop)
                      on_close(wrapped)
+                     sock:close()
                      return
                   else
                      read_io:stop(loop)
                      on_error(wrapped,err)
+                     sock:close()
                      return
                   end
                end
