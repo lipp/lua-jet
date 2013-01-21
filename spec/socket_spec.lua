@@ -5,7 +5,7 @@ local ev = require'ev'
 local socket = require'socket'
 local jetsocket = require'jet.socket'
 local loop = ev.Loop.default
-local port = 12349
+local port = 12348
 
 describe(
    'Echo test with message socket', 
