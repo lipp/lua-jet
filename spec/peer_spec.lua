@@ -5,7 +5,7 @@ local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
-local port = 12349
+local port = 12350
 
 describe(
    'A peer', 
