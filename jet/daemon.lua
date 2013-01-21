@@ -12,6 +12,8 @@ local ipairs = ipairs
 local assert = assert
 local pcall = pcall
 local type = type
+local error = error
+local tostring = tostring
 
 module('jet.daemon')
 
