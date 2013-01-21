@@ -37,12 +37,12 @@ new = function(config)
    config = config or {}
    local ip = config.ip or 'localhost'
    local port = config.port or 33326
-   local sock = socket.connect(ip,port)
-   if not sock then
-      error('could not connect to jetd with ip:'..ip..' port:'..port)
-   end
    if config.sync then
-      sock = jsocket.wrap_sync(sock)
+      local sock = socket.connect(ip,port)
+      if not sock then
+         error('could not connect to jetd with ip:'..ip..' port:'..port)
+      end
+      local wsock = jsocket.wrap_sync(sock)
       local id = 0
       local service = function(method,params,as_notification)
          local rid
@@ -50,14 +50,14 @@ new = function(config)
             id = id + 1
             rid = id
          end
-         sock:send
+         wsock:send
          {
             id = rid,
             method = method,
             params = params
          }
          if not as_notification then
-            local response = sock:receive()
+            local response = wsock:receive()
             assert(response.id == rid)
             if response.result then
                return response.result
@@ -77,7 +77,11 @@ new = function(config)
       end
       return j_sync
    else
+      local sock = socket.tcp()
+      sock:settimeout(0)
+      sock:connect(ip,port)
       local loop = config.loop or ev.Loop.default
+      local wsock = jsocket.wrap(sock,{loop = loop})
       local messages = {}
       local queue = function(message)
          assert(message)
@@ -89,9 +93,9 @@ new = function(config)
          local n = #messages         
 --         print('FLUSHING',n,reason,ip,messages)
          if n == 1 then
-            sock:send(messages[1])
+            wsock:send(messages[1])
          elseif n > 1 then
-            sock:send(messages)
+            wsock:send(messages)
          end
          messages = {}
          will_flush = false
@@ -191,22 +195,18 @@ new = function(config)
          end
          flush('dispatch_message')
       end
-      local args = {
-         on_message = dispatch_message,
-         on_error = log,
-         on_close = config.on_close or function() end,
-         loop = loop
-      }
-      sock = jsocket.wrap(sock,args)     
+      wsock:on_message(dispatch_message)
+      wsock:on_error(log)
+      wsock:on_error(config.on_close or function() end)
       local j = {}
       if not config.dont_start_io then
-         j.read_io = sock:read_io()
+         j.read_io = wsock:read_io()
          j.read_io:start(loop)
       end
 
       j.io = function(self)
          if not self.read_io then            
-            j.read_io = sock:read_io()
+            j.read_io = wsock:read_io()
          end
          return j.read_io
       end
@@ -225,7 +225,7 @@ new = function(config)
          end         
 --         request_dispatchers = nil
 --         response_dispatchers = nil
-         sock:close()      
+         wsock:close()      
       end
 
       local id = 0
@@ -279,7 +279,7 @@ new = function(config)
          if will_flush then
             queue(message)
          else
-            sock:send(message)
+            wsock:send(message)
          end
       end
 
@@ -582,6 +582,13 @@ new = function(config)
          end
          return ref
       end
+      ev.IO.new(
+         function(loop,io)
+            io:stop(loop)
+            if config.on_connect then
+               config.on_connect(j)
+            end
+         end,sock:getfd(),ev.WRITE):start(loop)
       return j
    end
 end
