@@ -4,15 +4,15 @@ package.path = package.path..'../'
 local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local loop = ev.Loop.default
-local port = 12349
+local port = os.getenv('JET_PORT') or 33326
 
 describe(
    'A daemon', 
    function()
-      local d
+      local daemon
       before(
          function()
-            d = jetdaemon.new
+            daemon = jetdaemon.new
             {
                port = port
             }
@@ -21,9 +21,9 @@ describe(
       it(
          'provides the correct interface',
          function()
-            assert.is_true(type(d) == 'table')
-            assert.is_true(type(d.start) == 'function')
-            assert.is_true(type(d.stop) == 'function')
+            assert.is_true(type(daemon) == 'table')
+            assert.is_true(type(daemon.start) == 'function')
+            assert.is_true(type(daemon.stop) == 'function')
          end)
 
       it(
@@ -31,7 +31,7 @@ describe(
          function()
             assert.has_not_error(
                function()
-                  d:start()
+                  daemon:start()
                end)
          end)
 
@@ -40,7 +40,7 @@ describe(
          function()
             assert.has_not_error(
                function()
-                  d:stop()
+                  daemon:stop()
                end)
          end)
       
@@ -49,19 +49,20 @@ describe(
          function()
             before(
                function()
-                  d:start()
+                  daemon:start()
                end)
             
             after(
                function()
-                  d:stop()
+                  daemon:stop()
                end)
             
             it(
                'listens on specified port',
                async,
                function(done)
-                  local sock = socket.connect('localhost',port)
+                  local sock = socket.connect('127.0.0.1',port)
+                  assert.is_truthy(sock)
                   sock:settimeout(0)
                   ev.IO.new(
                      function(loop,io)
