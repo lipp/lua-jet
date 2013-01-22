@@ -84,11 +84,11 @@ new = function(config)
       local wsock = jsocket.wrap(sock,{loop = loop})
       local messages = {}
       local queue = function(message)
-         assert(message)
+--         assert(message)
 --         print(ip,sock,cjson.encode(message))
          tinsert(messages,message)
       end
-      local will_flush
+      local will_flush = true
       local flush = function(reason)  
          local n = #messages         
 --         print('FLUSHING',n,reason,ip,messages)
@@ -206,9 +206,9 @@ new = function(config)
 
       j.io = function(self)
          if not self.read_io then            
-            j.read_io = wsock:read_io()
+            self.read_io = wsock:read_io()
          end
-         return j.read_io
+         return self.read_io
       end
 
       j.loop = function()
@@ -286,7 +286,7 @@ new = function(config)
       j.batch = function(self,action)
          will_flush = true
          action()
-         flush()
+         flush('batch')
       end
 
       j.add = function(self,path,el,dispatch,callbacks)
@@ -588,6 +588,7 @@ new = function(config)
             if config.on_connect then
                config.on_connect(j)
             end
+            flush('on_connect')
          end,sock:getfd(),ev.WRITE):start(loop)
       return j
    end
