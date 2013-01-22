@@ -587,7 +587,7 @@ local create_daemon = function(options)
    local port = options.port or 33326
    local loop = options.loop or ev.Loop.default
 
-   local listener = assert(socket.bind('*',port))
+   local listener
    local accept_client = function(loop,accept_io)
       local sock = listener:accept()
       if not sock then
@@ -662,18 +662,21 @@ local create_daemon = function(options)
       clients[client] = client
    end
 
-   listener:settimeout(0)
-   local listen_io = ev.IO.new(
-      accept_client,
-      listener:getfd(),
-      ev.READ)
+   local listen_io
 
    local daemon = {
       start = function()
+         listener = assert(socket.bind('*',port))
+         listener:settimeout(0)
+         listen_io = ev.IO.new(
+            accept_client,
+            listener:getfd(),
+            ev.READ)         
          listen_io:start(loop)         
       end,
       stop = function()
          listen_io:stop(loop)
+         listener:close()
       end
    }
 
