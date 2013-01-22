@@ -290,15 +290,12 @@ new = function(config)
       end
 
       j.add = function(self,path,el,dispatch,callbacks)
-         print('NOW',path,request_dispatchers[path])
          assert(not request_dispatchers[path],path)
          assert(type(path) == 'string',path)
          assert(type(el) == 'table',el)
          assert(type(dispatch) == 'function',dispatch)
          local assign_dispatcher = function(success)
-            if success then
-               print('ADDED',path)
---               log('request_dispatzcjet assigned',path)
+            if success then               
                request_dispatchers[path] = dispatch
             end
          end
