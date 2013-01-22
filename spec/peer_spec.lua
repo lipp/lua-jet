@@ -14,10 +14,7 @@ describe(
       local peer
       before(
          function()
-            d = jetdaemon.new
-            {
-               port = port
-            }
+            d = jetdaemon.new{port = port}
             d:start()
          end)
 
@@ -29,7 +26,7 @@ describe(
       it(
          'provides the correct interface',
          function()
-            local peer = jetpeer.new{ port = port }
+            local peer = jetpeer.new{port = port}
             assert.is_true(type(peer) == 'table')
             assert.is_true(type(peer.state) == 'function')
             assert.is_true(type(peer.method) == 'function')
@@ -39,7 +36,8 @@ describe(
             assert.is_true(type(peer.fetch) == 'function')
             assert.is_true(type(peer.batch) == 'function')
             assert.is_true(type(peer.loop) == 'function')
-            peer:io():stop(loop)
+    --        peer:io():stop(loop)
+            peer:close()
          end)
 
       it(
@@ -54,7 +52,8 @@ describe(
                on_connect = function(p)
                   assert.is_equal(peer,p)
                   timer:stop(loop)
-                  peer:io():stop(loop)
+        --          peer:io():stop(loop)
+                  peer:close()
                   done()
                end
             }
@@ -63,6 +62,92 @@ describe(
                   assert.is_true(false)
                end,0.1)
             timer:start(loop)
+         end)
+
+      describe(
+         'when connected',
+         function()
+            local peer
+            local path = 'test'
+            local value = 1234
+            before(
+               async,
+               function(done)
+                  peer = jetpeer.new
+                  { 
+                     port = port,
+                     on_connect = function(p)
+                        done()
+                     end
+                  }
+               end)
+
+            after(
+               function()
+                  peer:close()
+                  peer:io():stop(loop)
+               end)
+
+            it(
+               'can add states',
+               async,
+               function(done)
+
+                  local timer
+                  peer:state(
+                     {
+                        path = path,
+                        value = value
+                     },
+                     {
+                        success = function()
+                           timer:stop(loop)
+                           assert.is_true(true)
+                           done()
+                        end
+                     })
+                  timer = ev.Timer.new(
+                     function()
+                        assert.is_true(false)
+                        done()
+                     end,0.1)
+                  timer:start(loop)
+               end)
+
+            it(
+               'can not add same state again',
+               function()
+                  assert.has_error(
+                     function()
+                        peer:state
+                        {
+                           path = path,
+                           value = value
+                        }                       
+                     end)
+               end)
+            
+            it(
+               'can fetch states',
+               async,
+               function(done)
+                  local timer
+                  peer:fetch(
+                     path,
+                     function(fpath,fevent,fdata,fetcher)
+                        timer:stop(loop)
+                        assert.is_equal(fpath,path)
+                        assert.is_equal(fdata.value,value)
+                        fetcher:unfetch()
+                        done()
+                     end)
+                  timer = ev.Timer.new(
+                     function()
+                        assert.is_true(false)
+                        done()
+                     end,0.1)
+                  timer:start(loop)
+               end)
          end)
 end)
 
