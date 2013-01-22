@@ -1,8 +1,8 @@
 language: erlang
 
 env:
-  - LUA=""
-  - LUA="luajit"
+  - LUA="" JET_PORT=33326
+  - LUA="luajit" JET_PORT=33321
 
 branches:
   only:
