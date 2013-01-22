@@ -65,11 +65,12 @@ describe(
                   assert.is_truthy(sock)
                   sock:settimeout(0)
                   ev.IO.new(
-                     function(loop,io)
-                        io:stop(loop)
-                        assert.is_true(true)
-                        done()
-                     end,sock:getfd(),ev.WRITE):start(loop)
+                     continue(
+                        function(loop,io)
+                           io:stop(loop)
+                           assert.is_true(true)
+                           done()
+                        end),sock:getfd(),ev.WRITE):start(loop)
                end)
          end)
 end)

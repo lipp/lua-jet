@@ -43,10 +43,11 @@ describe(
          local f = function(done)
             local wrapped = jetsocket.wrap(sock)
             wrapped:on_message(
-               function(wrapped,echoed)
-                  assert.is.same(message,echoed)
-                  done()                                                
-               end)
+               continue(
+                  function(wrapped,echoed)
+                     assert.is.same(message,echoed)
+                     done()                                                
+                  end))
             wrapped:read_io():start(loop)
             wrapped:send(message)                     
          end
@@ -78,13 +79,14 @@ describe(
             }
 
             wrapped:on_message(
-               function(wrapped,echoed)
-                  count = count + 1
-                  assert.is.same(messages[count],echoed)
-                  if count == 3 then
-                     done()
-                  end
-               end)
+               continue(
+                  function(wrapped,echoed)
+                     count = count + 1
+                     assert.is.same(messages[count],echoed)
+                     if count == 3 then
+                        done()
+                     end
+                  end))
 
             wrapped:read_io():start(loop)
 
@@ -132,17 +134,19 @@ describe(
                   local wrapped = jetsocket.wrap(sock)
                   local timer
                   wrapped:on_close(
-                     function()
-                        timer:stop(loop)
-                        assert.is_true(true)
-                        done()
-                     end)
+                     continue(
+                        function()
+                           timer:stop(loop)
+                           assert.is_true(true)
+                           done()
+                        end))
                   timer = ev.Timer.new(
-                     function()
-                        assert(false)
-                        done()
-                        wrapped:read_io():stop(loop)
-                     end,1)
+                     continue(
+                        function()
+                           assert(false)
+                           done()
+                           wrapped:read_io():stop(loop)
+                        end),1)
                   timer:start(loop)
                   wrapped:read_io():start(loop)
                end,sock:getfd(),ev.WRITE):start(loop) -- connect io

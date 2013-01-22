@@ -1,4 +1,3 @@
-require'busted'
 package.path = package.path..'../'
 
 local ev = require'ev'
@@ -6,6 +5,7 @@ local jetdaemon = require'jet.daemon'
 local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT')
+require'busted'
 
 describe(
    'A peer', 
@@ -36,7 +36,6 @@ describe(
             assert.is_true(type(peer.fetch) == 'function')
             assert.is_true(type(peer.batch) == 'function')
             assert.is_true(type(peer.loop) == 'function')
-    --        peer:io():stop(loop)
             peer:close()
          end)
 
@@ -49,18 +48,19 @@ describe(
             peer = jetpeer.new
             { 
                port = port,
-               on_connect = function(p)
-                  assert.is_equal(peer,p)
-                  timer:stop(loop)
-        --          peer:io():stop(loop)
-                  peer:close()
-                  done()
-               end
+               on_connect = continue(
+                  function(p)
+                     assert.is_equal(peer,p)
+                     timer:stop(loop)
+                     peer:close()
+                     done()
+                  end)
             }
             timer = ev.Timer.new(
-               function()
-                  assert.is_true(false)
-               end,0.1)
+               continue(
+                  function()
+                     assert.is_true(false)
+                  end),0.1)
             timer:start(loop)
          end)
 
@@ -76,9 +76,10 @@ describe(
                   peer = jetpeer.new
                   { 
                      port = port,
-                     on_connect = function(p)
-                        done()
-                     end
+                     on_connect = continue(
+                        function(p)
+                           done()
+                        end)
                   }
                end)
 
@@ -100,17 +101,19 @@ describe(
                         value = value
                      },
                      {
-                        success = function()
-                           timer:stop(loop)
-                           assert.is_true(true)
-                           done()
-                        end
+                        success = continue(
+                           function()                           
+                              timer:stop(loop)
+                              assert.is_true(true)
+                              done()
+                           end)
                      })
                   timer = ev.Timer.new(
-                     function()
-                        assert.is_true(false)
-                        done()
-                     end,0.1)
+                     continue(
+                        function()
+                           assert.is_true(false)
+                           done()
+                        end),0.1)
                   timer:start(loop)
                end)
 
@@ -134,18 +137,20 @@ describe(
                   local timer
                   peer:fetch(
                      path,
-                     function(fpath,fevent,fdata,fetcher)
-                        timer:stop(loop)
-                        assert.is_equal(fpath,path)
-                        assert.is_equal(fdata.value,value)
-                        fetcher:unfetch()
-                        done()
-                     end)
+                     continue(
+                        function(fpath,fevent,fdata,fetcher)
+                           timer:stop(loop)
+                           assert.is_equal(fpath,path)
+                           assert.is_equal(fdata.value,value)
+                           fetcher:unfetch()
+                           done()
+                        end))
                   timer = ev.Timer.new(
-                     function()
-                        assert.is_true(false)
-                        done()
-                     end,0.1)
+                     continue(
+                        function()
+                           assert.is_true(false)
+                           done()
+                        end),0.1)
                   timer:start(loop)
                end)
          end)
