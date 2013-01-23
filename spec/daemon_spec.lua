@@ -61,16 +61,19 @@ describe(
                'listens on specified port',
                async,
                function(done)
-                  local sock = socket.connect('127.0.0.1',port)
-                  assert.is_truthy(sock)
+                  local sock = socket.tcp()
                   sock:settimeout(0)
+                  assert.is_truthy(sock)
                   ev.IO.new(
                      continue(
                         function(loop,io)
                            io:stop(loop)
                            assert.is_true(true)
+			   sock:shutdown()
+			   sock:close()
                            done()
                         end),sock:getfd(),ev.WRITE):start(loop)
+		  sock:connect('127.0.0.1',port)
                end)
          end)
 end)
