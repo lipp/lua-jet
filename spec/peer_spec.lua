@@ -59,6 +59,7 @@ describe(
             timer = ev.Timer.new(
                continue(
                   function()
+      		     peer:close()
                      assert.is_true(false)
                   end),0.1)
             timer:start(loop)
@@ -86,14 +87,12 @@ describe(
             after(
                function()
                   peer:close()
-                  peer:io():stop(loop)
                end)
 
             it(
                'can add states',
                async,
                function(done)
-
                   local timer
                   peer:state(
                      {
