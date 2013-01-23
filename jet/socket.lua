@@ -35,7 +35,6 @@ local wrap_sync = function(sock)
    end
    return wrapped
 end
-  
 
 local wrap = function(sock,args)
    assert(sock)
@@ -100,6 +99,8 @@ local wrap = function(sock,args)
       end
    end
    wrapped.close = function()
+      wrapped.read_io():stop(loop)
+      send_io:stop(loop)
       sock:shutdown()
       sock:close()
    end
@@ -123,15 +124,12 @@ local wrap = function(sock,args)
          local json_message
          local _
          local receive_message = function(loop,read_io)
-            --         print('eee2')
             while true do
                if not len_bin or #len_bin < 4 then
-                  --         print('eee3')
                   local err,sub 
                   len_bin,err,sub = sock:receive(4,len_bin)
                   if len_bin then
                      _,len = sunpack(len_bin,'>I')               
-                     --            print(#len_bin,len,_)
                   elseif err == 'timeout' then
                      len_bin = sub
                      return                                   
@@ -156,7 +154,6 @@ local wrap = function(sock,args)
                      sock:close()
                      return
                   end
-                  --         print('eee4',len)       
                   json_message,err,sub = sock:receive(len,json_message)
                   if json_message then    
                      --                  log('recv',len,json_message)
@@ -189,7 +186,6 @@ local wrap = function(sock,args)
                   end
                end
             end
-            --         print('eee5',len)       
          end
          local fd = sock:getfd()
          assert(fd > -1)      
