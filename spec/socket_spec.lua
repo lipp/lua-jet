@@ -11,7 +11,8 @@ describe(
    'Echo test with message socket', 
    function()
       local echo_server_io      
-      local echo_listener  
+      local echo_listener
+      local accepted = {}
       before(
          function()
             echo_listener = socket.bind('*',port)
@@ -23,6 +24,7 @@ describe(
                      wrapped:send(message)
                   end)
                current:read_io():start(loop)
+	       accepted[#accepted+1] = current
             end
             echo_listener:settimeout(0)
             echo_server_io = ev.IO.new(
@@ -35,6 +37,9 @@ describe(
       after(
          function()
             echo_server_io:stop(loop)
+	    for i in ipairs(accepted) do
+	       accepted[i]:close()
+	    end
             echo_listener:close()
          end)
 
@@ -46,6 +51,7 @@ describe(
                continue(
                   function(wrapped,echoed)
                      assert.is.same(message,echoed)
+		     wrapped:close()
                      done()                                                
                   end))
             wrapped:read_io():start(loop)
@@ -61,6 +67,7 @@ describe(
       
       after_each(
          function()
+	    sock:shutdown()
             sock:close()
          end)
       
@@ -84,6 +91,7 @@ describe(
                      count = count + 1
                      assert.is.same(messages[count],echoed)
                      if count == 3 then
+			wrapped:close()
                         done()
                      end
                   end))
@@ -107,7 +115,8 @@ describe(
             listener,err = socket.bind('*',port)
             local accept = function()
                local sock = listener:accept()
-               sock:close()
+	       sock:shutdown()
+	       sock:close()
             end
             listener:settimeout(0)
             server_io = ev.IO.new(
@@ -117,7 +126,7 @@ describe(
             server_io:start(loop)
          end)
       after(
-         function()            
+         function()
             server_io:stop(loop)
             listener:close()
          end)
@@ -127,30 +136,37 @@ describe(
          async,
          function(done)
             local sock = socket.tcp()
+	    assert.is_truthy(sock)
             sock:settimeout(0)
             ev.IO.new(
-               function(loop,connect_io)
-                  connect_io:stop(loop)
-                  local wrapped = jetsocket.wrap(sock)
-                  local timer
-                  wrapped:on_close(
-                     continue(
-                        function()
-                           timer:stop(loop)
-                           assert.is_true(true)
-                           done()
-                        end))
-                  timer = ev.Timer.new(
-                     continue(
-                        function()
-                           assert(false)
-                           done()
-                           wrapped:read_io():stop(loop)
-                        end),1)
-                  timer:start(loop)
-                  wrapped:read_io():start(loop)
-               end,sock:getfd(),ev.WRITE):start(loop) -- connect io
-            sock = socket.connect('localhost',port)
+	       continue(
+		  function(loop,connect_io)
+		     connect_io:stop(loop)
+		     local wrapped = jetsocket.wrap(sock)
+		     local timer
+		     wrapped:on_close(
+		     	continue(
+		     	   function()
+		     	      timer:stop(loop)
+		     	      assert.is_true(true)
+		     	      sock:shutdown()
+		     	      sock:close()
+		     	      wrapped:close()
+		     	      done()
+		     	   end))
+		     timer = ev.Timer.new(
+		     	continue(
+		     	   function()
+		     	      sock:shutdown()
+		     	      sock:close()
+		     	      assert(false)
+		     	      done()
+		     	      wrapped:read_io():stop(loop)
+		     	   end),1)
+		     timer:start(loop)
+		     wrapped:read_io():start(loop)
+		  end),sock:getfd(),ev.WRITE):start(loop) -- connect io
+            sock:connect('127.0.0.1',port)
          end)
    end)
 
