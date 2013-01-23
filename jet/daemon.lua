@@ -677,6 +677,9 @@ local create_daemon = function(options)
       stop = function()
          listen_io:stop(loop)
          listener:close()
+	 for _,client in pairs(clients) do
+	    client:close()
+	 end
       end
    }
 
