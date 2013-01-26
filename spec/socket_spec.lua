@@ -48,7 +48,7 @@ describe(
          local f = function(done)
             local wrapped = jetsocket.wrap(sock)
             wrapped:on_message(
-               continue(
+               guard(
                   function(wrapped,echoed)
                      assert.is.same(message,echoed)
 		     wrapped:close()
@@ -86,7 +86,7 @@ describe(
             }
 
             wrapped:on_message(
-               continue(
+               guard(
                   function(wrapped,echoed)
                      count = count + 1
                      assert.is.same(messages[count],echoed)
@@ -139,13 +139,13 @@ describe(
 	    assert.is_truthy(sock)
             sock:settimeout(0)
             ev.IO.new(
-	       continue(
+	       guard(
 		  function(loop,connect_io)
 		     connect_io:stop(loop)
 		     local wrapped = jetsocket.wrap(sock)
 		     local timer
 		     wrapped:on_close(
-		     	continue(
+		     	guard(
 		     	   function()
 		     	      timer:stop(loop)
 		     	      assert.is_true(true)
@@ -155,7 +155,7 @@ describe(
 		     	      done()
 		     	   end))
 		     timer = ev.Timer.new(
-		     	continue(
+		     	guard(
 		     	   function()
 		     	      sock:shutdown()
 		     	      sock:close()

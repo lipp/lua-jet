@@ -48,7 +48,7 @@ describe(
             peer = jetpeer.new
             { 
                port = port,
-               on_connect = continue(
+               on_connect = guard(
                   function(p)
                      assert.is_equal(peer,p)
                      timer:stop(loop)
@@ -57,7 +57,7 @@ describe(
                   end)
             }
             timer = ev.Timer.new(
-               continue(
+               guard(
                   function()
       		     peer:close()
                      assert.is_true(false)
@@ -77,7 +77,7 @@ describe(
                   peer = jetpeer.new
                   { 
                      port = port,
-                     on_connect = continue(
+                     on_connect = guard(
                         function(p)
                            done()
                         end)
@@ -100,7 +100,7 @@ describe(
                         value = value
                      },
                      {
-                        success = continue(
+                        success = guard(
                            function()                           
                               timer:stop(loop)
                               assert.is_true(true)
@@ -108,7 +108,7 @@ describe(
                            end)
                      })
                   timer = ev.Timer.new(
-                     continue(
+                     guard(
                         function()
                            assert.is_true(false)
                            done()
@@ -136,7 +136,7 @@ describe(
                   local timer
                   peer:fetch(
                      path,
-                     continue(
+                     guard(
                         function(fpath,fevent,fdata,fetcher)
                            timer:stop(loop)
                            assert.is_equal(fpath,path)
@@ -145,7 +145,7 @@ describe(
                            done()
                         end))
                   timer = ev.Timer.new(
-                     continue(
+                     guard(
                         function()
                            assert.is_true(false)
                            done()

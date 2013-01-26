@@ -65,7 +65,7 @@ describe(
                   sock:settimeout(0)
                   assert.is_truthy(sock)
                   ev.IO.new(
-                     continue(
+                     guard(
                         function(loop,io)
                            io:stop(loop)
                            assert.is_true(true)
