@@ -4,7 +4,7 @@ package.path = package.path..'../'
 local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local loop = ev.Loop.default
-local port = os.getenv('JET_PORT') or 33326
+local port = os.getenv('JET_PORT') or 11122
 
 describe(
    'A daemon', 

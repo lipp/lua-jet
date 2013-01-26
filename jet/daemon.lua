@@ -584,7 +584,7 @@ end
 
 local create_daemon = function(options)
    local options = options or {}
-   local port = options.port or 33326
+   local port = options.port or 11122
    local loop = options.loop or ev.Loop.default
 
    local listener

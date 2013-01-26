@@ -36,7 +36,7 @@ end
 new = function(config)
    config = config or {}
    local ip = config.ip or 'localhost'
-   local port = config.port or 33326
+   local port = config.port or 11122
    if config.sync then
       local sock = socket.connect(ip,port)
       if not sock then
