@@ -4,7 +4,7 @@ source = {
   url = 'git://github.com/lipp/jet.git',
 }
 description = {
-  summary = '',
+  summary = 'A simple JSON based bus.',
   homepage = 'http://github.com/lipp/jet',
   license = 'MIT/X11'
 }
@@ -19,9 +19,10 @@ build = {
   type = 'none',
   install = {
     lua = {
-      ['jet.peer'] = 'jet/peer.lua',
-      ['jet.socket'] = 'jet/socket.lua',
-      ['jet.daemon'] = 'jet/daemon.lua'
+      ['jet'] = 'src/jet.lua',
+      ['jet.peer'] = 'src/jet/peer.lua',
+      ['jet.socket'] = 'src/jet/socket.lua',
+      ['jet.daemon'] = 'src/jet/daemon.lua'
     },
     bin = {
       'bin/jetd.lua',

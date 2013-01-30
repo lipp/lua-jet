@@ -1,5 +1,5 @@
 require'busted'
-package.path = package.path..'../'
+package.path = package.path..'../src'
 
 local ev = require'ev'
 local jetdaemon = require'jet.daemon'
