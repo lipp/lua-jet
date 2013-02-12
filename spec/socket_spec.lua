@@ -1,4 +1,3 @@
-require'busted'
 package.path = package.path..'../src'
 
 local ev = require'ev'
@@ -6,6 +5,8 @@ local socket = require'socket'
 local jetsocket = require'jet.socket'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT') or 12372
+
+setloop('ev')
 
 describe(
    'Echo test with message socket', 
@@ -170,8 +171,4 @@ describe(
          end)
    end)
 
-
-return function()
-   loop:loop()
-       end
 

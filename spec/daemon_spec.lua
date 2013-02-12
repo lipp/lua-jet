@@ -1,10 +1,11 @@
-require'busted'
 package.path = package.path..'../src'
 
 local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT') or 11122
+
+setloop('ev')
 
 describe(
    'A daemon', 
@@ -78,7 +79,4 @@ describe(
          end)
 end)
 
-return function()
-   loop:loop()
-       end
 

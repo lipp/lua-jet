@@ -5,7 +5,8 @@ local jetdaemon = require'jet.daemon'
 local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT')
-require'busted'
+
+setloop('ev')
 
 describe(
    'A peer', 
@@ -154,8 +155,4 @@ describe(
                end)
          end)
 end)
-
-return function()
-   loop:loop()
-       end
 
