@@ -42,6 +42,10 @@ local invalid_params = function(data)
   return err
 end
 
+
+local create_daemon = function(options)
+
+
 -- holds all (jet.socket.wrapped) clients index by client itself
 local clients = {}
 local nodes = {}
@@ -581,8 +585,6 @@ local dispatch_message = function(client,message,err)
   flush_clients()
 end
 
-
-local create_daemon = function(options)
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
@@ -633,7 +635,8 @@ local create_daemon = function(options)
       end
     }
     local jsock = jsocket.wrap(sock,args)
-    client.close = function()
+    client.close = function(self)
+       self:flush()
       jsock:close()
     end
     client.queue = function(self,message)
