@@ -197,7 +197,7 @@ new = function(config)
     end
     wsock:on_message(dispatch_message)
     wsock:on_error(log)
-    wsock:on_error(config.on_close or function() end)
+    wsock:on_close(config.on_close or function() end)
     local j = {}
     if not config.dont_start_io then
       j.read_io = wsock:read_io()
@@ -217,6 +217,7 @@ new = function(config)
     
     j.close = function(self,options)
       options = options or {}
+      flush('close')
       if self.read_io then
         self.read_io:stop(loop)
         if options.clear_pending then
@@ -306,7 +307,6 @@ new = function(config)
       service('add',params,assign_dispatcher,callbacks)
       local ref = {
         remove = function(ref,callbacks)
-          --               print('removing',path)
           assert(ref:is_added())
           self:remove(path,callbacks)
         end,
