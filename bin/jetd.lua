@@ -2,7 +2,11 @@
 
 local ev = require'ev'
 
-local daemon = require'jet.daemon'.new()
+local daemon = require'jet.daemon'.new
+{
+   ws_port = 8004,
+   port = 11122
+}
 daemon:start()
 
 for _,opt in ipairs(arg) do

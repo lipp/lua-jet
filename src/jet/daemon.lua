@@ -13,7 +13,11 @@ local assert = assert
 local pcall = pcall
 local type = type
 local error = error
+local require = require
 local tostring = tostring
+local jencode = cjson.encode
+local jdecode = cjson.decode
+local jnull = cjson.null
 
 module('jet.daemon')
 
@@ -60,12 +64,12 @@ local create_daemon = function(options)
       message.id = route.id
       route.receiver:queue(message)
     else
-      log('unknown route id:',cjson.encode(message))
+      log('unknown route id:',jencode(message))
     end
   end
   
   local publish = function(notification)
-    --   debug('publish',cjson.encode(notification))
+    --   debug('publish',jencode(notification))
     local path = notification.path
     for client in pairs(clients) do
       for fetch_id,matcher in pairs(client.fetchers) do
@@ -173,7 +177,7 @@ local create_daemon = function(options)
           error = error
         }
       else
-        log('post failed',cjson.encode(message))
+        log('post failed',jencode(message))
       end
     end
   end
@@ -270,7 +274,7 @@ local create_daemon = function(options)
           error = error
         }
       end
-      log('set failed',cjson.encode(error))
+      log('set failed',jencode(error))
     end
   end
   
@@ -310,7 +314,7 @@ local create_daemon = function(options)
           error = error
         }
       end
-      log('call failed',cjson.encode(error))
+      log('call failed',jencode(error))
     end
   end
   
@@ -435,7 +439,7 @@ local create_daemon = function(options)
           }
         end
       elseif not ok then
-        log('sync '..message.method..' failed',cjson.encode(result))
+        log('sync '..message.method..' failed',jencode(result))
       end
     end
     return sc
@@ -463,7 +467,7 @@ local create_daemon = function(options)
           }
         end
       elseif not ok then
-        log('async '..message.method..' failed:',cjson.encode(err))
+        log('async '..message.method..' failed:',jencode(err))
       end
     end
     return ac
@@ -519,7 +523,7 @@ local create_daemon = function(options)
     if service then
       local ok,err = pcall(service,client,message)
       if not ok then
-        log('dispatch_notification error:',cjson.encode(err))
+        log('dispatch_notification error:',jencode(err))
       end
     end
   end
@@ -540,12 +544,12 @@ local create_daemon = function(options)
             data = message
           }
         }
-        log('message not dispatched:',cjson.encode(message))
+        log('message not dispatched:',jencode(message))
       end
     elseif message.method then
       dispatch_notification(client,message)
     else
-      log('message not dispatched:',cjson.encode(message))
+      log('message not dispatched:',jencode(message))
     end
   end
   
@@ -553,7 +557,7 @@ local create_daemon = function(options)
     local ok,err = pcall(
       function()
         if message then
-          if message == cjson.null then
+          if message == jnull then
             client:queue
             {
               error = {
@@ -580,7 +584,7 @@ local create_daemon = function(options)
         end
       end)
     if not ok then
-      crit('dispatching message',cjson.encode(message),err)
+      crit('dispatching message',jencode(message),err)
     end
     flush_clients()
   end
@@ -592,11 +596,9 @@ local create_daemon = function(options)
   local create_client = function(ops)
     local client = {}
     client.release = function()
-      --      log('releasing',client)
       if client then
         client.fetchers = {}
         for path,leave in pairs(leaves) do
-          --         print('REL',method.client,client)
           if leave.client == client then
             publish
             {
@@ -616,30 +618,28 @@ local create_daemon = function(options)
         client = nil
       end
     end
-    client.close = function(self)
-      self:flush()
+    client.close = function(_)
+      client:flush()
       ops.close()
     end
-    client.queue = function(self,message)
-      --      print('queing',self,jsock,assert(cjson.encode(message)))
-      if not self.messages then
-        self.messages = {}
+    client.queue = function(_,message)
+      if not client.messages then
+        client.messages = {}
       end
-      tinsert(self.messages,message)
+      tinsert(client.messages,message)
     end
     local send = ops.send
-    client.flush = function(self)
-      if self.messages then
-        --         print('flushing',self,jsock)
-        local num = #self.messages
+    client.flush = function(_)
+      if client.messages then
+        local num = #client.messages
         if num == 1 then
-          send(self.messages[1])
+          send(client.messages[1])
         elseif num > 1 then
-          send(self.messages)
+          send(client.messages)
         else
           assert(false,'messages must contain at least one element if not nil')
         end
-        self.messages = nil
+        client.messages = nil
       end
     end
     client.fetchers = {}
@@ -647,7 +647,7 @@ local create_daemon = function(options)
   end
   
   local listener
-  local accept_client = function(loop,accept_io)
+  local accept_tcp = function(loop,accept_io)
     local sock = listener:accept()
     if not sock then
       log('accepting client failed')
@@ -673,23 +673,65 @@ local create_daemon = function(options)
     clients[client] = client
   end
   
+  local accept_websocket = function(ws)
+    local client = create_client
+    {
+      close = function()
+        ws:close()
+      end,
+      send = function(msg)
+        ws:send(jencode(msg))
+      end,
+    }
+    ws:on_message(function(_,msg)
+        dispatch_message(client,jdecode(msg))
+      end)
+    ws:on_close(function(_,...)
+        client:release()
+      end)
+    ws:on_error(function(_,...)
+        err('socket error',...)
+        client:release()
+      end)
+    clients[client] = client
+  end
+  
   local listen_io
+  local websocket_server
   
   local daemon = {
     start = function()
       listener = assert(socket.bind('*',port))
       listener:settimeout(0)
       listen_io = ev.IO.new(
-        accept_client,
+        accept_tcp,
         listener:getfd(),
       ev.READ)
       listen_io:start(loop)
+      
+      if options.ws_port then
+        local websocket_ok,err = pcall(function()
+            websocket_server = require'websocket'.server.ev.listen
+            {
+              port = options.ws_port,
+              protocols = {
+                jet = accept_websocket
+              }
+            }
+          end)
+        if not websocket_ok then
+          print('Could not start websocket server',err)
+        end
+      end
     end,
     stop = function()
       listen_io:stop(loop)
       listener:close()
       for _,client in pairs(clients) do
         client:close()
+      end
+      if websocket_server then
+        websocket_server:close()
       end
     end
   }
