@@ -589,15 +589,9 @@ local create_daemon = function(options)
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
   
-  local listener
-  local accept_client = function(loop,accept_io)
-    local sock = listener:accept()
-    if not sock then
-      log('accepting client failed')
-      return
-    end
+  local create_client = function(ops)
     local client = {}
-    local release_client = function(_)
+    client.release = function()
       --      log('releasing',client)
       if client then
         client.fetchers = {}
@@ -617,27 +611,14 @@ local create_daemon = function(options)
           end
         end
         flush_clients()
-        client:close()
+        ops.close()
         clients[client] = nil
         client = nil
       end
     end
-    local args = {
-      loop = loop,
-      on_message = function(_,...)
-        --         print(client,_)
-        dispatch_message(client,...)
-      end,
-      on_close = release_client,
-      on_error = function(_,...)
-        err('socket error',...)
-        release_client()
-      end
-    }
-    local jsock = jsocket.wrap(sock,args)
     client.close = function(self)
       self:flush()
-      jsock:close()
+      ops.close()
     end
     client.queue = function(self,message)
       --      print('queing',self,jsock,assert(cjson.encode(message)))
@@ -646,14 +627,15 @@ local create_daemon = function(options)
       end
       tinsert(self.messages,message)
     end
+    local send = ops.send
     client.flush = function(self)
       if self.messages then
         --         print('flushing',self,jsock)
         local num = #self.messages
         if num == 1 then
-          jsock:send(self.messages[1])
+          send(self.messages[1])
         elseif num > 1 then
-          jsock:send(self.messages)
+          send(self.messages)
         else
           assert(false,'messages must contain at least one element if not nil')
         end
@@ -661,6 +643,32 @@ local create_daemon = function(options)
       end
     end
     client.fetchers = {}
+    return client
+  end
+  
+  local listener
+  local accept_client = function(loop,accept_io)
+    local sock = listener:accept()
+    if not sock then
+      log('accepting client failed')
+      return
+    end
+    local jsock = jsocket.wrap(sock)
+    local client = create_client
+    {
+      close = function() jsock:close() end,
+      send = function(msg) jsock:send(msg) end
+    }
+    jsock:on_message(function(_,...)
+        dispatch_message(client,...)
+      end)
+    jsock:on_close(function(_,...)
+        client:release()
+      end)
+    jsock:on_error(function(_,...)
+        err('socket error',...)
+        client:release()
+      end)
     jsock:read_io():start(loop)
     clients[client] = client
   end
