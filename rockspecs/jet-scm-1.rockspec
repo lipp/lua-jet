@@ -26,7 +26,6 @@ build = {
     },
     bin = {
       'bin/jetd.lua',
-      'bin/jet-ws.lua'  
     }
   }
 }
