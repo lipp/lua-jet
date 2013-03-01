@@ -683,8 +683,10 @@ local create_daemon = function(options)
         ws:send(jencode(msg))
       end,
     }
-    ws:on_message(function(_,msg)
-        dispatch_message(client,jdecode(msg))
+    ws:on_message(function(_,msg,opcode)
+        if opcode == 1 then
+          dispatch_message(client,jdecode(msg))
+        end
       end)
     ws:on_close(function(_,...)
         client:release()
