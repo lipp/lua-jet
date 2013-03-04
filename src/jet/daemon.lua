@@ -52,7 +52,6 @@ local create_daemon = function(options)
   
   -- holds all (jet.socket.wrapped) clients index by client itself
   local clients = {}
-  local nodes = {}
   local states = {}
   local leaves = {}
   local routes = {}
@@ -189,29 +188,6 @@ local create_daemon = function(options)
     local unmatch = optional(params,'unmatch','table')
     local matcher = matcher(match,unmatch)
     if not client.fetchers[id] then
-      local node_notifications = {}
-      for path in pairs(nodes) do
-        if matcher(path) then
-          local notification = {
-            method = id,
-            params = {
-              path = path,
-              event = 'add',
-              data = {
-                type = 'node'
-              }
-            }
-          }
-          tinsert(node_notifications,notification)
-        end
-      end
-      local compare_path_length = function(not1,not2)
-        return #not1.params.path < #not2.params.path
-      end
-      tsort(node_notifications,compare_path_length)
-      for _,notification in ipairs(node_notifications) do
-        client:queue(notification)
-      end
       for path,leave in pairs(leaves) do
         if matcher(path) then
           client:queue
@@ -318,65 +294,12 @@ local create_daemon = function(options)
     end
   end
   
-  local increment_nodes = function(path)
-    local parts = {}
-    for part in path:gmatch('[^/]+') do
-      tinsert(parts,part)
-    end
-    for i=1,#parts-1 do
-      local path = tconcat(parts,'/',1,i)
-      local count = nodes[path]
-      if count then
-        nodes[path] = count+1
-      else
-        --         print('new node',path)
-        nodes[path] = 1
-        publish
-        {
-          event = 'add',
-          path = path,
-          data = {
-            type = 'node'
-          }
-        }
-      end
-      --      print('node',node,nodes[path])
-    end
-  end
-  
-  local decrement_nodes = function(path)
-    local parts = {}
-    for part in path:gmatch('[^/]+') do
-      tinsert(parts,part)
-    end
-    for i=#parts-1,1,-1 do
-      local path = tconcat(parts,'/',1,i)
-      local count = nodes[path]
-      if count > 1 then
-        nodes[path] = count-1
-        --         print('node',path,nodes[path])
-      else
-        nodes[path] = nil
-        --         print('delete node',path)
-        publish
-        {
-          event = 'remove',
-          path = path,
-          data = {
-            type = 'node'
-          }
-        }
-      end
-    end
-  end
-  
   local add = function(client,message)
     local params = message.params
     local path = checked(params,'path','string')
-    if nodes[path] or leaves[path] then
-      error(invalid_params{occupied_path = path})
+    if leaves[path] then
+      error(invalid_params{exists = path})
     end
-    increment_nodes(path)
     local element = checked(params,'element','table')
     if not element.type then
       error(invalid_params{missing_param ='element.type',got=params})
@@ -408,7 +331,6 @@ local create_daemon = function(options)
       event = 'remove',
       data = element
     }
-    decrement_nodes(path)
   end
   
   local sync = function(f)
@@ -608,7 +530,6 @@ local create_daemon = function(options)
                 type = leave.element.type
               }
             }
-            decrement_nodes(path)
             leaves[path] = nil
           end
         end
