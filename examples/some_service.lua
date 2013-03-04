@@ -105,7 +105,6 @@ jet:method
    call = function(a,b) 
       return a+b
    end,
-   schema = {params={{class='double'},{class='double'}},result={class="double"}}
 }
 
 jet:method

@@ -397,7 +397,6 @@ new = function(config)
     j.method = function(self,desc,add_callbacks)
       local el = {}
       el.type = 'method'
-      el.schema = desc.schema
       local dispatch
       if desc.call then
         dispatch = function(self,message)
@@ -458,7 +457,6 @@ new = function(config)
     j.state = function(self,desc,add_callbacks)
       local el = {}
       el.type = 'state'
-      el.schema = desc.schema
       el.value = desc.value
       --         print(self,ip)
       local dispatch
