@@ -84,14 +84,11 @@ new = function(config)
     local wsock = jsocket.wrap(sock,{loop = loop})
     local messages = {}
     local queue = function(message)
-      --         assert(message)
-      --         print(ip,sock,cjson.encode(message))
       tinsert(messages,message)
     end
     local will_flush = true
     local flush = function(reason)
       local n = #messages
-      --         print('FLUSHING',n,reason,ip,messages)
       if n == 1 then
         wsock:send(messages[1])
       elseif n > 1 then
@@ -105,16 +102,13 @@ new = function(config)
     local dispatch_response = function(self,message)
       local callbacks = response_dispatchers[message.id]
       response_dispatchers[message.id] = nil
-      --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
         if message.result then
           if callbacks.success then
-            --            log('response','success',message.id)
             callbacks.success(message.result)
           end
         elseif message.error then
           if callbacks.error then
-            --            log('response','error',message.id)
             callbacks.error(message.error)
           end
         else
@@ -127,20 +121,16 @@ new = function(config)
     local dispatch_notification = function(self,message)
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
-        --         log('NOTIF',cjson.encode(message))
         local ok,err = pcall(dispatcher,self,message)
         if not ok then
           log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
         end
       end
-      --         log('notification',cjson.encode(message))
     end
     local dispatch_request = function(self,message)
-      --      log('dispatch_request',self,cjson.encode(message))
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
         local error
-        --      log('dispatch_call',method_name,method)
         local ok,err = pcall(dispatcher,self,message)
         if ok then
           return
@@ -224,8 +214,6 @@ new = function(config)
           self.read_io:clear_pending(loop)
         end
       end
-      --         request_dispatchers = nil
-      --         response_dispatchers = nil
       wsock:close()
     end
     
@@ -326,11 +314,8 @@ new = function(config)
         path = path
       }
       local remove_dispatcher = function(success)
-        --            if success then
         assert(success)
-        --            print('remove_dispatcher',path,request_dispatchers)
         request_dispatchers[path] = nil
-        --          end
       end
       service('remove',params,remove_dispatcher,callbacks)
     end
@@ -365,12 +350,10 @@ new = function(config)
       fetch_id = fetch_id + 1
       local ref
       local add_fetcher = function()
-        --            print('fetch ',id,expr)
         request_dispatchers[id] = function(peer,message)
           local params = message.params
           f(params.path,params.event,params.data or {},ref)
         end
-        --            print('request_dispatchers assigned',id,request_dispatchers[id])
       end
       local params = {
         id = id,
@@ -385,7 +368,6 @@ new = function(config)
       ref = {
         unfetch = function(_,callbacks)
           local remove_dispatcher = function()
-            --                  print('unfetch ',id,expr)
             request_dispatchers[id] = nil
           end
           service('unfetch',{id=id},remove_dispatcher,callbacks)
@@ -458,13 +440,11 @@ new = function(config)
       local el = {}
       el.type = 'state'
       el.value = desc.value
-      --         print(self,ip)
       local dispatch
       if desc.set then
         dispatch = function(self,message)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
-          --               print('set state',desc.path,ok,result,dont_notify)
           if ok then
             queue
             {
@@ -523,7 +503,6 @@ new = function(config)
                 }
               }
             end
-            --                  print('dont flush',dont_flush)
             if not will_flush and not dont_flush then
               flush('set_aync')
             end
