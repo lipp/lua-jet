@@ -48,8 +48,6 @@ end
 
 
 local create_daemon = function(options)
-  
-  
   -- holds all (jet.socket.wrapped) clients index by client itself
   local clients = {}
   local nodes = {}
@@ -71,9 +69,10 @@ local create_daemon = function(options)
   local publish = function(notification)
     --   debug('publish',jencode(notification))
     local path = notification.path
+    local value = notification.data and notification.data.value
     for client in pairs(clients) do
       for fetch_id,matcher in pairs(client.fetchers) do
-        if matcher(path) then
+        if matcher(path,value) then
           client:queue
           {
             method = fetch_id,
@@ -90,15 +89,16 @@ local create_daemon = function(options)
     end
   end
   
-  local matcher = function(match,unmatch)
-    local f
-    if not unmatch and #match == 1 then
+  local create_matcher = function(options)
+    local unmatch = options.unmatch
+    local match = options.match
+    if not unmatch and match and #match == 1 then
       local match = match[1]
-      f = function(path)
+      return function(path)
         return path:match(match)
       end
     elseif type(match) == 'table' and type(unmatch) == 'table' then
-      f = function(path)
+      return function(path)
         for _,unmatch in ipairs(unmatch) do
           if path:match(unmatch) then
             return false
@@ -110,17 +110,21 @@ local create_daemon = function(options)
           end
         end
       end
-    else
-      f = function(path)
+    elseif type(match) == 'table' then
+      return function(path)
         for _,match in ipairs(match) do
           if path:match(match) then
             return true
           end
         end
       end
+    elseif options.equals ~= nil then
+      local equals = options.equals
+      return function(_,value)
+        return value == options.equals
+      end
     end
-    assert(f and type(f) == 'function')
-    return f
+    return
   end
   
   local checked = function(params,key,typename)
@@ -185,9 +189,10 @@ local create_daemon = function(options)
   local fetch = function(client,message)
     local params = message.params
     local id = checked(params,'id','string')
-    local match = checked(params,'match','table')
-    local unmatch = optional(params,'unmatch','table')
-    local matcher = matcher(match,unmatch)
+    local params_ok,matcher = pcall(create_matcher,params)
+    if not params_ok then
+      error(invalid_params{fetchParams = params, reason = matcher})
+    end
     if not client.fetchers[id] then
       local node_notifications = {}
       for path in pairs(nodes) do
@@ -213,7 +218,7 @@ local create_daemon = function(options)
         client:queue(notification)
       end
       for path,leave in pairs(leaves) do
-        if matcher(path) then
+        if matcher(path,leave.element.value) then
           client:queue
           {
             method = id,
