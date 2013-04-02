@@ -6,6 +6,8 @@ local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT')
 
+local dt = 0.01
+
 setloop('ev')
 
 describe(
@@ -52,7 +54,7 @@ describe(
         timer = ev.Timer.new(guard(function()
               peer:close()
               assert.is_true(false)
-          end),0.1)
+          end),dt)
         timer:start(loop)
       end)
     
@@ -60,6 +62,7 @@ describe(
         local peer
         local test_path = 'test'
         local test_value = 1234
+        
         before(async,function(done)
             peer = jetpeer.new
             {
@@ -89,7 +92,7 @@ describe(
             timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()
-              end),0.1)
+              end),dt)
             timer:start(loop)
           end)
         
@@ -117,7 +120,7 @@ describe(
             timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()
-              end),0.1)
+              end),dt)
             timer:start(loop)
           end)
         
@@ -135,12 +138,45 @@ describe(
             timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()
-              end),0.1)
+              end),dt)
+            timer:start(loop)
+          end)
+        
+        it('does not fetch on simple path mismatch',async,function(done)
+            local timer
+            peer:fetch(
+              'bla',
+              guard(function(fpath,fevent,fdata,fetcher)
+                  timer:stop(loop)
+                  fetcher:unfetch()
+                  assert.is_true(false)
+                  done()
+              end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(true)
+                  done()
+              end),dt)
+            timer:start(loop)
+          end)
+        
+        it('does not fetch on match array mismatch',async,function(done)
+            local timer
+            peer:fetch(
+              {match={'bla'}},
+              guard(function(fpath,fevent,fdata,fetcher)
+                  timer:stop(loop)
+                  fetcher:unfetch()
+                  assert.is_true(false)
+                  done()
+              end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(true)
+                  done()
+              end),dt)
             timer:start(loop)
           end)
         
       end)
-    
     
   end)
 
