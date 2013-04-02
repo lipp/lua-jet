@@ -58,8 +58,8 @@ describe(
     
     describe('when connected',function()
         local peer
-        local path = 'test'
-        local value = 1234
+        local test_path = 'test'
+        local test_value = 1234
         before(async,function(done)
             peer = jetpeer.new
             {
@@ -76,8 +76,8 @@ describe(
             local timer
             peer:state(
               {
-                path = path,
-                value = value
+                path = test_path,
+                value = test_value
               },
               {
                 success = guard(function()
@@ -97,20 +97,20 @@ describe(
             assert.has_error(function()
                 peer:state
                 {
-                  path = path,
-                  value = value
+                  path = test_path,
+                  value = test_value
                 }
               end)
           end)
         
-        it('can fetch states',async,function(done)
+        it('can fetch states with simple match string',async,function(done)
             local timer
             peer:fetch(
-              path,
+              test_path,
               guard(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
-                  assert.is_equal(fpath,path)
-                  assert.is_equal(fdata.value,value)
+                  assert.is_equal(fpath,test_path)
+                  assert.is_equal(fdata.value,test_value)
                   fetcher:unfetch()
                   done()
               end))
@@ -120,7 +120,27 @@ describe(
               end),0.1)
             timer:start(loop)
           end)
+        
+        it('can fetch states with match array',async,function(done)
+            local timer
+            peer:fetch(
+              {match={test_path}},
+              guard(function(fpath,fevent,fdata,fetcher)
+                  timer:stop(loop)
+                  assert.is_equal(fpath,test_path)
+                  assert.is_equal(fdata.value,test_value)
+                  fetcher:unfetch()
+                  done()
+              end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(false)
+                  done()
+              end),0.1)
+            timer:start(loop)
+          end)
+        
       end)
+    
     
   end)
 
