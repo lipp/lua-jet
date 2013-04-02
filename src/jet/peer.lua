@@ -372,7 +372,7 @@ new = function(config)
       end
       if type(params) == 'string' then
         params = {
-           match = {params}
+          match = {params}
         }
       end
       params.id = id
