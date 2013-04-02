@@ -360,32 +360,26 @@ new = function(config)
     
     local fetch_id = 0
     
-    j.fetch = function(self,expr,f,callbacks)
+    j.fetch = function(self,params,f,callbacks)
       local id = '__f__'..fetch_id
       fetch_id = fetch_id + 1
       local ref
       local add_fetcher = function()
-        --            print('fetch ',id,expr)
         request_dispatchers[id] = function(peer,message)
           local params = message.params
           f(params.path,params.event,params.data or {},ref)
         end
-        --            print('request_dispatchers assigned',id,request_dispatchers[id])
       end
-      local params = {
-        id = id,
-      }
-      if type(expr) == 'string' then
-        params.match = {expr}
-      else
-        params.match = expr.match
-        params.unmatch = expr.unmatch
+      if type(params) == 'string' then
+        params = {
+           match = {params}
+        }
       end
+      params.id = id
       service('fetch',params,add_fetcher,callbacks)
       ref = {
         unfetch = function(_,callbacks)
           local remove_dispatcher = function()
-            --                  print('unfetch ',id,expr)
             request_dispatchers[id] = nil
           end
           service('unfetch',{id=id},remove_dispatcher,callbacks)
