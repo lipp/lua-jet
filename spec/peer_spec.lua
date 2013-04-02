@@ -13,20 +13,16 @@ describe(
   function()
     local d
     local peer
-    before(
-      function()
+    before(function()
         d = jetdaemon.new{port = port}
         d:start()
       end)
     
-    after(
-      function()
+    after(function()
         d:stop()
       end)
     
-    it(
-      'provides the correct interface',
-      function()
+    it('provides the correct interface',function()
         local peer = jetpeer.new{port = port}
         assert.is_true(type(peer) == 'table')
         assert.is_true(type(peer.state) == 'function')
@@ -40,60 +36,43 @@ describe(
         peer:close()
       end)
     
-    it(
-      'on_connect gets called',
-      async,
-      function(done)
+    it('on_connect gets called',async,function(done)
         local timer
         local peer
         peer = jetpeer.new
         {
           port = port,
-          on_connect = guard(
-            function(p)
+          on_connect = guard(function(p)
               assert.is_equal(peer,p)
               timer:stop(loop)
               peer:close()
               done()
             end)
         }
-        timer = ev.Timer.new(
-          guard(
-            function()
+        timer = ev.Timer.new(guard(function()
               peer:close()
               assert.is_true(false)
           end),0.1)
         timer:start(loop)
       end)
     
-    describe(
-      'when connected',
-      function()
+    describe('when connected',function()
         local peer
         local path = 'test'
         local value = 1234
-        before(
-          async,
-          function(done)
+        before(async,function(done)
             peer = jetpeer.new
             {
               port = port,
-              on_connect = guard(
-                function(p)
-                  done()
-                end)
+              on_connect = done
             }
           end)
         
-        after(
-          function()
+        after(function()
             peer:close()
           end)
         
-        it(
-          'can add states',
-          async,
-          function(done)
+        it('can add states',async,function(done)
             local timer
             peer:state(
               {
@@ -101,27 +80,21 @@ describe(
                 value = value
               },
               {
-                success = guard(
-                  function()
+                success = guard(function()
                     timer:stop(loop)
                     assert.is_true(true)
                     done()
                   end)
             })
-            timer = ev.Timer.new(
-              guard(
-                function()
+            timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()
               end),0.1)
             timer:start(loop)
           end)
         
-        it(
-          'can not add same state again',
-          function()
-            assert.has_error(
-              function()
+        it('can not add same state again',function()
+            assert.has_error(function()
                 peer:state
                 {
                   path = path,
@@ -130,29 +103,24 @@ describe(
               end)
           end)
         
-        it(
-          'can fetch states',
-          async,
-          function(done)
+        it('can fetch states',async,function(done)
             local timer
             peer:fetch(
               path,
-              guard(
-                function(fpath,fevent,fdata,fetcher)
+              guard(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   assert.is_equal(fpath,path)
                   assert.is_equal(fdata.value,value)
                   fetcher:unfetch()
                   done()
               end))
-            timer = ev.Timer.new(
-              guard(
-                function()
+            timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()
               end),0.1)
             timer:start(loop)
           end)
       end)
+    
   end)
 
