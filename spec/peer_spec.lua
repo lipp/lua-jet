@@ -202,6 +202,24 @@ describe(
               end),dt)
             timer:start(loop)
           end)
+
+        it('can fetch states with match array and a certain value',async,function(done)
+            local timer
+            peer:fetch(
+              {equals=test_a_value},
+              guard(function(fpath,fevent,fdata,fetcher)
+                  timer:stop(loop)
+                  assert.is_equal(fpath,test_a_path)
+                  assert.is_equal(fdata.value,test_a_value)
+                  fetcher:unfetch()
+                  done()
+              end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(false)
+                  done()
+              end),dt)
+            timer:start(loop)
+          end)
         
       end)
     
