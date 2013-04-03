@@ -84,14 +84,11 @@ new = function(config)
     local wsock = jsocket.wrap(sock,{loop = loop})
     local messages = {}
     local queue = function(message)
-      --         assert(message)
-      --         print(ip,sock,cjson.encode(message))
       tinsert(messages,message)
     end
     local will_flush = true
     local flush = function(reason)
       local n = #messages
-      --         print('FLUSHING',n,reason,ip,messages)
       if n == 1 then
         wsock:send(messages[1])
       elseif n > 1 then
@@ -105,16 +102,13 @@ new = function(config)
     local dispatch_response = function(self,message)
       local callbacks = response_dispatchers[message.id]
       response_dispatchers[message.id] = nil
-      --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
         if message.result then
           if callbacks.success then
-            --            log('response','success',message.id)
             callbacks.success(message.result)
           end
         elseif message.error then
           if callbacks.error then
-            --            log('response','error',message.id)
             callbacks.error(message.error)
           end
         else
@@ -127,20 +121,16 @@ new = function(config)
     local dispatch_notification = function(self,message)
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
-        --         log('NOTIF',cjson.encode(message))
         local ok,err = pcall(dispatcher,self,message)
         if not ok then
           log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
         end
       end
-      --         log('notification',cjson.encode(message))
     end
     local dispatch_request = function(self,message)
-      --      log('dispatch_request',self,cjson.encode(message))
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
         local error
-        --      log('dispatch_call',method_name,method)
         local ok,err = pcall(dispatcher,self,message)
         if ok then
           return
@@ -224,8 +214,6 @@ new = function(config)
           self.read_io:clear_pending(loop)
         end
       end
-      --         request_dispatchers = nil
-      --         response_dispatchers = nil
       wsock:close()
     end
     
@@ -290,10 +278,9 @@ new = function(config)
       flush('batch')
     end
     
-    j.add = function(self,path,el,dispatch,callbacks)
+    j.add = function(self,path,value,dispatch,callbacks)
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
-      assert(type(el) == 'table',el)
       assert(type(dispatch) == 'function',dispatch)
       local assign_dispatcher = function(success)
         if success then
@@ -302,7 +289,7 @@ new = function(config)
       end
       local params = {
         path = path,
-        element = el
+        value = value
       }
       service('add',params,assign_dispatcher,callbacks)
       local ref = {
@@ -315,7 +302,7 @@ new = function(config)
         end,
         add = function(ref,callbacks)
           assert(not ref:is_added())
-          self:add(path,el,dispatch,callbacks)
+          self:add(path,value,dispatch,callbacks)
         end
       }
       return ref
@@ -326,11 +313,8 @@ new = function(config)
         path = path
       }
       local remove_dispatcher = function(success)
-        --            if success then
         assert(success)
-        --            print('remove_dispatcher',path,request_dispatchers)
         request_dispatchers[path] = nil
-        --          end
       end
       service('remove',params,remove_dispatcher,callbacks)
     end
@@ -354,7 +338,7 @@ new = function(config)
     j.notify = function(self,notification,callbacks)
       assert(notification.path)
       assert(notification.event)
-      assert(notification.data)
+      assert(notification.value)
       service('notify',notification,nil,callbacks)
     end
     
@@ -367,7 +351,7 @@ new = function(config)
       local add_fetcher = function()
         request_dispatchers[id] = function(peer,message)
           local params = message.params
-          f(params.path,params.event,params.data or {},ref)
+          f(params.path,params.event,params.value,ref)
         end
       end
       if type(params) == 'string' then
@@ -389,9 +373,6 @@ new = function(config)
     end
     
     j.method = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'method'
-      el.schema = desc.schema
       local dispatch
       if desc.call then
         dispatch = function(self,message)
@@ -445,22 +426,16 @@ new = function(config)
       else
         assert(false,'invalid method desc'..(desc.path or '?'))
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc.path,nil,dispatch,add_callbacks)
       return ref
     end
     
     j.state = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'state'
-      el.schema = desc.schema
-      el.value = desc.value
-      --         print(self,ip)
       local dispatch
       if desc.set then
         dispatch = function(self,message)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
-          --               print('set state',desc.path,ok,result,dont_notify)
           if ok then
             queue
             {
@@ -470,13 +445,10 @@ new = function(config)
             if not dont_notify then
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = result or value
-                  }
+                  value = result or value
                 }
               }
             end
@@ -509,17 +481,13 @@ new = function(config)
             if resp.result and not resp.dont_notify then
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = resp.value or value
-                  }
+                  value = resp.value or value
                 }
               }
             end
-            --                  print('dont flush',dont_flush)
             if not will_flush and not dont_flush then
               flush('set_aync')
             end
@@ -543,27 +511,21 @@ new = function(config)
               {
                 code = -32602,
                 message = 'Invalid params',
-                data = {
-                  read_only = true
-                }
               }
             }
           end
         end
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc.path,desc.value,dispatch,add_callbacks)
       ref.value = function(self,value)
         if value ~= nil then
           desc.value = value
           queue
           {
-            method = 'post',
+            method = 'change',
             params = {
-              event = 'change',
               path = desc.path,
-              data = {
-                value = value
-              }
+              value = value
             }
           }
           if not will_flush then

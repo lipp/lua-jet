@@ -137,10 +137,10 @@ describe(
             local timer
             peer:fetch(
               test_a_path,
-              guard(function(fpath,fevent,fdata,fetcher)
+              guard(function(fpath,fevent,fvalue,fetcher)
                   timer:stop(loop)
                   assert.is_equal(fpath,test_a_path)
-                  assert.is_equal(fdata.value,test_a_value)
+                  assert.is_equal(fvalue,test_a_value)
                   fetcher:unfetch()
                   done()
               end))
@@ -155,10 +155,10 @@ describe(
             local timer
             peer:fetch(
               {match={test_a_path}},
-              guard(function(fpath,fevent,fdata,fetcher)
+              guard(function(fpath,fevent,fvalue,fetcher)
                   timer:stop(loop)
                   assert.is_equal(fpath,test_a_path)
-                  assert.is_equal(fdata.value,test_a_value)
+                  assert.is_equal(fvalue,test_a_value)
                   fetcher:unfetch()
                   done()
               end))
@@ -207,10 +207,10 @@ describe(
             local timer
             peer:fetch(
               {equals=test_a_value},
-              guard(function(fpath,fevent,fdata,fetcher)
+              guard(function(fpath,fevent,fvalue,fetcher)
                   timer:stop(loop)
                   assert.is_equal(fpath,test_a_path)
-                  assert.is_equal(fdata.value,test_a_value)
+                  assert.is_equal(fvalue,test_a_value)
                   fetcher:unfetch()
                   done()
               end))

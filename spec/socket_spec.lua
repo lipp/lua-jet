@@ -166,7 +166,7 @@ describe(
                 end),1)
               timer:start(loop)
               wrapped:read_io():start(loop)
-          end),sock:getfd(),ev.WRITE):start(loop) -- connect io
+          end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         sock:connect('127.0.0.1',port)
       end)
   end)
