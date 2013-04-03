@@ -138,10 +138,10 @@ describe(
             peer:fetch(
               path,
               guard(
-                function(fpath,fevent,fdata,fetcher)
+                function(fpath,fevent,fvalue,fetcher)
                   timer:stop(loop)
                   assert.is_equal(fpath,path)
-                  assert.is_equal(fdata.value,value)
+                  assert.is_equal(fvalue,value)
                   fetcher:unfetch()
                   done()
               end))

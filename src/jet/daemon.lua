@@ -154,18 +154,12 @@ local create_daemon = function(options)
     end
   end
   
-  local post = function(client,message)
+  local change = function(client,message)
     local notification = message.params
     local path = checked(notification,'path','string')
-    local event = checked(notification,'event','string')
-    local data = checked(notification,'data','table')
     local leave = leaves[path]
     if leave then
-      if event == 'change' then
-        for k,v in pairs(data) do
-          leave.element[k] = v
-        end
-      end
+      notification.event = 'change'
       publish(notification)
     else
       local error = invalid_params{invalid_path=path}
@@ -196,7 +190,7 @@ local create_daemon = function(options)
             params = {
               path = path,
               event = 'add',
-              data = leave.element
+              value = leave.value
             }
           }
         end
@@ -212,12 +206,11 @@ local create_daemon = function(options)
     end
   end
   
-  local set = function(client,message)
+  local route = function(client,message)
     local params = message.params
     local path = checked(params,'path','string')
-    local value = checked(params,'value')
     local leave = leaves[path]
-    if leave and leave.element.type == 'state' then
+    if leave then
       local id
       if message.id then
         id = message.id..tostring(client)
@@ -228,21 +221,19 @@ local create_daemon = function(options)
           id = message.id
         }
       end
-      leave.client:queue
-      {
+      local req = {
         id = id,-- maybe nil
-        method = path,
-        params = {
-          value = value
-        }
+        method = path
       }
-    else
-      local error
-      if leave then
-        error = invalid_params{path_is_not_state=path}
+      local value = params.value
+      if value then
+        req.params = value
       else
-        error = invalid_params{invalid_path=path}
+        req.params = params.args
       end
+      leave.client:queue(req)
+    else
+      local error = invalid_params{notExists=path}
       if message.id then
         client:queue
         {
@@ -250,47 +241,7 @@ local create_daemon = function(options)
           error = error
         }
       end
-      log('set failed',jencode(error))
-    end
-  end
-  
-  local call = function(client,message)
-    local params = message.params
-    local path = checked(params,'path','string')
-    local args = optional(params,'args','table')
-    local leave = leaves[path]
-    if leave and leave.element.type == 'method' then
-      local id
-      if message.id then
-        id = message.id..tostring(client)
-        assert(not routes[id])
-        -- save route to forward reply
-        routes[id] = {
-          receiver = client,
-          id = message.id
-        }
-      end
-      leave.client:queue
-      {
-        id = id,-- maybe nil
-        method = path,
-        params = args
-      }
-    else
-      local error
-      if leave then
-        error = invalid_params{path_is_not_method=path}
-      else
-        error = invalid_params{invalid_path=path}
-      end
-      if message.id then
-        client:queue
-        {
-          id = message.id,
-          error = error
-        }
-      end
-      log('call failed',jencode(error))
+      log('route failed',jencode(error))
     end
   end
   
@@ -300,20 +251,17 @@ local create_daemon = function(options)
     if leaves[path] then
       error(invalid_params{exists = path})
     end
-    local element = checked(params,'element','table')
-    if not element.type then
-      error(invalid_params{missing_param ='element.type',got=params})
-    end
+    local value = params.value-- might be nil for actions / methods
     local leave = {
       client = client,
-      element = element
+      value = value
     }
     leaves[path] = leave
     publish
     {
       path = path,
       event = 'add',
-      data = element
+      value = value
     }
   end
   
@@ -323,13 +271,13 @@ local create_daemon = function(options)
     if not leaves[path] then
       error(invalid_params{invalid_path = path})
     end
-    local element = assert(leaves[path].element)
+    local leave = assert(leaves[path])
     leaves[path] = nil
     publish
     {
       path = path,
       event = 'remove',
-      data = element
+      value = leave.value
     }
   end
   
@@ -398,8 +346,9 @@ local create_daemon = function(options)
   local services = {
     add = sync(add),
     remove = sync(remove),
-    call = async(call),
-    set = async(set),
+    call = async(route),
+    set = async(route),
+    set = async(route),
     fetch = async(fetch),
     post = sync(post),
     echo = sync(function(client,message)
@@ -526,9 +475,7 @@ local create_daemon = function(options)
             {
               event = 'remove',
               path = path,
-              data = {
-                type = leave.element.type
-              }
+              value = leave.value
             }
             leaves[path] = nil
           end

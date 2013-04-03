@@ -278,10 +278,9 @@ new = function(config)
       flush('batch')
     end
     
-    j.add = function(self,path,el,dispatch,callbacks)
+    j.add = function(self,path,value,dispatch,callbacks)
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
-      assert(type(el) == 'table',el)
       assert(type(dispatch) == 'function',dispatch)
       local assign_dispatcher = function(success)
         if success then
@@ -290,7 +289,7 @@ new = function(config)
       end
       local params = {
         path = path,
-        element = el
+        value = value
       }
       service('add',params,assign_dispatcher,callbacks)
       local ref = {
@@ -303,7 +302,7 @@ new = function(config)
         end,
         add = function(ref,callbacks)
           assert(not ref:is_added())
-          self:add(path,el,dispatch,callbacks)
+          self:add(path,value,dispatch,callbacks)
         end
       }
       return ref
@@ -339,7 +338,7 @@ new = function(config)
     j.notify = function(self,notification,callbacks)
       assert(notification.path)
       assert(notification.event)
-      assert(notification.data)
+      assert(notification.value)
       service('notify',notification,nil,callbacks)
     end
     
@@ -352,7 +351,7 @@ new = function(config)
       local add_fetcher = function()
         request_dispatchers[id] = function(peer,message)
           local params = message.params
-          f(params.path,params.event,params.data or {},ref)
+          f(params.path,params.event,params.value,ref)
         end
       end
       local params = {
@@ -377,8 +376,6 @@ new = function(config)
     end
     
     j.method = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'method'
       local dispatch
       if desc.call then
         dispatch = function(self,message)
@@ -432,14 +429,11 @@ new = function(config)
       else
         assert(false,'invalid method desc'..(desc.path or '?'))
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc.path,nil,dispatch,add_callbacks)
       return ref
     end
     
     j.state = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'state'
-      el.value = desc.value
       local dispatch
       if desc.set then
         dispatch = function(self,message)
@@ -454,13 +448,10 @@ new = function(config)
             if not dont_notify then
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = result or value
-                  }
+                  value = result or value
                 }
               }
             end
@@ -493,13 +484,10 @@ new = function(config)
             if resp.result and not resp.dont_notify then
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = resp.value or value
-                  }
+                  value = resp.value or value
                 }
               }
             end
@@ -526,27 +514,21 @@ new = function(config)
               {
                 code = -32602,
                 message = 'Invalid params',
-                data = {
-                  read_only = true
-                }
               }
             }
           end
         end
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc.path,desc.value,dispatch,add_callbacks)
       ref.value = function(self,value)
         if value ~= nil then
           desc.value = value
           queue
           {
-            method = 'post',
+            method = 'change',
             params = {
-              event = 'change',
               path = desc.path,
-              data = {
-                value = value
-              }
+              value = value
             }
           }
           if not will_flush then
