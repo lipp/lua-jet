@@ -66,17 +66,11 @@ local create_daemon = function(options)
   end
   
   local publish = function(notification)
-    --   debug('publish',jencode(notification))
-    local path = notification.path
-    local value = notification.data and notification.data.value
     for client in pairs(clients) do
-      for fetch_id,matcher in pairs(client.fetchers) do
-        if matcher(path,value) then
-          client:queue
-          {
-            method = fetch_id,
-            params = notification
-          }
+      for fetch_id,fetcher in pairs(client.fetchers) do
+        local ok,err = pcall(fetcher,notification)
+        if not ok then
+          crit('publish failed',fetch_id,err)
         end
       end
     end
@@ -88,7 +82,7 @@ local create_daemon = function(options)
     end
   end
   
-  local create_matcher = function(options)
+  local create_path_matcher = function(options)
     local unmatch = options.unmatch
     local match = options.match
     if not unmatch and match and #match == 1 then
@@ -117,13 +111,67 @@ local create_daemon = function(options)
           end
         end
       end
-    elseif options.equals ~= nil then
+    else
+      return nil
+    end
+  end
+  
+  local create_value_matcher = function(options)
+    if options.equals ~= nil then
       local equals = options.equals
-      return function(_,value)
-        return value == options.equals
+      return function(value)
+        return value == equals
       end
     end
-    return
+    return nil
+  end
+  
+  local create_fetcher = function(options,notify)
+    local path_matcher = create_path_matcher(options)
+    local value_matcher = create_value_matcher(options)
+    --     local deps_matcher = create_deps_matcher(options)
+    local added = {}
+    local fetchop = function(notification)
+      local path = notification.path
+      local value = notification.value
+      local is_added = added[path]
+      if (path_matcher and not path_matcher(path)) or
+      (value_matcher and not value_matcher(value)) then
+        if is_added then
+          added[path] = nil
+          notify
+          {
+            path = path,
+            event = 'remove',
+            value = value
+          }
+        end
+        return
+      end
+      local event
+      if not is_added then
+        event = 'add'
+        added[path] = true
+      else
+        event = 'change'
+      end
+      notify
+      {
+        path = path,
+        event = event,
+        value = value
+      }
+    end
+    
+    for path,leave in pairs(leaves) do
+      fetchop
+      {
+        path = path,
+        value = leave.value
+      }
+    end
+    
+    return fetchop
   end
   
   local checked = function(params,key,typename)
@@ -181,27 +229,19 @@ local create_daemon = function(options)
   
   local fetch = function(client,message)
     local params = message.params
-    local id = checked(params,'id','string')
-    local params_ok,matcher = pcall(create_matcher,params)
+    local fetch_id = checked(params,'id','string')
+    local notify = function(nparams)
+      client:queue
+      {
+        method = fetch_id,
+        params = nparams
+      }
+    end
+    local params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
-      error(invalid_params{fetchParams = params, reason = matcher})
+      error(invalid_params{fetchParams = params, reason = fetcher})
     end
-    if not client.fetchers[id] then
-      for path,leave in pairs(leaves) do
-        if matcher(path,leave.value) then
-          client:queue
-          {
-            method = id,
-            params = {
-              path = path,
-              event = 'add',
-              value = leave.value
-            }
-          }
-        end
-      end
-    end
-    client.fetchers[id] = matcher
+    client.fetchers[fetch_id] = fetcher
     if message.id then
       client:queue
       {
@@ -355,7 +395,7 @@ local create_daemon = function(options)
     set = async(route),
     set = async(route),
     fetch = async(fetch),
-    post = sync(post),
+    change = sync(change),
     echo = sync(function(client,message)
         return message.params
       end)
