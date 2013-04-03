@@ -1,7 +1,7 @@
 local ev = require'ev'
 local socket = require'socket'
 local cjson = require'cjson'
-require'pack' -- blends pack/unpack into string table
+require'pack'-- blends pack/unpack into string table
 
 local print = print
 local pairs = pairs

@@ -430,11 +430,14 @@ new = function(config)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
           if ok then
-            queue
-            {
-              id = message.id,
-              result = true
-            }
+            desc.value = result or value
+            if message.id then
+              queue
+              {
+                id = message.id,
+                result = true
+              }
+            end
             if not dont_notify then
               queue
               {
@@ -445,7 +448,7 @@ new = function(config)
                 }
               }
             end
-          else
+          elseif message.id then
             queue
             {
               id = message.id,
@@ -462,7 +465,7 @@ new = function(config)
               local response = {
                 id = message.id
               }
-              if type(resp.result) ~= 'nil' and not resp.error then
+              if resp.result ~= nil and not resp.error then
                 response.result = resp.result
               elseif error then
                 response.error = resp.error
@@ -472,6 +475,7 @@ new = function(config)
               queue(response)
             end
             if resp.result and not resp.dont_notify then
+              desc.value = resp.value or value
               queue
               {
                 method = 'change',

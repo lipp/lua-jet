@@ -203,7 +203,7 @@ local create_daemon = function(options)
     local path = checked(notification,'path','string')
     local leave = leaves[path]
     if leave then
-      notification.event = 'change'
+      leave.value = notification.value
       publish(notification)
     else
       local error = invalid_params{invalid_path=path}
@@ -233,7 +233,7 @@ local create_daemon = function(options)
     if not params_ok then
       error(invalid_params{fetchParams = params, reason = fetcher})
     end
-
+    
     for path,leave in pairs(leaves) do
       fetcher
       {
@@ -241,7 +241,7 @@ local create_daemon = function(options)
         value = leave.value
       }
     end
-
+    
     client.fetchers[fetch_id] = fetcher
     if message.id then
       client:queue
@@ -271,9 +271,10 @@ local create_daemon = function(options)
         id = id,-- maybe nil
         method = path
       }
+
       local value = params.value
       if value then
-        req.params = value
+        req.params = {value = value}
       else
         req.params = params.args
       end
@@ -393,7 +394,6 @@ local create_daemon = function(options)
     add = sync(add),
     remove = sync(remove),
     call = async(route),
-    set = async(route),
     set = async(route),
     fetch = async(fetch),
     change = sync(change),
