@@ -335,13 +335,6 @@ new = function(config)
       service('set',params,nil,callbacks)
     end
     
-    j.notify = function(self,notification,callbacks)
-      assert(notification.path)
-      assert(notification.event)
-      assert(notification.value)
-      service('notify',notification,nil,callbacks)
-    end
-    
     local fetch_id = 0
     
     j.fetch = function(self,params,f,callbacks)
