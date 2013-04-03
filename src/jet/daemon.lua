@@ -163,14 +163,6 @@ local create_daemon = function(options)
       }
     end
     
-    for path,leave in pairs(leaves) do
-      fetchop
-      {
-        path = path,
-        value = leave.value
-      }
-    end
-    
     return fetchop
   end
   
@@ -241,6 +233,15 @@ local create_daemon = function(options)
     if not params_ok then
       error(invalid_params{fetchParams = params, reason = fetcher})
     end
+
+    for path,leave in pairs(leaves) do
+      fetcher
+      {
+        path = path,
+        value = leave.value
+      }
+    end
+
     client.fetchers[fetch_id] = fetcher
     if message.id then
       client:queue
