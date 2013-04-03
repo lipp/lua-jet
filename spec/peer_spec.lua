@@ -31,7 +31,6 @@ describe(
         assert.is_true(type(peer.method) == 'function')
         assert.is_true(type(peer.call) == 'function')
         assert.is_true(type(peer.set) == 'function')
-        assert.is_true(type(peer.notify) == 'function')
         assert.is_true(type(peer.fetch) == 'function')
         assert.is_true(type(peer.batch) == 'function')
         assert.is_true(type(peer.loop) == 'function')
@@ -202,17 +201,36 @@ describe(
               end),dt)
             timer:start(loop)
           end)
-
+        
         it('can fetch states with match array and a certain value',async,function(done)
             local timer
+            local added
+            local changed
+            local readded
+            local other_value = 333
             peer:fetch(
               {equals=test_a_value},
               guard(function(fpath,fevent,fvalue,fetcher)
-                  timer:stop(loop)
-                  assert.is_equal(fpath,test_a_path)
-                  assert.is_equal(fvalue,test_a_value)
-                  fetcher:unfetch()
-                  done()
+                  if not added then
+                    added = true
+                    assert.is_equal(fevent,'add')
+                    assert.is_equal(fpath,test_a_path)
+                    assert.is_equal(fvalue,test_a_value)
+                    test_a_state:value(other_value)
+                  elseif not changed then
+                    changed = true
+                    assert.is_equal(fevent,'remove')
+                    assert.is_equal(fpath,test_a_path)
+                    assert.is_equal(fvalue,other_value)
+                    test_a_state:value(test_a_value)
+                  else
+                    assert.is_equal(fevent,'add')
+                    assert.is_equal(fpath,test_a_path)
+                    assert.is_equal(fvalue,test_a_value)
+                    timer:stop(loop)
+                    fetcher:unfetch()
+                    done()
+                  end
               end))
             timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
