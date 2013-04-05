@@ -126,15 +126,94 @@ local create_daemon = function(options)
     return nil
   end
   
+  local create_fether_with_deps = function(options,notify)
+    local path_matcher = create_path_matcher(options)
+    local value_matcher = create_value_matcher(options)
+    local added = {}
+    local contexts = {}
+    local deps = {}
+    local ok = {}
+    local fetchop = function(notification)
+      local path = notification.path
+      local value = notification.value
+      local backrefs = {path_matcher(path)}
+      local context = contexts[path]
+      if #backrefs > 0 then
+        if not context then
+          context = {}
+          context.path = path
+          context.value_ok = value_matcher(value)
+          context.deps_ok = {}
+          for i,dep in ipairs(options.deps) do
+            local dep_path = dep.path:gsub('\\(%d)',function(index)
+                index = tonumber(index)
+                return assert(backrefs[index])
+              end)
+            if not deps[dep_path] then
+              deps[dep_path] = {
+                value_matcher = create_value_matcher(dep),
+                context = context
+              }
+              context.deps_ok[dep_path] = false
+            end
+          end
+          contexts[path] = context
+        else
+          context.value_ok = value_matcher(value)
+        end
+        context.value = value
+      elseif deps[path] then
+        local dep = deps[path]
+        context = dep.context
+        context.deps_ok[path] = dep.value_matcher(value) or false
+      end
+      
+      local all_ok = false
+      if context.value_ok then
+        all_ok = true
+        for _,dep_ok in pairs(context.deps_ok) do
+          if not dep_ok then
+            all_ok = false
+            break
+          end
+        end
+      end
+      local is_added = added[path]
+      local event
+      if not all_ok then
+        if is_added then
+          event = 'remove'
+          added[path] = nil
+        else
+          return
+        end
+      elseif all_ok then
+        if is_added then
+          event = 'change'
+        else
+          event = 'add'
+          added[path] = true
+        end
+      end
+      
+      notify
+      {
+        path = context.path,
+        event = event,
+        value = context.value
+      }
+    end
+  end
+  
   local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
-    --     local deps_matcher = create_deps_matcher(options)
     local added = {}
     local fetchop = function(notification)
       local path = notification.path
       local value = notification.value
       local is_added = added[path]
+      --      if is_added then
       if (path_matcher and not path_matcher(path)) or
       (value_matcher and not value_matcher(value)) then
         if is_added then
@@ -271,7 +350,7 @@ local create_daemon = function(options)
         id = id,-- maybe nil
         method = path
       }
-
+      
       local value = params.value
       if value then
         req.params = {value = value}
