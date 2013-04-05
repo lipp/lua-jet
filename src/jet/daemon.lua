@@ -126,7 +126,7 @@ local create_daemon = function(options)
     return nil
   end
   
-  local create_fether_with_deps = function(options,notify)
+  local create_fetcher_with_deps = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local added = {}
@@ -142,7 +142,7 @@ local create_daemon = function(options)
         if not context then
           context = {}
           context.path = path
-          context.value_ok = value_matcher(value)
+          context.value_ok = (value_matcher and value_matcher(value)) or true
           context.deps_ok = {}
           for i,dep in ipairs(options.deps) do
             local dep_path = dep.path:gsub('\\(%d)',function(index)
@@ -159,7 +159,7 @@ local create_daemon = function(options)
           end
           contexts[path] = context
         else
-          context.value_ok = value_matcher(value)
+          context.value_ok = (value_matcher and value_matcher(value)) or true
         end
         context.value = value
       elseif deps[path] then
@@ -178,12 +178,13 @@ local create_daemon = function(options)
           end
         end
       end
-      local is_added = added[path]
+      local relevant_path = context.path
+      local is_added = added[relevant_path]
       local event
       if not all_ok then
         if is_added then
           event = 'remove'
-          added[path] = nil
+          added[relevant_path] = nil
         else
           return
         end
@@ -192,20 +193,22 @@ local create_daemon = function(options)
           event = 'change'
         else
           event = 'add'
-          added[path] = true
+          added[relevant_path] = true
         end
       end
       
       notify
       {
-        path = context.path,
+        path = relevant_path,
         event = event,
         value = context.value
       }
     end
+    
+    return fetchop
   end
   
-  local create_fetcher = function(options,notify)
+  local create_fetcher_without_deps = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local added = {}
@@ -243,6 +246,14 @@ local create_daemon = function(options)
     end
     
     return fetchop
+  end
+  
+  local create_fetcher = function(options,notify)
+    if options.deps and #options.deps > 0 then
+      return create_fetcher_with_deps(options,notify)
+    else
+      return create_fetcher_without_deps(options,notify)
+    end
   end
   
   local checked = function(params,key,typename)
@@ -283,6 +294,7 @@ local create_daemon = function(options)
     local leave = leaves[path]
     if leave then
       leave.value = notification.value
+      notification.event = 'change'
       publish(notification)
     else
       local error = invalid_params{invalid_path=path}
@@ -317,7 +329,8 @@ local create_daemon = function(options)
       fetcher
       {
         path = path,
-        value = leave.value
+        value = leave.value,
+        event = 'add'
       }
     end
     

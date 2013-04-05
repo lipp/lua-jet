@@ -311,6 +311,40 @@ describe(
             timer:start(loop)
           end)
         
+        it('can fetch with deps',async,function(done)
+            local timer
+            peer:fetch({
+                match = {'test'},
+                deps = {
+                  {
+                    path = 'foo',
+                    equals = 'bar'
+                  }
+                }
+              },guard(function(fpath,fevent,fvalue,fetcher)
+                  if fevent == 'add' then
+                    test_a.state:value(879)
+                  elseif fevent == 'change' then
+                    assert.is_equal(fpath,test_a.path)
+                    assert.is_equal(fvalue,test_a.state:value())
+                    assert.is_equal(fvalue,879)
+                    test_b.state:value('hello')
+                  elseif fevent == 'remove' then
+                    timer:stop(loop)
+                    assert.is_equal(fpath,test_a.path)
+                    assert.is_equal(fvalue,test_a.state:value())
+                    fetcher:unfetch()
+                    done()
+                  end
+              end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(false)
+                  done()
+              end),dt*3)
+            timer:start(loop)
+            
+          end)
+        
       end)
     
   end)
