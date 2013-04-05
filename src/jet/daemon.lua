@@ -213,9 +213,9 @@ local create_daemon = function(options)
       local path = notification.path
       local value = notification.value
       local is_added = added[path]
-      --      if is_added then
       if (path_matcher and not path_matcher(path)) or
-      (value_matcher and not value_matcher(value)) then
+      (value_matcher and not value_matcher(value)) or
+      notification.event == 'remove' then
         if is_added then
           added[path] = nil
           notify

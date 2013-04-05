@@ -163,6 +163,7 @@ describe(
             }
           end)
         
+        
         it('can fetch states with simple match string',async,function(done)
             local timer
             peer:fetch(
@@ -174,6 +175,46 @@ describe(
                   fetcher:unfetch()
                   done()
               end))
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(false)
+                  done()
+              end),dt)
+            timer:start(loop)
+          end)
+        
+        it('can remove a state',async,function(done)
+            local timer
+            peer:fetch(
+              test_a.path,
+              guard(function(fpath,fevent,fvalue,fetcher)
+                  if fevent == 'remove' then
+                    timer:stop(loop)
+                    assert.is_equal(fpath,test_a.path)
+                    assert.is_equal(fvalue,test_a.state:value())
+                    fetcher:unfetch()
+                    done()
+                  end
+              end))
+            test_a.state:remove()
+            timer = ev.Timer.new(guard(function()
+                  assert.is_true(false)
+                  done()
+              end),dt)
+            timer:start(loop)
+          end)
+        
+        it('can (re)add a state',async,function(done)
+            local timer
+            peer:fetch(
+              test_a.path,
+              guard(function(fpath,fevent,fvalue,fetcher)
+                  timer:stop(loop)
+                  assert.is_equal(fpath,test_a.path)
+                  assert.is_equal(fvalue,test_a.state:value())
+                  fetcher:unfetch()
+                  done()
+              end))
+            test_a.state:add()
             timer = ev.Timer.new(guard(function()
                   assert.is_true(false)
                   done()

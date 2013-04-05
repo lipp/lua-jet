@@ -278,7 +278,8 @@ new = function(config)
       flush('batch')
     end
     
-    j.add = function(self,path,value,dispatch,callbacks)
+    j.add = function(self,desc,dispatch,callbacks)
+      local path = desc.path
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
       assert(type(dispatch) == 'function',dispatch)
@@ -289,7 +290,7 @@ new = function(config)
       end
       local params = {
         path = path,
-        value = value
+        value = desc.value
       }
       service('add',params,assign_dispatcher,callbacks)
       local ref = {
@@ -302,7 +303,7 @@ new = function(config)
         end,
         add = function(ref,callbacks)
           assert(not ref:is_added())
-          self:add(path,value,dispatch,callbacks)
+          self:add(desc,dispatch,callbacks)
         end
       }
       return ref
@@ -419,7 +420,7 @@ new = function(config)
       else
         assert(false,'invalid method desc'..(desc.path or '?'))
       end
-      local ref = self:add(desc.path,nil,dispatch,add_callbacks)
+      local ref = self:add(desc,dispatch,add_callbacks)
       return ref
     end
     
@@ -513,7 +514,7 @@ new = function(config)
           end
         end
       end
-      local ref = self:add(desc.path,desc.value,dispatch,add_callbacks)
+      local ref = self:add(desc,dispatch,add_callbacks)
       ref.value = function(self,value)
         if value ~= nil then
           desc.value = value
