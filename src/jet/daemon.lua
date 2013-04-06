@@ -15,6 +15,7 @@ local type = type
 local error = error
 local require = require
 local tostring = tostring
+local tonumber = tonumber
 local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
@@ -168,43 +169,44 @@ local create_daemon = function(options)
         context.deps_ok[path] = dep.value_matcher(value) or false
       end
       
-      local all_ok = false
-      if context.value_ok then
-        all_ok = true
-        for _,dep_ok in pairs(context.deps_ok) do
-          if not dep_ok then
-            all_ok = false
-            break
+      if context then
+        local all_ok = false
+        if context.value_ok then
+          all_ok = true
+          for _,dep_ok in pairs(context.deps_ok) do
+            if not dep_ok then
+              all_ok = false
+              break
+            end
           end
         end
-      end
-      local relevant_path = context.path
-      local is_added = added[relevant_path]
-      local event
-      if not all_ok then
-        if is_added then
-          event = 'remove'
-          added[relevant_path] = nil
-        else
-          return
+        local relevant_path = context.path
+        local is_added = added[relevant_path]
+        local event
+        if not all_ok then
+          if is_added then
+            event = 'remove'
+            added[relevant_path] = nil
+          else
+            return
+          end
+        elseif all_ok then
+          if is_added then
+            event = 'change'
+          else
+            event = 'add'
+            added[relevant_path] = true
+          end
         end
-      elseif all_ok then
-        if is_added then
-          event = 'change'
-        else
-          event = 'add'
-          added[relevant_path] = true
-        end
+        
+        notify
+        {
+          path = relevant_path,
+          event = event,
+          value = context.value
+        }
       end
-      
-      notify
-      {
-        path = relevant_path,
-        event = event,
-        value = context.value
-      }
     end
-    
     return fetchop
   end
   
@@ -311,6 +313,7 @@ local create_daemon = function(options)
   end
   
   local fetch = function(client,message)
+    --     print('FETCH',jencode(message))
     local params = message.params
     local fetch_id = checked(params,'id','string')
     local notify = function(nparams)
@@ -325,6 +328,15 @@ local create_daemon = function(options)
       error(invalid_params{fetchParams = params, reason = fetcher})
     end
     
+    client.fetchers[fetch_id] = fetcher
+    if message.id then
+      client:queue
+      {
+        id = message.id,
+        result = {}
+      }
+    end
+    
     for path,leave in pairs(leaves) do
       fetcher
       {
@@ -334,7 +346,13 @@ local create_daemon = function(options)
       }
     end
     
-    client.fetchers[fetch_id] = fetcher
+  end
+  
+  local unfetch = function(client,message)
+    --  print('UNFETCH',jencode(message))
+    local params = message.params
+    local fetch_id = checked(params,'id','string')
+    client.fetchers[fetch_id] = nil
     if message.id then
       client:queue
       {
@@ -488,6 +506,7 @@ local create_daemon = function(options)
     call = async(route),
     set = async(route),
     fetch = async(fetch),
+    unfetch = async(unfetch),
     change = sync(change),
     echo = sync(function(client,message)
         return message.params

@@ -340,10 +340,58 @@ describe(
             timer = ev.Timer.new(guard(function()
                   assert.is_falsy('timeout')
                   done()
-              end),dt*3)
+              end),dt)
             timer:start(loop)
             
           end)
+        
+        it('can fetch with deps with backrefs',async,function(done)
+            local timer
+            local state_a
+            local state_a_sub
+            peer:fetch({
+                match = {'a/([^/]*)$'},
+                deps = {
+                  {
+                    path = 'a/\\1/sub',
+                    equals = 123
+                  }
+                }
+              },guard(function(fpath,fevent,fvalue,fetcher)
+                  if fevent == 'add' then
+                    assert.is_equal(fpath,'a/TEST')
+                    assert.is_equal(fvalue,3)
+                    state_a:value(879)
+                  elseif fevent == 'change' then
+                    assert.is_equal(fpath,'a/TEST')
+                    assert.is_equal(fvalue,879)
+                    state_a_sub:value(333)
+                  elseif fevent == 'remove' then
+                    timer:stop(loop)
+                    assert.is_equal(fpath,'a/TEST')
+                    assert.is_equal(fvalue,879)
+                    fetcher:unfetch()
+                    done()
+                  end
+              end))
+            state_a = peer:state
+            {
+              path = 'a/TEST',
+              value = 3
+            }
+            state_a_sub = peer:state
+            {
+              path = 'a/TEST/sub',
+              value = 123
+            }
+            timer = ev.Timer.new(guard(function()
+                  assert.is_falsy('timeout')
+                  done()
+              end),dt)
+            timer:start(loop)
+            
+          end)
+        
         
       end)
     
