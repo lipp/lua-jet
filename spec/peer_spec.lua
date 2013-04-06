@@ -6,7 +6,7 @@ local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
 local port = os.getenv('JET_PORT')
 
-local dt = 0.01
+local dt = 0.05
 
 setloop('ev')
 
@@ -52,7 +52,7 @@ describe(
         }
         timer = ev.Timer.new(guard(function()
               peer:close()
-              assert.is_true(false)
+              assert.is_falsy('timeout')
           end),dt)
         timer:start(loop)
       end)
@@ -100,7 +100,7 @@ describe(
                   end)
             })
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -131,7 +131,7 @@ describe(
                   end)
             })
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -176,7 +176,7 @@ describe(
                   done()
               end))
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -197,7 +197,7 @@ describe(
               end))
             test_a.state:remove()
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -216,7 +216,7 @@ describe(
               end))
             test_a.state:add()
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -234,7 +234,7 @@ describe(
                   done()
               end))
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -247,7 +247,7 @@ describe(
               guard(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
-                  assert.is_true(false)
+                  assert.is_falsy('should not happen')
                   done()
               end))
             timer = ev.Timer.new(guard(function()
@@ -264,7 +264,7 @@ describe(
               guard(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
-                  assert.is_true(false)
+                  assert.is_falsy('should not happen')
                   done()
               end))
             timer = ev.Timer.new(guard(function()
@@ -305,7 +305,7 @@ describe(
                   end
               end))
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt)
             timer:start(loop)
@@ -338,7 +338,7 @@ describe(
                   end
               end))
             timer = ev.Timer.new(guard(function()
-                  assert.is_true(false)
+                  assert.is_falsy('timeout')
                   done()
               end),dt*3)
             timer:start(loop)
