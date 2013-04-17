@@ -214,6 +214,7 @@ local create_daemon = function(options)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local added = {}
+    
     local fetchop = function(notification)
       local path = notification.path
       local value = notification.value
@@ -316,12 +317,11 @@ local create_daemon = function(options)
     --     print('FETCH',jencode(message))
     local params = message.params
     local fetch_id = checked(params,'id','string')
+    local queue_notification = function(nparams)
+      assert(false,'fetcher misbehaves: must not be called yet')
+    end
     local notify = function(nparams)
-      client:queue
-      {
-        method = fetch_id,
-        params = nparams
-      }
+      queue_notification(nparams)
     end
     local params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
@@ -337,6 +337,13 @@ local create_daemon = function(options)
       }
     end
     
+    local cq = client.queue
+    queue_notification = function(nparams)
+      cq(client,{
+          method = fetch_id,
+          params = nparams
+      })
+    end
     for path,leave in pairs(leaves) do
       fetcher
       {
