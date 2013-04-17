@@ -236,6 +236,12 @@ local create_daemon = function(options)
     end
   end
   
+  local unfetch = function(client,message)
+    local params = message.params
+    local id = checked(params,'id','string')
+    client.fetchers[id] = nil
+  end
+  
   local set = function(client,message)
     local params = message.params
     local path = checked(params,'path','string')
@@ -479,6 +485,7 @@ local create_daemon = function(options)
     call = async(call),
     set = async(set),
     fetch = async(fetch),
+    unfetch = sync(unfetch),
     post = sync(post),
     echo = sync(function(client,message)
         return message.params

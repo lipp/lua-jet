@@ -142,8 +142,12 @@ describe(
                   timer:stop(loop)
                   assert.is_equal(fpath,path)
                   assert.is_equal(fdata.value,value)
-                  fetcher:unfetch()
-                  done()
+                  fetcher:unfetch({
+                      error = guard(function()
+                          assert.is_nil('should not happen')
+                        end),
+                      success = done
+                  })
               end))
             timer = ev.Timer.new(
               guard(
