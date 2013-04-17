@@ -188,8 +188,8 @@ local create_daemon = function(options)
     local match = checked(params,'match','table')
     local unmatch = optional(params,'unmatch','table')
     local matcher = matcher(match,unmatch)
+    local notifications = {}
     if not client.fetchers[id] then
-      local node_notifications = {}
       for path in pairs(nodes) do
         if matcher(path) then
           local notification = {
@@ -202,20 +202,16 @@ local create_daemon = function(options)
               }
             }
           }
-          tinsert(node_notifications,notification)
+          tinsert(notifications,notification)
         end
       end
       local compare_path_length = function(not1,not2)
         return #not1.params.path < #not2.params.path
       end
-      tsort(node_notifications,compare_path_length)
-      for _,notification in ipairs(node_notifications) do
-        client:queue(notification)
-      end
+      tsort(notifications,compare_path_length)
       for path,leave in pairs(leaves) do
         if matcher(path) then
-          client:queue
-          {
+          local notification = {
             method = id,
             params = {
               path = path,
@@ -223,6 +219,7 @@ local create_daemon = function(options)
               data = leave.element
             }
           }
+          tinsert(notifications,notification)
         end
       end
     end
@@ -233,6 +230,9 @@ local create_daemon = function(options)
         id = message.id,
         result = {}
       }
+    end
+    for _,notification in ipairs(notifications) do
+      client:queue(notification)
     end
   end
   
