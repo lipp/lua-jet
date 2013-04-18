@@ -137,7 +137,48 @@ describe(
             timer:start(loop)
           end)
         
-        it('another peer can set value and change notifications flow around',async,function(done)
+        it(
+          'can fetch and unfetch states',
+          async,
+          function(done)
+            local timer
+            peer:on_no_dispatcher(guard(function()
+                  assert.is_nil('should not happen, unfetch broken')
+              end))
+            peer:fetch(
+              test_a.path,
+              guard(
+                function(fpath,fevent,fvalue,fetcher)
+                  timer:stop(loop)
+                  if fevent == 'add' then
+                    assert.is_equal(fpath,test_a.path)
+                    assert.is_equal(fvalue,test_a.state:value())
+                    fetcher:unfetch({
+                        error = guard(function()
+                            assert.is_nil('should not happen')
+                          end),
+                        success = guard(function()
+                            -- change value and wait some time
+                            ev.Timer.new(function()
+                                done()
+                              end,0.1):start(loop)
+                            test_a.state:value(123)
+                          end)
+                    })
+                  else
+                    assert.is_nil('fetch callback should not be called more than once')
+                  end
+              end))
+            timer = ev.Timer.new(
+              guard(
+                function()
+                  assert.is_true(false)
+                  done()
+              end),0.1)
+            timer:start(loop)
+          end)
+        
+        it('another peer can set value and change notifications are send',async,function(done)
             local new_val = 716
             local other = jetpeer.new
             {
