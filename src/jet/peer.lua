@@ -124,6 +124,7 @@ new = function(config)
         log('invalid result id:',id)
       end
     end
+    local on_no_dispatcher
     local dispatch_notification = function(self,message)
       local dispatcher = request_dispatchers[message.method]
       if dispatcher then
@@ -131,6 +132,10 @@ new = function(config)
         local ok,err = pcall(dispatcher,self,message)
         if not ok then
           log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
+        end
+      else
+        if on_no_dispatcher then
+          pcall(on_no_dispatcher,message)
         end
       end
       --         log('notification',cjson.encode(message))
@@ -152,6 +157,9 @@ new = function(config)
           code = -32601,
           message = 'Method not found'
         }
+        if on_no_dispatcher then
+          pcall(on_no_dispatcher,message)
+        end
       end
       queue
       {
@@ -213,6 +221,10 @@ new = function(config)
     
     j.loop = function()
       loop:loop()
+    end
+    
+    j.on_no_dispatcher = function(_,f)
+      on_no_dispatcher = f
     end
     
     j.close = function(self,options)
