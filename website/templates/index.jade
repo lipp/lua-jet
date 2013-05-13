@@ -1,0 +1,7 @@
+extends layout
+
+block content
+  - var examples = contents.examples
+  each example in examples
+    h2= example.title
+    article!= example.html
