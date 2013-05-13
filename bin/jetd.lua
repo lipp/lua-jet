@@ -4,7 +4,7 @@ local ev = require'ev'
 
 local daemon = require'jet.daemon'.new
 {
-   ws_port = 8004,
+   ws_port = 11123,
    port = 11122
 }
 daemon:start()
