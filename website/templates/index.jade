@@ -1,7 +1,23 @@
 extends layout
 
 block content
-  - var examples = contents.examples
-  each example in examples
-    h2= example.title
-    article!= example.html
+  .row
+    .span6
+      .row
+        - var examples = contents.examples
+        - var once
+        #examplesCarousel.carousel.slide
+          .carousel-inner
+            each example in examples
+              - if (once) {
+              -   klass = 'item'
+              - } else {
+              -   klass = 'item active'
+              -   once = true
+              - }
+              div(class=klass)
+                div.span3!= example.html
+                .span3
+                  h4= example.title
+          a.carousel-control.left(href='#examplesCarousel', data-slide='prev') &lsaquo;
+          a.carousel-control.right(href='#examplesCarousel', data-slide='next') &rsaquo;

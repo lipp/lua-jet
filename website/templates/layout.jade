@@ -6,24 +6,26 @@ html(lang='en')
       title
         block title
           = locals.name
-      link(rel='stylesheet', href='http://fonts.googleapis.com/css?family=Fredericka+the+Great')
-      link(rel='stylesheet', href='/css/github.css')
-      link(rel='stylesheet', href='/css/main.css')
-      link(rel='stylesheet', href='http://yandex.st/highlightjs/7.3/styles/default.min.css')
+      link(rel='stylesheet', href='/css/bootstrap.min.css', media='screen')
+      link(rel='stylesheet', href='http://yandex.st/highlightjs/7.3/styles/dark.min.css')
+      script(src='//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js')
+      script(src='/js/bootstrap.min.js')
       script(src='http://yandex.st/highlightjs/7.3/highlight.min.js')
       script hljs.initHighlightingOnLoad();
+      script $('.carousel').carousel();
   body
-    header
-      div.inner
-        block header
-          h1
-            a(href=locals.url)= locals.name
-          p= locals.description
-    div#content
-      block content
-        h2 Welcome to zombocom!
-    footer
-      div.inner
-        block footer
-          p &copy; #{ new Date().getFullYear() } 
-            a(href=locals.owner.url)= locals.owner.name
+    .container
+      header.row
+        div.span12
+          block header
+            h1
+              a(href=locals.url)= locals.name
+            p= locals.description
+      div.row
+        div.span12
+          block content        
+      footer.row
+        div.span12
+          block footer
+            p &copy; #{ new Date().getFullYear() } 
+              a(href=locals.owner.url)= locals.owner.name
