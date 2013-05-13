@@ -359,7 +359,7 @@ new = function(config)
       }
       service('call',params,nil,callbacks)
     end
-
+    
     j.config = function(self,params,callbacks)
       service('config',params,nil,callbacks)
     end
@@ -422,7 +422,12 @@ new = function(config)
       local dispatch
       if desc.call then
         dispatch = function(self,message)
-          local ok,result = pcall(desc.call,unpack(message.params))
+          local ok,result
+          if #message.params > 0 then
+            ok,result = pcall(desc.call,unpack(message.params))
+          else
+            ok,result = pcall(desc.call,message.params)
+          end
           if message.id then
             if ok then
               queue
@@ -460,7 +465,12 @@ new = function(config)
             end
           end
           
-          local ok,result = pcall(desc.call_async,reply,unpack(message.params))
+          local ok,result
+          if #message.params > 0 then
+            ok,result = pcall(desc.call_async,reply,unpack(message.params))
+          else
+            ok,result = pcall(desc.call_async,reply,message.params)
+          end
           if not ok and message.id then
             queue
             {
