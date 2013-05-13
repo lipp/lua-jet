@@ -75,6 +75,9 @@ new = function(config)
     j_sync.set = function(_,path,value,as_notification)
       return service('set',{path=path,value=value},as_notification)
     end
+    j_sync.config = function(_,params,as_notification)
+      return service('config',params,as_notification)
+    end
     return j_sync
   else
     local sock = socket.tcp()
@@ -210,6 +213,7 @@ new = function(config)
     if not config.dont_start_io then
       j.read_io = wsock:read_io()
       j.read_io:start(loop)
+      j.read_io:callback()(loop,j.read_io)
     end
     
     j.io = function(self)
@@ -325,8 +329,9 @@ new = function(config)
         is_added = function()
           return request_dispatchers[path] ~= nil
         end,
-        add = function(ref,callbacks)
+        add = function(ref,value,callbacks)
           assert(not ref:is_added())
+          el.value = value or el.value
           self:add(path,el,dispatch,callbacks)
         end
       }
@@ -353,6 +358,10 @@ new = function(config)
         args = params or {}
       }
       service('call',params,nil,callbacks)
+    end
+
+    j.config = function(self,params,callbacks)
+      service('config',params,nil,callbacks)
     end
     
     j.set = function(self,path,value,callbacks)

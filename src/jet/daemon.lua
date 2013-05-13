@@ -417,6 +417,26 @@ local create_daemon = function(options)
     decrement_nodes(path)
   end
   
+  local config = function(client,message)
+    local params = message.params
+    if params.peer then
+      client = nil
+      for client_ in pairs(clients) do
+        print(client_.name,params.peer)
+        if client_.name == params.peer then
+          client = client_
+          break
+        end
+      end
+      if not client then
+        error('unknown client')
+      end
+    else
+      client.name = params.name
+    end
+    client.debug = params.debug
+  end
+  
   local sync = function(f)
     local sc = function(client,message)
       local ok,result = pcall(f,client,message)
@@ -482,6 +502,7 @@ local create_daemon = function(options)
   local services = {
     add = sync(add),
     remove = sync(remove),
+    config = sync(config),
     call = async(call),
     set = async(set),
     fetch = async(fetch),
@@ -564,6 +585,9 @@ local create_daemon = function(options)
     local ok,err = pcall(
       function()
         if message then
+          if client.debug then
+            debug(client.name or 'unnamed client','->',jencode(message))
+          end
           if message == jnull then
             client:queue
             {
@@ -639,13 +663,18 @@ local create_daemon = function(options)
     client.flush = function(_)
       if client.messages then
         local num = #client.messages
+        local message
         if num == 1 then
-          send(client.messages[1])
+          message = client.messages[1]
         elseif num > 1 then
-          send(client.messages)
+          message = client.messages
         else
           assert(false,'messages must contain at least one element if not nil')
         end
+        if client.debug then
+          debug(client.name or 'unnamed client','<-',jencode(message))
+        end
+        send(message)
         client.messages = nil
       end
     end
