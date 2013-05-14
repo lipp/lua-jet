@@ -17,10 +17,29 @@ html(lang='en')
     .container
       header.row
         div.span12
-          block header
-            h1
-              a(href=locals.url)= locals.name
-            p= locals.description
+          .row
+            #sum.span4
+              .row
+                .span1
+                  p.text-right +
+                  p.text-right -
+                  p.text-right +
+                  p.text-right +
+                  p.text-right +
+                  p.text-right +
+                .span2
+                  p.text-right DBus
+                  p.text-right bad parts
+                  p.text-right JSON
+                  p.text-right Websocket
+                  p.text-right Cache
+                  p.text-right REST-Filters
+                  p.text-right ============
+                  p.text-right.jet Jet
+                .span1
+              img(src='/images/postit_note_a.png')
+            .span8.tagline The JSON Bus
+            
       div.row
         div.span12
           block content        

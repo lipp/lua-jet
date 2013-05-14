@@ -7,7 +7,12 @@
 /*     height: 400px; */
 /* } */
 
+header {
+    margin-top: 20px;
+}
+
 #sum {
+/*    background-image: url('/images/noise.png');*/
     position: relative;
 /*    font-family: 'PT Mono', sans-serif;*/
     font-family: 'Special Elite', cursive;
@@ -15,8 +20,22 @@
     height: 400px;
 }
 
+.tagline {
+    font-family: 'Special Elite', cursive;
+    font-size: 33px;
+    text-align: center;
+    margin-top: 150px;
+}
+
+#sum p.jet {
+    font-size: 37px;
+    -webkit-transform: rotate(+3deg); 
+    -moz-transform: rotate(+3deg);
+    margin: 12px 10px;
+}
+
 #sum p {
-    margin: 0px;
+    margin: 2px;
 }
 
 #sum p:first-of-type {
