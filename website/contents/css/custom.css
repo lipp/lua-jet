@@ -1,0 +1,48 @@
+#sum .table th, .table td {
+    border-top: none;
+}
+
+/* sum { */
+/*     background-image: url('/images/postit_note_a.png'); */
+/*     height: 400px; */
+/* } */
+
+#sum {
+    position: relative;
+/*    font-family: 'PT Mono', sans-serif;*/
+    font-family: 'Special Elite', cursive;
+    font-size: 18px;
+    height: 400px;
+}
+
+#sum p {
+    margin: 0px;
+}
+
+#sum p:first-of-type {
+    margin-top: 40px;
+}
+
+#sum img {
+    position: absolute;
+    left: 0px;
+    top: -10px;
+    z-index: -1;
+}
+
+#examplesCarousel div.corousel-inner {
+    background-color: black;
+}
+
+#examplesCarousel code {
+    height: 13em;
+    font-size: 15px;
+}
+
+#examplesCarousel pre {
+    padding: 0px;
+}
+
+/* header { */
+/*     background-image: url('/images/bg-paper.jpg'); */
+/* } */

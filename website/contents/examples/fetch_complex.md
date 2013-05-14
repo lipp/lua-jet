@@ -1,12 +1,16 @@
 ---
-title: Fetch All
+title: Fetch with filter
+story: Fetches all people, who play guitar in their freetime.
 ---
 
-```JSON
+```json
 {
-  "bla": true,
-  "ahaaa": {
-    "blo": 1234
-  }   
-}
-```
+  "method": "fetch",
+  "params": {
+    "id": "f76",
+    "matches": ["^persons/.*"],
+    "equals": {
+      "hobby": "guitar"
+    }
+  }
+}```

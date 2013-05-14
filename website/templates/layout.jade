@@ -7,12 +7,12 @@ html(lang='en')
         block title
           = locals.name
       link(rel='stylesheet', href='/css/bootstrap.min.css', media='screen')
+      link(href='http://fonts.googleapis.com/css?family=PT+Mono', rel='stylesheet', type='text/css')
+      link(href='http://fonts.googleapis.com/css?family=Special+Elite', rel='stylesheet', type='text/css')
+      link(rel='stylesheet', href='/css/custom.css')
       link(rel='stylesheet', href='http://yandex.st/highlightjs/7.3/styles/dark.min.css')
-      script(src='//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js')
-      script(src='/js/bootstrap.min.js')
-      script(src='http://yandex.st/highlightjs/7.3/highlight.min.js')
-      script hljs.initHighlightingOnLoad();
-      script $('.carousel').carousel();
+      block scripts
+      
   body
     .container
       header.row

@@ -1,12 +1,47 @@
 extends layout
 
+block scripts
+  script(src='//ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js')
+  script(src='/js/bootstrap.js') 
+  script(type='text/javascript')
+    $(function(){
+      $('.carousel').carousel({interval:10000});
+    });
+
 block content
   .row
-    .span6
+    #sum.span4
+      .row
+        .span1
+          p.text-right +
+          p.text-right -
+          p.text-right +
+          p.text-right +
+          p.text-right +
+          p.text-right +
+        .span2
+          p.text-right DBus
+          p.text-right bad things
+          p.text-right JSON
+          p.text-right Websocket
+          p.text-right Cache
+          p.text-right REST-Filters
+          p.text-right ============
+          p.text-right.tilt Jet
+        .span1
+      img(src='/images/postit_note_a.png')
+    .span8
       .row
         - var examples = contents.examples
         - var once
+        - var klass
+        - var i = 0
         #examplesCarousel.carousel.slide
+          ol.carousel-indicators
+            each example in examples
+              - klass = i === 0 ? 'active' : ''             
+              li(data-target='#examplesCarousel', data-slide-to='#{i}', class=klass)
+              - i = i + 1
           .carousel-inner
             each example in examples
               - if (once) {
@@ -15,9 +50,11 @@ block content
               -   klass = 'item active'
               -   once = true
               - }
+              - console.log(example.metadata.story)
               div(class=klass)
-                div.span3!= example.html
                 .span3
                   h4= example.title
-          a.carousel-control.left(href='#examplesCarousel', data-slide='prev') &lsaquo;
-          a.carousel-control.right(href='#examplesCarousel', data-slide='next') &rsaquo;
+                  p= example.metadata.story
+                div.span5!= example.html
+//          a.carousel-control.left(href='#examplesCarousel', data-slide='prev') &lsaquo;
+//          a.carousel-control.right(href='#examplesCarousel', data-slide='next') &rsaquo;
