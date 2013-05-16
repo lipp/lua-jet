@@ -12,30 +12,13 @@ block content
   .row#highlights
     each highlight in contents.highlights
       .span3!= highlight.html
-  .row#examples
-    - var examples = contents.examples
-    - var once
-    - var klass
-    - var i = 0
-    #examplesCarousel.carousel.slide
-      ol.carousel-indicators
-        each example in examples
-          - klass = i === 0 ? 'active' : ''             
-          li(data-target='#examplesCarousel', data-slide-to='#{i}', class=klass)
-          - i = i + 1
-      .carousel-inner
-        each example in examples
-          - if (once) {
-          -   klass = 'item'
-          - } else {
-          -   klass = 'item active'
-          -   once = true
-          - }
-          - console.log(example.metadata.story)
-          div(class=klass)
-            .span6
-              h4= example.title
-              p= example.metadata.story
-            div.span6!= example.html
-//          a.carousel-control.left(href='#examplesCarousel', data-slide='prev') &lsaquo;
-//          a.carousel-control.right(href='#examplesCarousel', data-slide='next') &rsaquo;
+
+block subcontent
+  #examples
+    each example in contents.examples
+      .row
+        .span6!= example.html
+        .span3
+          h4= "--> " +  example.title + ":"
+          p.span= example.metadata.story        
+        

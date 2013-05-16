@@ -16,8 +16,16 @@ header {
     position: relative;
 /*    font-family: 'PT Mono', sans-serif;*/
     font-family: 'Special Elite', cursive;
-    font-size: 18px;
+    font-size: 20px;
     height: 350px;
+    -webkit-transform: rotate(+1deg); 
+    -moz-transform: rotate(+1deg);
+    margin-top: 20px;
+}
+
+#subcontent .textdivider {
+    font-family: 'Special Elite', cursive;
+    font-size: 20px;
 }
 
 #sum .row {
@@ -28,9 +36,20 @@ header {
 .tagline {
     font-family: 'Special Elite', cursive;
     font-size: 33px;
-    text-align: center;
-    margin-top: 150px;
+/*    text-align: center;*/
+    margin-top: 30px;
+    -webkit-transform: rotate(-1deg); 
+    -moz-transform: rotate(-1deg);
+/*    margin-top: 150px;*/
 }
+
+.mega {
+    font-family: 'Special Elite', cursive;
+    margin-top: 130px;
+    font-size: 120px;
+/*    text-align: center;*/
+}
+
 
 #sum p.jet {
     font-size: 37px;
@@ -54,17 +73,39 @@ header {
     z-index: 1;
 }
 
-#examplesCarousel div.corousel-inner {
-    background-color: black;
+#examples div {
+    font-family: 'Ubuntu Mono', sans-serif;
 }
 
-#examplesCarousel code {
-    height: 13em;
-    font-size: 15px;
+#examples div.row {
+    margin-top: 15px;
 }
 
-#examplesCarousel pre {
+#examples code, #examples p {
+    font-family: 'Ubuntu Mono', sans-serif;
+    font-size: 17px;    
+}
+
+#examples pre {
+    border: none;
+    background: none;
+}
+
+#examples pre {
     padding: 0px;
+    background: none;
+}
+
+#examples pre code{
+    background: none;
+}
+
+#subcontent {
+/*    background-image: url('http://24.media.tumblr.com/eb25f89053853066ce5bb0b5b78ac484/tumblr_ml4tw0BvFu1rirnzso1_400.jpg');*/
+/*    background-image: url('http://3.bp.blogspot.com/-mvmaXN8reK4/UKSGrkaw-kI/AAAAAAAADNs/IiFdSWfVy3o/s1600/white_grid_paper-background_pattern.jpg')*/
+/*    background-image: url('http://4.bp.blogspot.com/-roMTyNDf2A4/UXAjmlBVGeI/AAAAAAAAFJs/2vgR4kLL7FY/s1600/textured-grid-paper-background-for-websites.jpg')*/
+/*    background-image: url('http://3.bp.blogspot.com/-0WscyTWyJFg/UO2C181VdwI/AAAAAAAAEDw/aPie6NI8Rzg/s1600/note_paper_background-light_brown.jpg');*/
+background-image: url('http://4.bp.blogspot.com/-qdBjeZH07no/UIiDElRA3uI/AAAAAAAAC38/R1u8f1evm80/s1600/seamless_cardboard_texture.jpg');
 }
 
 body {
@@ -72,7 +113,11 @@ body {
 }
 
 #highlights p {
-    margin-bottom: 40px;
+    font-family: 'Ubuntu Mono', sans-serif;
+    font-size: 17px;
+    margin-bottom: 70px;
+    height: 50px;
+    
 }
 
 body {
