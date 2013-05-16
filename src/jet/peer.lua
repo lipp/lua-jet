@@ -423,10 +423,14 @@ new = function(config)
       if desc.call then
         dispatch = function(self,message)
           local ok,result
-          if #message.params > 0 then
-            ok,result = pcall(desc.call,unpack(message.params))
+          local params = message.params
+          if #params > 0 then
+            ok,result = pcall(desc.call,unpack(params))
+          elseif pairs(params)(params) then
+            -- non empty table
+            ok,result = pcall(desc.call,params)
           else
-            ok,result = pcall(desc.call,message.params)
+            ok,result = pcall(desc.call)
           end
           if message.id then
             if ok then
@@ -466,10 +470,14 @@ new = function(config)
           end
           
           local ok,result
-          if #message.params > 0 then
-            ok,result = pcall(desc.call_async,reply,unpack(message.params))
+          local params = message.params
+          if #params > 0 then
+            ok,result = pcall(desc.call_async,reply,unpack(params))
+          elseif pairs(params)(params) then
+            -- non empty table
+            ok,result = pcall(desc.call_async,reply,params)
           else
-            ok,result = pcall(desc.call_async,reply,message.params)
+            ok,result = pcall(desc.call_async,reply)
           end
           if not ok and message.id then
             queue
