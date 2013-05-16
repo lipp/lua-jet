@@ -9,7 +9,10 @@ block scripts
     });
 
 block content
-  .row
+  .row#highlights
+    each highlight in contents.highlights
+      .span3!= highlight.html
+  .row#examples
     - var examples = contents.examples
     - var once
     - var klass

@@ -17,7 +17,12 @@ header {
 /*    font-family: 'PT Mono', sans-serif;*/
     font-family: 'Special Elite', cursive;
     font-size: 18px;
-    height: 400px;
+    height: 350px;
+}
+
+#sum .row {
+    position: relative;
+    z-index: 2;
 }
 
 .tagline {
@@ -46,7 +51,7 @@ header {
     position: absolute;
     left: 0px;
     top: -10px;
-    z-index: -1;
+    z-index: 1;
 }
 
 #examplesCarousel div.corousel-inner {
@@ -62,6 +67,15 @@ header {
     padding: 0px;
 }
 
-/* header { */
-/*     background-image: url('/images/bg-paper.jpg'); */
-/* } */
+body {
+/*    font-family: 'Special Elite', cursive;*/
+}
+
+#highlights p {
+    margin-bottom: 40px;
+}
+
+body {
+    background-image: url('/images/bg-paper.jpg');
+}
+
