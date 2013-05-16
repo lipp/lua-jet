@@ -77,13 +77,13 @@ header {
     font-family: 'Ubuntu Mono', sans-serif;
 }
 
-#examples div.row {
+#examples .row {
     margin-top: 15px;
 }
 
 #examples code, #examples p {
     font-family: 'Ubuntu Mono', sans-serif;
-    font-size: 17px;    
+    font-size: 20px;    
 }
 
 #examples pre {
@@ -105,11 +105,25 @@ header {
 /*    background-image: url('http://3.bp.blogspot.com/-mvmaXN8reK4/UKSGrkaw-kI/AAAAAAAADNs/IiFdSWfVy3o/s1600/white_grid_paper-background_pattern.jpg')*/
 /*    background-image: url('http://4.bp.blogspot.com/-roMTyNDf2A4/UXAjmlBVGeI/AAAAAAAAFJs/2vgR4kLL7FY/s1600/textured-grid-paper-background-for-websites.jpg')*/
 /*    background-image: url('http://3.bp.blogspot.com/-0WscyTWyJFg/UO2C181VdwI/AAAAAAAAEDw/aPie6NI8Rzg/s1600/note_paper_background-light_brown.jpg');*/
-background-image: url('http://4.bp.blogspot.com/-qdBjeZH07no/UIiDElRA3uI/AAAAAAAAC38/R1u8f1evm80/s1600/seamless_cardboard_texture.jpg');
+/*background-image: url('http://4.bp.blogspot.com/-qdBjeZH07no/UIiDElRA3uI/AAAAAAAAC38/R1u8f1evm80/s1600/seamless_cardboard_texture.jpg');*/
 }
 
 body {
 /*    font-family: 'Special Elite', cursive;*/
+}
+
+#examples p.story {
+    margin-top: 17px;
+    font-size: 17px;
+    font-family: 'Special Elite', cursive;
+}
+
+#examples .title {
+    font-family: 'Special Elite', cursive;
+}
+
+.card-title {
+    margin-top: 20px;
 }
 
 #highlights p {
