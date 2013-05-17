@@ -131,7 +131,7 @@ body {
 }
 
 body {
-    background-image: url('/images/bg-paper.jpg');
+    background-image: url('../images/bg-paper.jpg');
 }
 
 .example {
