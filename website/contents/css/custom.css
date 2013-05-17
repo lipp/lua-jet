@@ -81,7 +81,7 @@ header {
     margin-top: 15px;
 }
 
-#examples code, #examples p {
+.example code, .example p {
     font-family: monospace;
     font-size: 20px;    
 }
@@ -123,7 +123,7 @@ body {
 }
 
 #examples .span3 h4 {
-    font-family: 'Special Elite', cursive;
+/*    font-family: 'Special Elite', cursive;*/
 }
 
 .card-title {
@@ -142,3 +142,21 @@ body {
     background-image: url('/images/bg-paper.jpg');
 }
 
+.example {
+    position: relative;
+    height: 400px;
+    -webkit-transform: rotate(0.5deg);
+    -moz-transform: rotate(0.5deg);
+}
+
+.example img {
+    margin-left: 0; 
+    position: absolute; 
+    top: -10px; 
+    left: -30px; 
+    z-index: -1;
+}
+
+#examplesLinks p {
+    font-size: 17px;
+}
