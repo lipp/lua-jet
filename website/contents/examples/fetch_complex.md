@@ -1,6 +1,6 @@
 ---
-title: Fetch with filter
-story: Fetches all people, who play guitar in their freetime.
+title: Advanced Fetch
+story: Fetches all people, who play guitar in their freetime. The filter system is inspired by common REST-APIs
 ---
 
 ```json

@@ -1,6 +1,6 @@
 ---
 title: Basic Fetch
-story: Fetches every state and method.
+story: Fetches all. Regular Expressions allow to match every state and method of every peer.
 ---
 
 ```json
