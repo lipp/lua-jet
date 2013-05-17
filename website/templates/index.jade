@@ -43,7 +43,6 @@ block subcontent
               .span6!= example.html
             img.span9(src="/images/card_shadow.png")
       .span3#examplesLinks
-        h4 Example Messages:
         - i = 0;
         each example in contents.examples
           p(onmouseover="changeExample(#{i});")= example.title
