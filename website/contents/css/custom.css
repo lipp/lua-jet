@@ -74,7 +74,7 @@ header {
 }
 
 #examples div {
-    font-family: 'Ubuntu Mono', sans-serif;
+    /* font-family: 'Ubuntu Mono', sans-serif; */
 }
 
 #examples .row {
@@ -82,7 +82,7 @@ header {
 }
 
 #examples code, #examples p {
-    font-family: 'Ubuntu Mono', sans-serif;
+    font-family: monospace;
     font-size: 20px;    
 }
 
@@ -122,12 +122,16 @@ body {
     font-family: 'Special Elite', cursive;
 }
 
+#examples .span3 h4 {
+    font-family: 'Special Elite', cursive;
+}
+
 .card-title {
     margin-top: 20px;
 }
 
 #highlights p {
-    font-family: 'Ubuntu Mono', sans-serif;
+    /* font-family: 'Ubuntu Mono', sans-serif; */
     font-size: 17px;
     margin-bottom: 70px;
     height: 50px;
