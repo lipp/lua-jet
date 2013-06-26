@@ -139,6 +139,7 @@ describe(
                         success = async(function()
                             -- change value and wait some time
                             ev.Timer.new(async(function()
+                                  peer:on_no_dispatcher(function() end)
                                   done()
                               end),0.1):start(loop)
                             test_a.state:value(123)
@@ -358,7 +359,54 @@ describe(
               end)
           end)
         
-        
+        it('can fetch states with limited number updating content',function(done)
+            local count = 0
+            local newval = 99990
+            local a_val = test_a.state:value()
+            local b_val = test_b.state:value()
+            test_b.state:value(a_val)
+            local expected = {
+              {
+                event = 'add',
+                value = a_val,
+                action = function()
+                  test_a.state:value(191)
+                end
+              },
+              {
+                event = 'remove',
+                value = 191,
+                action = function()
+                  test_b.state:value(a_val)
+                end
+              },
+              {
+                event = 'add',
+                value = a_val,
+              }
+            }
+            local fetcher = peer:fetch(
+              {
+                max = 1,
+                equals = a_val
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal(fevent,expected[count].event)
+                  assert.is_equal(fvalue,expected[count].value)
+                  if expected[count].action then
+                    expected[count].action()
+                  end
+                  if count == #expected then
+                    done()
+                  end
+              end))
+            finally(function()
+                fetcher:unfetch()
+                test_a.state:value(a_val)
+                test_b.state:value(b_val)
+              end)
+          end)
         
         it('can fetch with deps',function(done)
             local fetcher = peer:fetch({
