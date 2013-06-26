@@ -15,12 +15,12 @@ describe(
   function()
     local d
     local peer
-    before(function()
+    setup(function()
         d = jetdaemon.new{port = port}
         d:start()
       end)
     
-    after(function()
+    teardown(function()
         d:stop()
       end)
     
@@ -37,24 +37,17 @@ describe(
         peer:close()
       end)
     
-    it('on_connect gets called',async,function(done)
-        local timer
+    it('on_connect gets called',function(done)
         local peer
         peer = jetpeer.new
         {
           port = port,
-          on_connect = guard(function(p)
+          on_connect = async(function(p)
               assert.is_equal(peer,p)
-              timer:stop(loop)
-              peer:close()
               done()
             end)
         }
-        timer = ev.Timer.new(guard(function()
-              peer:close()
-              assert.is_falsy('timeout')
-          end),dt)
-        timer:start(loop)
+        finally(function() peer:close() end)
       end)
     
     describe('when connected',function()
@@ -70,20 +63,19 @@ describe(
           value = 'bar'
         }
         
-        before(async,function(done)
+        setup(function(done)
             peer = jetpeer.new
             {
               port = port,
-              on_connect = done
+              on_connect = async(function() done() end)
             }
           end)
         
-        after(function()
+        teardown(function()
             peer:close()
           end)
         
-        it('can add a state',async,function(done)
-            local timer
+        it('can add a state',function(done)
             test_a.state = peer:state(
               {
                 path = test_a.path,
@@ -93,17 +85,11 @@ describe(
                 end
               },
               {
-                success = guard(function()
-                    timer:stop(loop)
+                success = async(function()
                     assert.is_true(true)
                     done()
                   end)
             })
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
           end)
         
         it('can not add same state again',function()
@@ -116,52 +102,45 @@ describe(
               end)
           end)
         
-        it('can add some other state',async,function(done)
-            local timer
+        it('can add some other state',function(done)
             test_b.state = peer:state(
               {
                 path = test_b.path,
                 value = test_b.value
               },
               {
-                success = guard(function()
-                    timer:stop(loop)
+                success = async(function()
                     assert.is_true(true)
                     done()
+                  end),
+                error = async(function()
+                    assert.is_nil('should not happen')
                   end)
             })
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
           end)
         
         it(
           'can fetch and unfetch states',
-          async,
           function(done)
-            local timer
-            peer:on_no_dispatcher(guard(function()
+            peer:on_no_dispatcher(async(function()
                   assert.is_nil('should not happen, unfetch broken')
               end))
             peer:fetch(
               test_a.path,
-              guard(
+              async(
                 function(fpath,fevent,fvalue,fetcher)
-                  timer:stop(loop)
                   if fevent == 'add' then
                     assert.is_equal(fpath,test_a.path)
                     assert.is_equal(fvalue,test_a.state:value())
                     fetcher:unfetch({
-                        error = guard(function()
+                        error = async(function()
                             assert.is_nil('should not happen')
                           end),
-                        success = guard(function()
+                        success = async(function()
                             -- change value and wait some time
-                            ev.Timer.new(function()
-                                done()
-                              end,0.1):start(loop)
+                            ev.Timer.new(async(function()
+                                  done()
+                              end),0.1):start(loop)
                             test_a.state:value(123)
                           end)
                     })
@@ -169,22 +148,15 @@ describe(
                     assert.is_nil('fetch callback should not be called more than once')
                   end
               end))
-            timer = ev.Timer.new(
-              guard(
-                function()
-                  assert.is_true(false)
-                  done()
-              end),0.1)
-            timer:start(loop)
           end)
         
-        it('another peer can set value and change notifications are send',async,function(done)
+        it('another peer can set value and change notifications are send',function(done)
             local new_val = 716
             local other = jetpeer.new
             {
               port = port,
-              on_connect = guard(function(other)
-                  other:fetch(test_a.path,guard(function(path,event,value,fetcher)
+              on_connect = async(function(other)
+                  other:fetch(test_a.path,async(function(path,event,value,fetcher)
                         if event == 'change' then
                           assert.is_equal(value,new_val)
                           fetcher:unfetch()
@@ -193,7 +165,7 @@ describe(
                     end))
                   
                   other:set(test_a.path,new_val,{
-                      success = guard(function()
+                      success = async(function()
                           assert.is_true(true)
                         end),
                       error = function(err)
@@ -205,125 +177,96 @@ describe(
           end)
         
         
-        it('can fetch states with simple match string',async,function(done)
-            local timer
-            peer:fetch(
+        it('can fetch states with simple match string',function(done)
+            local fetcher = peer:fetch(
               test_a.path,
-              guard(function(fpath,fevent,fvalue,fetcher)
-                  timer:stop(loop)
+              async(function(fpath,fevent,fvalue)
                   assert.is_equal(fpath,test_a.path)
                   assert.is_equal(fvalue,test_a.state:value())
-                  fetcher:unfetch()
                   done()
               end))
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
+            finally(function() fetcher:unfetch() end)
           end)
         
-        it('can remove a state',async,function(done)
-            local timer
-            peer:fetch(
+        it('can remove a state',function(done)
+            local fetcher = peer:fetch(
               test_a.path,
-              guard(function(fpath,fevent,fvalue,fetcher)
+              async(function(fpath,fevent,fvalue)
                   if fevent == 'remove' then
-                    timer:stop(loop)
                     assert.is_equal(fpath,test_a.path)
                     assert.is_equal(fvalue,test_a.state:value())
-                    fetcher:unfetch()
                     done()
                   end
               end))
+            finally(function() fetcher:unfetch() end)
             test_a.state:remove()
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
           end)
         
-        it('can (re)add a state',async,function(done)
-            local timer
-            peer:fetch(
+        it('can (re)add a state',function(done)
+            local fetcher = peer:fetch(
               test_a.path,
-              guard(function(fpath,fevent,fvalue,fetcher)
-                  timer:stop(loop)
+              async(function(fpath,fevent,fvalue,fetcher)
                   assert.is_equal(fpath,test_a.path)
                   assert.is_equal(fvalue,test_a.state:value())
-                  fetcher:unfetch()
                   done()
               end))
+            finally(function() fetcher:unfetch() end)
             test_a.state:add()
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
           end)
         
-        it('can fetch states with match array',async,function(done)
-            local timer
-            peer:fetch(
+        it('can fetch states with match array',function(done)
+            local fetcher = peer:fetch(
               {match={test_a.path}},
-              guard(function(fpath,fevent,fvalue,fetcher)
-                  timer:stop(loop)
+              async(function(fpath,fevent,fvalue,fetcher)
                   assert.is_equal(fpath,test_a.path)
                   assert.is_equal(fvalue,test_a.state:value())
-                  fetcher:unfetch()
                   done()
               end))
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
+            finally(function() fetcher:unfetch() end)
           end)
         
-        it('does not fetch on simple path mismatch',async,function(done)
+        it('does not fetch on simple path mismatch',function(done)
             local timer
-            peer:fetch(
+            local fetcher = peer:fetch(
               'bla',
-              guard(function(fpath,fevent,fdata,fetcher)
+              async(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
                   assert.is_falsy('should not happen')
                   done()
               end))
-            timer = ev.Timer.new(guard(function()
+            timer = ev.Timer.new(async(function()
                   assert.is_true(true)
                   done()
               end),dt)
             timer:start(loop)
           end)
         
-        it('does not fetch on match array mismatch',async,function(done)
+        it('does not fetch on match array mismatch',function(done)
             local timer
             peer:fetch(
               {match={'bla'}},
-              guard(function(fpath,fevent,fdata,fetcher)
+              async(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
                   assert.is_falsy('should not happen')
                   done()
               end))
-            timer = ev.Timer.new(guard(function()
+            timer = ev.Timer.new(async(function()
                   assert.is_true(true)
                   done()
               end),dt)
             timer:start(loop)
           end)
         
-        it('can fetch states with match array and a certain value',async,function(done)
-            local timer
+        it('can fetch states with match array and a certain value',function(done)
             local added
             local changed
             local readded
             local other_value = 333
-            peer:fetch(
+            local fetcher = peer:fetch(
               {equals=test_a.value},
-              guard(function(fpath,fevent,fvalue,fetcher)
+              async(function(fpath,fevent,fvalue)
                   if not added then
                     added = true
                     assert.is_equal(fevent,'add')
@@ -340,21 +283,14 @@ describe(
                     assert.is_equal(fevent,'add')
                     assert.is_equal(fpath,test_a.path)
                     assert.is_equal(fvalue,test_a.state:value())
-                    timer:stop(loop)
-                    fetcher:unfetch()
                     done()
                   end
               end))
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
+            finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch with deps',async,function(done)
-            local timer
-            peer:fetch({
+        it('can fetch with deps',function(done)
+            local fetcher = peer:fetch({
                 match = {'test'},
                 deps = {
                   {
@@ -362,7 +298,7 @@ describe(
                     equals = 'bar'
                   }
                 }
-              },guard(function(fpath,fevent,fvalue,fetcher)
+              },async(function(fpath,fevent,fvalue)
                   if fevent == 'add' then
                     test_a.state:value(879)
                   elseif fevent == 'change' then
@@ -371,26 +307,18 @@ describe(
                     assert.is_equal(fvalue,879)
                     test_b.state:value('hello')
                   elseif fevent == 'remove' then
-                    timer:stop(loop)
                     assert.is_equal(fpath,test_a.path)
                     assert.is_equal(fvalue,test_a.state:value())
-                    fetcher:unfetch()
                     done()
                   end
               end))
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
-            
+            finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch with deps with backrefs',async,function(done)
-            local timer
+        it('can fetch with deps with backrefs',function(done)
             local state_a
             local state_a_sub
-            peer:fetch({
+            local fetcher = peer:fetch({
                 match = {'a/([^/]*)$'},
                 deps = {
                   {
@@ -398,7 +326,7 @@ describe(
                     equals = 123
                   }
                 }
-              },guard(function(fpath,fevent,fvalue,fetcher)
+              },async(function(fpath,fevent,fvalue,fetcher)
                   if fevent == 'add' then
                     assert.is_equal(fpath,'a/TEST')
                     assert.is_equal(fvalue,3)
@@ -408,13 +336,12 @@ describe(
                     assert.is_equal(fvalue,879)
                     state_a_sub:value(333)
                   elseif fevent == 'remove' then
-                    timer:stop(loop)
                     assert.is_equal(fpath,'a/TEST')
                     assert.is_equal(fvalue,879)
-                    fetcher:unfetch()
                     done()
                   end
               end))
+            finally(function() fetcher:unfetch() end)
             state_a = peer:state
             {
               path = 'a/TEST',
@@ -425,14 +352,8 @@ describe(
               path = 'a/TEST/sub',
               value = 123
             }
-            timer = ev.Timer.new(guard(function()
-                  assert.is_falsy('timeout')
-                  done()
-              end),dt)
-            timer:start(loop)
             
           end)
-        
         
       end)
     
