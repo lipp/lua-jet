@@ -289,6 +289,77 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
+        it('can fetch states with limited number',function(done)
+            local count = 0
+            local fetcher = peer:fetch(
+              {
+                max = 1
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal(fevent,'add')
+              end))
+            finally(function() fetcher:unfetch() end)
+            ev.Timer.new(
+              async(function()
+                  assert.is_equal(count,1)
+                  done()
+              end),0.01):start(loop)
+          end)
+        
+        it('can fetch states with limited number updating content',function(done)
+            local count = 0
+            local newval = 99990
+            local a_val = test_a.state:value()
+            local b_val = test_b.state:value()
+            local expected = {
+              {
+                event = 'add',
+                value = a_val,
+                path = test_a.path,
+                action = function()
+                  test_a.state:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                path = test_a.path,
+                action = function()
+                  test_b.state:value(a_val)
+                end
+              },
+              {
+                event = 'add',
+                value = a_val,
+                path = test_b.path,
+              }
+            }
+            local fetcher = peer:fetch(
+              {
+                max = 1,
+                equals = a_val
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal(fevent,expected[count].event)
+                  assert.is_equal(fvalue,expected[count].value)
+                  if expected[count].action then
+                    expected[count].action()
+                  end
+                  if count == #expected then
+                    done()
+                  end
+              end))
+            finally(function()
+                fetcher:unfetch()
+                test_a.state:value(a_val)
+                test_b.state:value(b_val)
+              end)
+          end)
+        
+        
+        
         it('can fetch with deps',function(done)
             local fetcher = peer:fetch({
                 match = {'test'},

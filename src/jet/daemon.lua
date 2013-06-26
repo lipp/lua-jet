@@ -19,6 +19,7 @@ local tonumber = tonumber
 local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
+local unpack = unpack
 
 module('jet.daemon')
 
@@ -69,9 +70,18 @@ local create_daemon = function(options)
   local publish = function(notification)
     for client in pairs(clients) do
       for fetch_id,fetcher in pairs(client.fetchers) do
-        local ok,err = pcall(fetcher,notification)
+        local ok,refetch = pcall(fetcher,notification)
         if not ok then
-          crit('publish failed',fetch_id,err)
+          crit('publish failed',fetch_id,refetch)
+        elseif refetch then
+          for path,leave in pairs(leaves) do
+            fetcher
+            {
+              path = path,
+              value = leave.value,
+              event = 'add'
+            }
+          end
         end
       end
     end
@@ -84,36 +94,32 @@ local create_daemon = function(options)
   end
   
   local create_path_matcher = function(options)
-    local unmatch = options.unmatch
-    local match = options.match
-    if not unmatch and match and #match == 1 then
-      local match = match[1]
-      return function(path)
-        return path:match(match)
+    if not options.match and not options.unmatch and not options.equalsNot then
+      return function()
+        return true
       end
-    elseif type(match) == 'table' and type(unmatch) == 'table' then
-      return function(path)
-        for _,unmatch in ipairs(unmatch) do
-          if path:match(unmatch) then
-            return false
-          end
-        end
-        for _,match in ipairs(match) do
-          if path:match(match) then
-            return true
-          end
+    end
+    local unmatch = options.unmatch or {}
+    local match = options.match or {}
+    local equalsNot = options.equalsNot or {}
+    return function(path)
+      for _,unmatch in ipairs(unmatch) do
+        if path:match(unmatch) then
+          return false
         end
       end
-    elseif type(match) == 'table' then
-      return function(path)
-        for _,match in ipairs(match) do
-          if path:match(match) then
-            return true
-          end
+      for _,eqnot in ipairs(equalsNot) do
+        if eqnot == path then
+          return false
         end
       end
-    else
-      return nil
+      for _,match in ipairs(match) do
+        local res = {path:match(match)}
+        if #res > 0 then
+          return true,res
+        end
+      end
+      return false
     end
   end
   
@@ -137,9 +143,9 @@ local create_daemon = function(options)
     local fetchop = function(notification)
       local path = notification.path
       local value = notification.value
-      local backrefs = {path_matcher(path)}
+      local match,backrefs = path_matcher(path)
       local context = contexts[path]
-      if #backrefs > 0 then
+      if match and #backrefs > 0 then
         if not context then
           context = {}
           context.path = path
@@ -213,23 +219,32 @@ local create_daemon = function(options)
   local create_fetcher_without_deps = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
+    local max = options.max
     local added = {}
+    local n = 0
     
     local fetchop = function(notification)
       local path = notification.path
       local value = notification.value
       local is_added = added[path]
+      if not is_added and max and n == max then
+        return
+      end
       if (path_matcher and not path_matcher(path)) or
       (value_matcher and not value_matcher(value)) or
       notification.event == 'remove' then
         if is_added then
           added[path] = nil
+          n = n - 1
           notify
           {
             path = path,
             event = 'remove',
             value = value
           }
+          if max and n == (max-1) then
+            return true
+          end
         end
         return
       end
@@ -237,6 +252,7 @@ local create_daemon = function(options)
       if not is_added then
         event = 'add'
         added[path] = true
+        n = n + 1
       else
         event = 'change'
       end
@@ -314,7 +330,6 @@ local create_daemon = function(options)
   end
   
   local fetch = function(client,message)
-    --     print('FETCH',jencode(message))
     local params = message.params
     local fetch_id = checked(params,'id','string')
     local queue_notification = function(nparams)
@@ -356,7 +371,6 @@ local create_daemon = function(options)
   end
   
   local unfetch = function(client,message)
-    --  print('UNFETCH',jencode(message))
     local params = message.params
     local fetch_id = checked(params,'id','string')
     client.fetchers[fetch_id] = nil
