@@ -357,7 +357,11 @@ new = function(config)
       local add_fetcher = function()
         request_dispatchers[id] = function(peer,message)
           local params = message.params
-          f(params.path,params.event,params.value,ref)
+          if not params.index then
+             f(params.path,params.event,params.value,ref)
+          else
+             f(params.path,params.event,params.value,params.index,ref)
+          end
         end
       end
       if type(params) == 'string' then

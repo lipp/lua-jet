@@ -20,6 +20,7 @@ local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
 local unpack = unpack
+local mmin = math.min
 
 module('jet.daemon')
 
@@ -54,6 +55,7 @@ local create_daemon = function(options)
   local clients = {}
   local states = {}
   local leaves = {}
+  local nleaves = 0
   local routes = {}
   
   local route_message = function(client,message)
@@ -225,14 +227,24 @@ local create_daemon = function(options)
     
     local fetchop = function(notification)
       local path = notification.path
-      local value = notification.value
       local is_added = added[path]
       if not is_added and max and n == max then
         return
       end
-      if (path_matcher and not path_matcher(path)) or
-      (value_matcher and not value_matcher(value)) or
-      notification.event == 'remove' then
+      local path_matching = true
+      if path_matcher and not path_matcher(path) then
+        path_matching = false
+      end
+      local value_matching = true
+      local value = notification.value
+      if value_matcher and not value_matcher(value) then
+        value_matching = false
+      end
+      local is_matching = false
+      if path_matching and value_matching then
+        is_matching = true
+      end
+      if not is_matching or notification.event == 'remove' then
         if is_added then
           added[path] = nil
           n = n - 1
@@ -265,6 +277,106 @@ local create_daemon = function(options)
     end
     
     return fetchop
+  end
+  
+  local create_sorter = function(options,notify)
+    if not options.sort then
+      return nil
+    end
+    local from = options.sort.from
+    local to = options.sort.to
+    local matching = {}
+    local sorted = {}
+    local sort = function(a,b)
+      return a.path < b.path
+    end
+    
+    local sorter = function(notification,initializing,is_last)
+      local event = notification.event
+      local path = notification.path
+      local value = notification.value
+      if event == 'remove' then
+        matching[path] = nil
+      else
+        matching[path] = {
+          path = path,
+          value = value,
+        }
+      end
+      local new_sorted = {}
+      for _,entry in pairs(matching) do
+        tinsert(new_sorted,entry)
+      end
+      tsort(new_sorted,sort)
+      -- 'first handle index moved'
+      local changes = {}
+      for i=from,mmin(to,#sorted) do
+        if sorted[i].path ~= new_sorted[i].path then
+          local moved
+          for j=from,mmin(to,#new_sorted) do
+            -- index changed
+            if sorted[i].path == new_sorted[j].path then
+              assert(i~=j)
+              if not initializing then
+                changes[j] = {
+                  path = sorted[i].path,
+                  event = 'change',
+                  index = j,
+                  value = sorted[i].value
+                }
+              end
+              -- mark old index as free
+              moved = true
+              sorted[i] = nil
+              break
+            end
+          end
+          if not moved then
+            if not initializing then
+              notify
+              {
+                path = sorted[i].path,
+                value = sorted[i].value,
+                event = 'remove',
+                index = i
+              }
+            end
+          end
+        end
+      end
+      if not initializing then
+        for _,change in pairs(changes) do
+          notify(change)
+        end
+        for i=from,to do
+          if not sorted[i] and new_sorted[i] and not changes[i] then
+            notify
+            {
+              path = new_sorted[i].path,
+              value = new_sorted[i].value,
+              event = 'add',
+              index = i
+            }
+          end
+        end
+      end
+      sorted = new_sorted
+      if initializing and is_last then
+        for i=from,to do
+          if not sorted[i] then
+            break
+          end
+          notify
+          {
+            path = sorted[i].path,
+            value = sorted[i].value,
+            event = 'add',
+            index = i
+          }
+        end
+      end
+    end
+    return sorter
   end
   
   local create_fetcher = function(options,notify)
@@ -338,6 +450,16 @@ local create_daemon = function(options)
     local notify = function(nparams)
       queue_notification(nparams)
     end
+    local sorter_ok,sorter = pcall(create_sorter,params,notify)
+    local initializing = true
+    local is_last = false
+    if sorter_ok and sorter then
+      notify = function(nparams)
+        -- the sorter filters all matches and may
+        -- reorder them
+        sorter(nparams,initializing,is_last)
+      end
+    end
     local params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params{fetchParams = params, reason = fetcher})
@@ -359,7 +481,10 @@ local create_daemon = function(options)
           params = nparams
       })
     end
+    local count = 0
     for path,leave in pairs(leaves) do
+      count = count + 1
+      is_last = count == nleaves
       fetcher
       {
         path = path,
@@ -367,6 +492,7 @@ local create_daemon = function(options)
         event = 'add'
       }
     end
+    initializing = false
     
   end
   
@@ -435,6 +561,7 @@ local create_daemon = function(options)
       value = value
     }
     leaves[path] = leave
+    nleaves = nleaves + 1
     publish
     {
       path = path,
@@ -451,6 +578,7 @@ local create_daemon = function(options)
     end
     local leave = assert(leaves[path])
     leaves[path] = nil
+    nleaves = nleaves - 1
     publish
     {
       path = path,
@@ -656,6 +784,7 @@ local create_daemon = function(options)
               value = leave.value
             }
             leaves[path] = nil
+            nleaves = nleaves - 1
           end
         end
         flush_clients()
