@@ -2,7 +2,6 @@ language: erlang
 
 env:
   - LUA="" JET_PORT=33326
-  - LUA="luajit" JET_PORT=33321
 
 branches:
   only:
@@ -19,5 +18,5 @@ install:
   - sudo luarocks install lpack
   - sudo luarocks install busted
 
-script: "busted spec"
+script: "busted -o TAP spec"
 
