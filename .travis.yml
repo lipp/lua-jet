@@ -1,7 +1,6 @@
 language: erlang
 
 env:
-  - LUA="" JET_PORT=33326
 
 branches:
   only:
@@ -16,7 +15,11 @@ install:
   - sudo luarocks install lua-ev
   - sudo luarocks install lua-cjson
   - sudo luarocks install lpack
-  - sudo luarocks install busted
+  - git clone git://github.com/lipp/busted.git
+  - cd busted
+  - git checkout add-finally
+  - sudo luarocks make
+  - cd ../
 
-script: "busted -o TAP spec"
+script: "busted spec"
 
