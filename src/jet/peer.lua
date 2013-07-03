@@ -14,6 +14,7 @@ local tremove = table.remove
 local tconcat = table.concat
 local unpack = unpack
 local assert = assert
+local debug = debug
 local log = function(...)
   print('jet.peer',...)
 end
@@ -87,8 +88,6 @@ new = function(config)
     local wsock = jsocket.wrap(sock,{loop = loop})
     local messages = {}
     local queue = function(message)
-      --         assert(message)
-      --         print(ip,sock,cjson.encode(message))
       tinsert(messages,message)
     end
     local will_flush = true
@@ -106,8 +105,9 @@ new = function(config)
     local request_dispatchers = {}
     local response_dispatchers = {}
     local dispatch_response = function(self,message)
-      local callbacks = response_dispatchers[message.id]
-      response_dispatchers[message.id] = nil
+      local mid = message.id
+      local callbacks = response_dispatchers[mid]
+      response_dispatchers[mid] = nil
       --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
         if message.result then
@@ -128,26 +128,12 @@ new = function(config)
       end
     end
     local on_no_dispatcher
-    local dispatch_notification = function(self,message)
-      local dispatcher = request_dispatchers[message.method]
-      if dispatcher then
-        --         log('NOTIF',cjson.encode(message))
-        local ok,err = pcall(dispatcher,self,message)
-        if not ok then
-          log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
-        end
-      else
-        if on_no_dispatcher then
-          pcall(on_no_dispatcher,message)
-        end
-      end
-      --         log('notification',cjson.encode(message))
-    end
+    -- handles both method calls and fetchers (notifications)
     local dispatch_request = function(self,message)
       --      log('dispatch_request',self,cjson.encode(message))
       local dispatcher = request_dispatchers[message.method]
+      local error
       if dispatcher then
-        local error
         --      log('dispatch_call',method_name,method)
         local ok,err = pcall(dispatcher,self,message)
         if ok then
@@ -164,23 +150,20 @@ new = function(config)
           pcall(on_no_dispatcher,message)
         end
       end
-      queue
-      {
-        id = message.id,
-        error = error
-      }
+      local mid = message.id
+      if error and mid then
+        queue
+        {
+          id = mid,
+          error = error
+        }
+      end
     end
     local dispatch_single_message = function(self,message)
-      if message.id then
-        if message.method and message.params then
-          dispatch_request(self,message)
-        elseif message.result or message.error then
-          dispatch_response(self,message)
-        else
-          log('unhandled message',cjson.encode(message))
-        end
-      elseif message.method and message.params then
-        dispatch_notification(self,message)
+      if message.method and message.params then
+        dispatch_request(self,message)
+      elseif message.result or message.error then
+        dispatch_response(self,message)
       else
         log('unhandled message',cjson.encode(message))
       end
@@ -310,7 +293,9 @@ new = function(config)
     end
     
     j.add = function(self,path,el,dispatch,callbacks)
-      assert(not request_dispatchers[path],path)
+      if request_dispatchers[path] then
+        error('path already occupied by this peer: '..path,2)
+      end
       assert(type(path) == 'string',path)
       assert(type(el) == 'table',el)
       assert(type(dispatch) == 'function',dispatch)
@@ -435,17 +420,18 @@ new = function(config)
           else
             ok,result = pcall(desc.call)
           end
-          if message.id then
+          local mid = message.id
+          if mid then
             if ok then
               queue
               {
-                id = message.id,
+                id = mid,
                 result = result or {}
               }
             else
               queue
               {
-                id = message.id,
+                id = mid,
                 error = error_object(result)
               }
             end
@@ -454,9 +440,10 @@ new = function(config)
       elseif desc.call_async then
         dispatch = function(self,message)
           local reply = function(resp,dont_flush)
-            if message.id then
+            local mid = message.id
+            if mid then
               local response = {
-                id = message.id
+                id = mid
               }
               if type(resp.result) ~= 'nil' and not resp.error then
                 response.result = resp.result
@@ -482,10 +469,11 @@ new = function(config)
           else
             ok,result = pcall(desc.call_async,reply)
           end
-          if not ok and message.id then
+          local mid = message.id
+          if not ok and mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object(result)
             }
           end
@@ -512,11 +500,14 @@ new = function(config)
           if ok then
             local newvalue = result or value
             desc.value = newvalue
-            queue
-            {
-              id = message.id,
-              result = true
-            }
+            local mid = message.id
+            if mid then
+              queue
+              {
+                id = mid,
+                result = true
+              }
+            end
             if not dont_notify then
               queue
               {
@@ -543,9 +534,10 @@ new = function(config)
           local value = message.params.value
           assert(value ~= nil,'params.value is required')
           local reply = function(resp,dont_flush)
-            if message.id then
+            local mid = message.id
+            if mid then
               local response = {
-                id = message.id
+                id = mid
               }
               if type(resp.result) ~= 'nil' and not resp.error then
                 response.result = resp.result
@@ -575,20 +567,22 @@ new = function(config)
             end
           end
           local ok,result = pcall(desc.set_async,reply,value)
-          if not ok and message.id then
+          local mid = message.id
+          if not ok and mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object(result)
             }
           end
         end
       else
         dispatch = function(self,message)
-          if message.id then
+          local mid = message.id
+          if mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object
               {
                 code = -32602,
