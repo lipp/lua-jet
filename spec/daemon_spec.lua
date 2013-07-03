@@ -11,7 +11,7 @@ describe(
   'A daemon',
   function()
     local daemon
-    before(
+    setup(
       function()
         daemon = jetdaemon.new
         {
@@ -48,25 +48,24 @@ describe(
     describe(
       'once started',
       function()
-        before(
+        setup(
           function()
             daemon:start()
           end)
         
-        after(
+        teardown(
           function()
             daemon:stop()
           end)
         
         it(
           'listens on specified port',
-          async,
           function(done)
             local sock = socket.tcp()
             sock:settimeout(0)
             assert.is_truthy(sock)
             ev.IO.new(
-              guard(
+              async(
                 function(loop,io)
                   io:stop(loop)
                   assert.is_true(true)

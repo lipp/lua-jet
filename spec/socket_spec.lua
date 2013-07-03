@@ -14,7 +14,7 @@ describe(
     local echo_server_io
     local echo_listener
     local accepted = {}
-    before(
+    setup(
       function()
         echo_listener = socket.bind('*',port)
         local accept_echo = function()
@@ -35,7 +35,7 @@ describe(
         echo_server_io:start(loop)
       end)
     
-    after(
+    teardown(
       function()
         echo_server_io:stop(loop)
         for i in ipairs(accepted) do
@@ -49,7 +49,7 @@ describe(
       local f = function(done)
         local wrapped = jetsocket.wrap(sock)
         wrapped:on_message(
-          guard(
+          async(
             function(wrapped,echoed)
               assert.is.same(message,echoed)
               wrapped:close()
@@ -72,13 +72,13 @@ describe(
         sock:close()
       end)
     
-    it('can echo numbers',async,echo(1234))
-    it('can echo strings',async,echo('hello'))
-    it('can echo boolean',async,echo(true))
-    it('can echo tables',async,echo{a = 1,b = 3, c = 'aps'})
-    it('can echo nested tables',async,echo{a = { sub = false }})
-    it('can echo arrays',async,echo{1,2,3,4})
-    it('can echo many messages fast',async,
+    it('can echo numbers',echo(1234))
+    it('can echo strings',echo('hello'))
+    it('can echo boolean',echo(true))
+    it('can echo tables',echo{a = 1,b = 3, c = 'aps'})
+    it('can echo nested tables',echo{a = { sub = false }})
+    it('can echo arrays',echo{1,2,3,4})
+    it('can echo many messages fast',
       function(done)
         local wrapped = jetsocket.wrap(sock)
         local count = 0
@@ -87,7 +87,7 @@ describe(
         }
         
         wrapped:on_message(
-          guard(
+          async(
             function(wrapped,echoed)
               count = count + 1
               assert.is.same(messages[count],echoed)
@@ -111,7 +111,7 @@ describe(
     local server_io
     local listener
     local on_accept
-    before(
+    setup(
       function()
         listener,err = socket.bind('*',port)
         local accept = function()
@@ -126,7 +126,7 @@ describe(
         ev.READ)
         server_io:start(loop)
       end)
-    after(
+    teardown(
       function()
         server_io:stop(loop)
         listener:close()
@@ -134,19 +134,18 @@ describe(
     
     
     it('should fire on_close event',
-      async,
       function(done)
         local sock = socket.tcp()
         assert.is_truthy(sock)
         sock:settimeout(0)
         ev.IO.new(
-          guard(
+          async(
             function(loop,connect_io)
               connect_io:stop(loop)
               local wrapped = jetsocket.wrap(sock)
               local timer
               wrapped:on_close(
-                guard(
+                async(
                   function()
                     timer:stop(loop)
                     assert.is_true(true)
@@ -156,7 +155,7 @@ describe(
                     done()
                 end))
               timer = ev.Timer.new(
-                guard(
+                async(
                   function()
                     sock:shutdown()
                     sock:close()

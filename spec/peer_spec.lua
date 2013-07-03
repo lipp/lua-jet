@@ -11,13 +11,13 @@ describe(
   function()
     local d
     local peer
-    before(
+    setup(
       function()
         d = jetdaemon.new{port = port}
         d:start()
       end)
     
-    after(
+    teardown(
       function()
         d:stop()
       end)
@@ -41,14 +41,14 @@ describe(
     
     it(
       'on_connect gets called',
-      async,
+      
       function(done)
         local timer
         local peer
         peer = jetpeer.new
         {
           port = port,
-          on_connect = guard(
+          on_connect = async(
             function(p)
               assert.is_equal(peer,p)
               timer:stop(loop)
@@ -57,7 +57,7 @@ describe(
             end)
         }
         timer = ev.Timer.new(
-          guard(
+          async(
             function()
               peer:close()
               assert.is_true(false)
@@ -71,20 +71,19 @@ describe(
         local peer
         local path = 'test'
         local value = 1234
-        before(
-          async,
+        setup(
           function(done)
             peer = jetpeer.new
             {
               port = port,
-              on_connect = guard(
+              on_connect = async(
                 function(p)
                   done()
                 end)
             }
           end)
         
-        after(
+        teardown(
           function()
             peer:close()
           end)
@@ -93,10 +92,9 @@ describe(
         
         it(
           'can add states',
-          async,
           function(done)
             local timer
-            peer:on_no_dispatcher(guard(function()
+            peer:on_no_dispatcher(async(function()
                   assert.is_nil('should not happen')
               end))
             some_state = peer:state(
@@ -105,7 +103,7 @@ describe(
                 value = value
               },
               {
-                success = guard(
+                success = async(
                   function()
                     timer:stop(loop)
                     assert.is_true(true)
@@ -113,7 +111,7 @@ describe(
                   end)
             })
             timer = ev.Timer.new(
-              guard(
+              async(
                 function()
                   assert.is_true(false)
                   done()
@@ -124,40 +122,34 @@ describe(
         it(
           'can not add same state again',
           function()
-            peer:on_no_dispatcher(guard(function()
-                  assert.is_nil('should not happen')
-              end))
-            assert.has_error(
-              function()
-                some_state = peer:state
-                {
-                  path = path,
-                  value = value
-                }
+            assert.has_error(function()
+                peer:state({
+                    path = path,
+                    value = value
+                })
               end)
           end)
         
         it(
           'can fetch and unfetch states',
-          async,
           function(done)
             local timer
-            peer:on_no_dispatcher(guard(function()
+            peer:on_no_dispatcher(async(function()
                   assert.is_nil('should not happen, unfetch broken')
               end))
             peer:fetch(
               path,
-              guard(
+              async(
                 function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   if fevent == 'add' then
                     assert.is_equal(fpath,path)
                     assert.is_equal(fdata.value,value)
                     fetcher:unfetch({
-                        error = guard(function()
+                        error = async(function()
                             assert.is_nil('should not happen')
                           end),
-                        success = guard(function()
+                        success = async(function()
                             ev.Timer.new(function()
                                 done()
                               end,0.1):start(loop)
@@ -169,7 +161,7 @@ describe(
                   end
               end))
             timer = ev.Timer.new(
-              guard(
+              async(
                 function()
                   assert.is_true(false)
                   done()
