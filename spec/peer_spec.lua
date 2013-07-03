@@ -41,9 +41,7 @@ describe(
     
     it(
       'on_connect gets called',
-      
       function(done)
-        local timer
         local peer
         peer = jetpeer.new
         {
@@ -51,18 +49,10 @@ describe(
           on_connect = async(
             function(p)
               assert.is_equal(peer,p)
-              timer:stop(loop)
-              peer:close()
               done()
             end)
         }
-        timer = ev.Timer.new(
-          async(
-            function()
-              peer:close()
-              assert.is_true(false)
-          end),0.1)
-        timer:start(loop)
+        finally(function() peer:close() end)
       end)
     
     describe(
@@ -93,7 +83,6 @@ describe(
         it(
           'can add states',
           function(done)
-            local timer
             peer:on_no_dispatcher(async(function()
                   assert.is_nil('should not happen')
               end))
@@ -105,18 +94,10 @@ describe(
               {
                 success = async(
                   function()
-                    timer:stop(loop)
                     assert.is_true(true)
                     done()
                   end)
             })
-            timer = ev.Timer.new(
-              async(
-                function()
-                  assert.is_true(false)
-                  done()
-              end),0.1)
-            timer:start(loop)
           end)
         
         it(
@@ -133,7 +114,6 @@ describe(
         it(
           'can fetch and unfetch states',
           function(done)
-            local timer
             peer:on_no_dispatcher(async(function()
                   assert.is_nil('should not happen, unfetch broken')
               end))
@@ -141,7 +121,6 @@ describe(
               path,
               async(
                 function(fpath,fevent,fdata,fetcher)
-                  timer:stop(loop)
                   if fevent == 'add' then
                     assert.is_equal(fpath,path)
                     assert.is_equal(fdata.value,value)
@@ -150,23 +129,14 @@ describe(
                             assert.is_nil('should not happen')
                           end),
                         success = async(function()
-                            ev.Timer.new(function()
-                                done()
-                              end,0.1):start(loop)
                             some_state:value(123)
+                            done()
                           end)
                     })
                   else
                     assert.is_nil('fetch callback should not be called more than once')
                   end
               end))
-            timer = ev.Timer.new(
-              async(
-                function()
-                  assert.is_true(false)
-                  done()
-              end),0.1)
-            timer:start(loop)
           end)
       end)
   end)

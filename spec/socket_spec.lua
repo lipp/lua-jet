@@ -135,6 +135,7 @@ describe(
     
     it('should fire on_close event',
       function(done)
+        local wrapped
         local sock = socket.tcp()
         assert.is_truthy(sock)
         sock:settimeout(0)
@@ -142,31 +143,24 @@ describe(
           async(
             function(loop,connect_io)
               connect_io:stop(loop)
-              local wrapped = jetsocket.wrap(sock)
-              local timer
+              wrapped = jetsocket.wrap(sock)
               wrapped:on_close(
                 async(
                   function()
-                    timer:stop(loop)
                     assert.is_true(true)
-                    sock:shutdown()
-                    sock:close()
                     wrapped:close()
                     done()
                 end))
-              timer = ev.Timer.new(
-                async(
-                  function()
-                    sock:shutdown()
-                    sock:close()
-                    assert(false)
-                    done()
-                    wrapped:read_io():stop(loop)
-                end),1)
-              timer:start(loop)
               wrapped:read_io():start(loop)
           end),sock:getfd(),ev.WRITE):start(loop) -- connect io
         sock:connect('127.0.0.1',port)
+        finally(function()
+            sock:shutdown()
+            sock:close()
+            if wrapped then
+              wrapped:read_io():stop(loop)
+            end
+          end)
       end)
   end)
 
