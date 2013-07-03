@@ -233,6 +233,9 @@ new = function(config)
     
     j.close = function(self,options)
       options = options or {}
+      if self.connect_io then
+        self.connect_io:stop(loop)
+      end
       flush('close')
       if self.read_io then
         self.read_io:stop(loop)
@@ -620,14 +623,19 @@ new = function(config)
       end
       return ref
     end
-    ev.IO.new(
+    j.connect_io = ev.IO.new(
       function(loop,io)
         io:stop(loop)
-        if config.on_connect then
-          config.on_connect(j)
+        j.connect_io = nil
+        local _,err = sock:connect(ip,port)
+        if err and err == 'already connected' then
+          if config.on_connect then
+            config.on_connect(j)
+          end
+          flush('on_connect')
         end
-        flush('on_connect')
-      end,sock:getfd(),ev.WRITE):start(loop)
+      end,sock:getfd(),ev.WRITE)
+    j.connect_io:start(loop)
     return j
   end
 end
