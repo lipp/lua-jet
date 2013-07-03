@@ -510,6 +510,8 @@ new = function(config)
           local ok,result,dont_notify = pcall(desc.set,value)
           --               print('set state',desc.path,ok,result,dont_notify)
           if ok then
+            local newvalue = result or value
+            desc.value = newvalue
             queue
             {
               id = message.id,
@@ -523,7 +525,7 @@ new = function(config)
                   event = 'change',
                   path = desc.path,
                   data = {
-                    value = result or value
+                    value = newvalue
                   }
                 }
               }
