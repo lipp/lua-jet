@@ -95,6 +95,7 @@ jet:method
       end
       products[name].a:remove()
       products[name].b:remove()
+      products[name] = nil
    end
 }
 
