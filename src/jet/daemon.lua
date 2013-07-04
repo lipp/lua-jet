@@ -55,7 +55,6 @@ local create_daemon = function(options)
   local clients = {}
   local states = {}
   local leaves = {}
-  local nleaves = 0
   local routes = {}
   
   local route_message = function(client,message)
@@ -306,7 +305,7 @@ local create_daemon = function(options)
       return a.path < b.path
     end
     
-    local sorter = function(notification,initializing,is_last)
+    local sorter = function(notification,initializing)
       local event = notification.event
       local path = notification.path
       local value = notification.value
@@ -376,22 +375,23 @@ local create_daemon = function(options)
         end
       end
       sorted = new_sorted
-      if initializing and is_last then
-        for i=from,to do
-          if not sorted[i] then
-            break
-          end
-          notify
-          {
-            path = sorted[i].path,
-            value = sorted[i].value,
-            event = 'add',
-            index = i
-          }
+    end
+    
+    local flush = function()
+      for i=from,to do
+        if not sorted[i] then
+          break
         end
+        notify
+        {
+          path = sorted[i].path,
+          value = sorted[i].value,
+          event = 'add',
+          index = i
+        }
       end
     end
-    return sorter
+    return sorter,flush
   end
   
   local create_fetcher = function(options,notify)
@@ -465,14 +465,13 @@ local create_daemon = function(options)
     local notify = function(nparams)
       queue_notification(nparams)
     end
-    local sorter_ok,sorter = pcall(create_sorter,params,notify)
+    local sorter_ok,sorter,flush = pcall(create_sorter,params,notify)
     local initializing = true
-    local is_last = false
     if sorter_ok and sorter then
       notify = function(nparams)
         -- the sorter filters all matches and may
         -- reorder them
-        sorter(nparams,initializing,is_last)
+        sorter(nparams,initializing)
       end
     end
     local params_ok,fetcher = pcall(create_fetcher,params,notify)
@@ -496,10 +495,7 @@ local create_daemon = function(options)
           params = nparams
       })
     end
-    local count = 0
     for path,leave in pairs(leaves) do
-      count = count + 1
-      is_last = count == nleaves
       fetcher
       {
         path = path,
@@ -508,6 +504,9 @@ local create_daemon = function(options)
       }
     end
     initializing = false
+    if flush then
+      flush()
+    end
     
   end
   
@@ -576,7 +575,6 @@ local create_daemon = function(options)
       value = value
     }
     leaves[path] = leave
-    nleaves = nleaves + 1
     publish
     {
       path = path,
@@ -593,7 +591,6 @@ local create_daemon = function(options)
     end
     local leave = assert(leaves[path])
     leaves[path] = nil
-    nleaves = nleaves - 1
     publish
     {
       path = path,
@@ -799,7 +796,6 @@ local create_daemon = function(options)
               value = leave.value
             }
             leaves[path] = nil
-            nleaves = nleaves - 1
           end
         end
         flush_clients()
