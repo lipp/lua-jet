@@ -373,6 +373,7 @@ local create_daemon = function(options)
                   event = 'remove',
                   index = i
                 }
+                sorted[i] = nil
               end
             end
           end
