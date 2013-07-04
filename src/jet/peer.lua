@@ -14,7 +14,6 @@ local tremove = table.remove
 local tconcat = table.concat
 local unpack = unpack
 local assert = assert
-local debug = debug
 local log = function(...)
   print('jet.peer',...)
 end
@@ -623,8 +622,8 @@ new = function(config)
       function(loop,io)
         io:stop(loop)
         j.connect_io = nil
-        local _,err = sock:connect(ip,port)
-        if err and err == 'already connected' then
+        local connected,err = sock:connect(ip,port)
+        if connected or err == 'already connected' then
           if config.on_connect then
             config.on_connect(j)
           end
