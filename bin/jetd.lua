@@ -26,8 +26,6 @@ for _,opt in ipairs(arg) do
   end
 end
 
-print(start_as_daemon,ws_port,port)
-
 local daemon = require'jet.daemon'.new
 {
   ws_port = ws_port,
