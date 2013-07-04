@@ -474,6 +474,27 @@ describe(
             
           end)
         
+        it('can fetch case insensitive',function(done)
+            local expected = {
+              ['a/TEST'] = 879,
+              ['a/TEST/sub'] = 333,
+              ['test'] = 879,
+            }
+            local fetcher = peer:fetch({
+                match = {'test'},
+                caseInsensitive = true
+              },async(function(fpath,fevent,fvalue,fetcher)
+                  assert.is_equal(fevent,'add')
+                  assert.is_equal(expected[fpath],fvalue)
+                  expected[fpath] = nil
+                  -- empty?
+                  if not pairs(expected)(expected) then
+                    done()
+                  end
+              end))
+          end)
+        
+        
       end)
     
     describe('when working with clean jet',function()

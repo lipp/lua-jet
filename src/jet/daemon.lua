@@ -104,7 +104,22 @@ local create_daemon = function(options)
     local unmatch = options.unmatch or {}
     local match = options.match or {}
     local equalsNot = options.equalsNot or {}
+    local ci = options.caseInsensitive
+    if ci then
+      for i,unmat in ipairs(unmatch) do
+        unmatch[i] = unmat:lower()
+      end
+      for i,mat in ipairs(match) do
+        match[i] = mat:lower()
+      end
+      for i,eqnot in ipairs(equalsNot) do
+        equalsNot[i] = eqnot:lower()
+      end
+    end
     return function(path)
+      if ci then
+        path = path:lower()
+      end
       for _,unmatch in ipairs(unmatch) do
         if path:match(unmatch) then
           return false
