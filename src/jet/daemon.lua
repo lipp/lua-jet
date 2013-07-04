@@ -325,44 +325,55 @@ local create_daemon = function(options)
       -- 'first handle index moved'
       local changes = {}
       for i=from,mmin(to,#sorted) do
-        if sorted[i].path == new_sorted[i].path then
-          if not initializing and event == 'change' then
+        if not new_sorted[i] then
+          if not initializing then
             changes[i] = {
-              path = new_sorted[i].path,
-              event = 'change',
+              path = sorted[i].path,
+              event = 'remove',
               index = i,
-              value = new_sorted[i].value
+              value = sorted[i].value
             }
           end
         else
-          local moved
-          for j=from,mmin(to,#new_sorted) do
-            -- index changed
-            if sorted[i].path == new_sorted[j].path then
-              assert(i~=j)
+          if sorted[i].path == new_sorted[i].path then
+            if not initializing and event == 'change' then
+              changes[i] = {
+                path = new_sorted[i].path,
+                event = 'change',
+                index = i,
+                value = new_sorted[i].value
+              }
+            end
+          else
+            local moved
+            for j=from,mmin(to,#new_sorted) do
+              -- index changed
+              if sorted[i].path == new_sorted[j].path then
+                assert(i~=j)
+                if not initializing then
+                  changes[j] = {
+                    path = sorted[i].path,
+                    event = 'change',
+                    index = j,
+                    value = sorted[i].value
+                  }
+                end
+                -- mark old index as free
+                moved = true
+                sorted[i] = nil
+                break
+              end
+            end
+            if not moved then
               if not initializing then
-                changes[j] = {
+                notify
+                {
                   path = sorted[i].path,
-                  event = 'change',
-                  index = j,
-                  value = sorted[i].value
+                  value = sorted[i].value,
+                  event = 'remove',
+                  index = i
                 }
               end
-              -- mark old index as free
-              moved = true
-              sorted[i] = nil
-              break
-            end
-          end
-          if not moved then
-            if not initializing then
-              notify
-              {
-                path = sorted[i].path,
-                value = sorted[i].value,
-                event = 'remove',
-                index = i
-              }
             end
           end
         end
