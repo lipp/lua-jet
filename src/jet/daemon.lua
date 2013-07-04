@@ -325,7 +325,16 @@ local create_daemon = function(options)
       -- 'first handle index moved'
       local changes = {}
       for i=from,mmin(to,#sorted) do
-        if sorted[i].path ~= new_sorted[i].path then
+        if sorted[i].path == new_sorted[i].path then
+          if not initializing and event == 'change' then
+            changes[i] = {
+              path = new_sorted[i].path,
+              event = 'change',
+              index = i,
+              value = new_sorted[i].value
+            }
+          end
+        else
           local moved
           for j=from,mmin(to,#new_sorted) do
             -- index changed
