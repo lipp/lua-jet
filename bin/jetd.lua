@@ -2,7 +2,7 @@
 
 local ev = require'ev'
 
-local daemon = false
+local start_as_daemon = false
 local ws_port = 11123
 local port = 11122
 local ffi
@@ -15,14 +15,18 @@ for _,opt in ipairs(arg) do
       os.exit(1)
     end
     ffi.cdef'int daemon(int nochdir, int noclose)'
+    start_as_daemon = true
   elseif opt:match('%-w(%d+)') then
     ws_port = opt:match('%-w(%d+)')
   elseif opt:match('%-p(%d+)') then
     port = opt:match('%-p(%d+)')
+  elseif opt == '-h' or opt == '--help' then
+    print('usage: jetd.lua [-d|--daemon] [-w<wsport>] [-p<rawport>] [-h|--help]')
+    os.exit(0)
   end
 end
 
-print(daemon,ws_port,port)
+print(start_as_daemon,ws_port,port)
 
 local daemon = require'jet.daemon'.new
 {
@@ -31,7 +35,7 @@ local daemon = require'jet.daemon'.new
 }
 daemon:start()
 
-if daemon then
+if start_as_daemon then
   ffi.C.daemon(1,1)
 end
 
