@@ -480,17 +480,16 @@ describe(
               ['a/TEST/sub'] = 333,
               ['test'] = 879,
             }
+            for path in pairs(expected) do
+              done:wait_unordered(path)
+            end
             local fetcher = peer:fetch({
                 match = {'test'},
                 caseInsensitive = true
               },async(function(fpath,fevent,fvalue,fetcher)
                   assert.is_equal(fevent,'add')
                   assert.is_equal(expected[fpath],fvalue)
-                  expected[fpath] = nil
-                  -- empty?
-                  if not pairs(expected)(expected) then
-                    done()
-                  end
+                  done(fpath)
               end))
           end)
         
