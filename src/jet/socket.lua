@@ -56,25 +56,22 @@ local wrap = function(sock,args)
   local send_pos
   local send_message = function(loop,write_io)
     local sent,err,sent_so_far = sock:send(send_buffer,send_pos)
-    if sent then
-      --         log('sent',#send_buffer,send_buffer:sub(5))
-      assert(sent==#send_buffer)
+    if not sent and err ~= 'timeout' then
+      write_io:stop(loop)
+      if err == 'closed' then
+        on_close(wrapped)
+      else
+        log('sent error',err)
+        on_error(wrapped,err)
+      end
+      sock:close()
+      send_buffer = ''
+    elseif sent then
+      send_pos = nil
       send_buffer = ''
       write_io:stop(loop)
-    elseif err == 'timeout' then
-      log('sent timeout',send_pos)
-      send_pos = sent_so_far
-    elseif err == 'closed' then
-      --         log('sent closed',pos)
-      write_io:stop(loop)
-      on_close(wrapped)
-      sock:close()
     else
-      log('sent error',err)
-      write_io:stop(loop)
-      on_close(wrapped)
-      sock:close()
-      log('unknown error:'..err)
+      send_pos = sent_so_far + 1
     end
   end
   local fd = sock:getfd()
@@ -86,15 +83,11 @@ local wrap = function(sock,args)
   -- the message format is 32bit big endian integer
   -- denoting the size of the JSON following
   wrapped.send = function(_,message)
-    --      log('sending',cjson.encode(message))
     if encode then
       message = cjson.encode(message)
     end
-    --      assert(cjson.decode(message) ~= cjson.null)
     send_buffer = send_buffer..spack('>I',#message)..message
-    send_pos = 0
     if not send_io:is_active() then
-      --         log('strting io')
       send_io:start(loop)
     end
   end
@@ -156,7 +149,6 @@ local wrap = function(sock,args)
             end
             json_message,err,sub = sock:receive(len,json_message)
             if json_message then
-              --                  log('recv',len,json_message)
               if decode then
                 local ok,message = pcall(cjson.decode,json_message)
                 if ok then

@@ -75,6 +75,9 @@ new = function(config)
     j_sync.set = function(_,path,value,as_notification)
       return service('set',{path=path,value=value},as_notification)
     end
+    j_sync.config = function(_,params,as_notification)
+      return service('config',params,as_notification)
+    end
     return j_sync
   else
     local sock = socket.tcp()
@@ -100,8 +103,9 @@ new = function(config)
     local request_dispatchers = {}
     local response_dispatchers = {}
     local dispatch_response = function(self,message)
-      local callbacks = response_dispatchers[message.id]
-      response_dispatchers[message.id] = nil
+      local mid = message.id
+      local callbacks = response_dispatchers[mid]
+      response_dispatchers[mid] = nil
       if callbacks then
         if message.result then
           if callbacks.success then
@@ -119,21 +123,10 @@ new = function(config)
       end
     end
     local on_no_dispatcher
-    local dispatch_notification = function(self,message)
-      local dispatcher = request_dispatchers[message.method]
-      if dispatcher then
-        local ok,err = pcall(dispatcher,self,message)
-        if not ok then
-          log('fetcher:'..message.method,'failed:'..err,cjson.encode(message))
-        end
-      else
-        if on_no_dispatcher then
-          pcall(on_no_dispatcher,message)
-        end
-      end
-    end
+    -- handles both method calls and fetchers (notifications)
     local dispatch_request = function(self,message)
       local dispatcher = request_dispatchers[message.method]
+      local error
       if dispatcher then
         local error
         local ok,err = pcall(dispatcher,self,message)
@@ -151,23 +144,20 @@ new = function(config)
           pcall(on_no_dispatcher,message)
         end
       end
-      queue
-      {
-        id = message.id,
-        error = error
-      }
+      local mid = message.id
+      if error and mid then
+        queue
+        {
+          id = mid,
+          error = error
+        }
+      end
     end
     local dispatch_single_message = function(self,message)
-      if message.id then
-        if message.method and message.params then
-          dispatch_request(self,message)
-        elseif message.result or message.error then
-          dispatch_response(self,message)
-        else
-          log('unhandled message',cjson.encode(message))
-        end
-      elseif message.method and message.params then
-        dispatch_notification(self,message)
+      if message.method and message.params then
+        dispatch_request(self,message)
+      elseif message.result or message.error then
+        dispatch_response(self,message)
       else
         log('unhandled message',cjson.encode(message))
       end
@@ -200,6 +190,7 @@ new = function(config)
     if not config.dont_start_io then
       j.read_io = wsock:read_io()
       j.read_io:start(loop)
+      j.read_io:callback()(loop,j.read_io)
     end
     
     j.io = function(self)
@@ -219,6 +210,9 @@ new = function(config)
     
     j.close = function(self,options)
       options = options or {}
+      if self.connect_io then
+        self.connect_io:stop(loop)
+      end
       flush('close')
       if self.read_io then
         self.read_io:stop(loop)
@@ -313,7 +307,7 @@ new = function(config)
         is_added = function()
           return request_dispatchers[path] ~= nil
         end,
-        add = function(ref,callbacks)
+        add = function(ref,value,callbacks)
           assert(not ref:is_added())
           self:add(desc,dispatch,callbacks)
         end
@@ -338,6 +332,10 @@ new = function(config)
         args = params or {}
       }
       service('call',params,nil,callbacks)
+    end
+    
+    j.config = function(self,params,callbacks)
+      service('config',params,nil,callbacks)
     end
     
     j.set = function(self,path,value,callbacks)
@@ -386,18 +384,28 @@ new = function(config)
       local dispatch
       if desc.call then
         dispatch = function(self,message)
-          local ok,result = pcall(desc.call,unpack(message.params))
-          if message.id then
+          local ok,result
+          local params = message.params
+          if #params > 0 then
+            ok,result = pcall(desc.call,unpack(params))
+          elseif pairs(params)(params) then
+            -- non empty table
+            ok,result = pcall(desc.call,params)
+          else
+            ok,result = pcall(desc.call)
+          end
+          local mid = message.id
+          if mid then
             if ok then
               queue
               {
-                id = message.id,
+                id = mid,
                 result = result or {}
               }
             else
               queue
               {
-                id = message.id,
+                id = mid,
                 error = error_object(result)
               }
             end
@@ -406,9 +414,10 @@ new = function(config)
       elseif desc.call_async then
         dispatch = function(self,message)
           local reply = function(resp,dont_flush)
-            if message.id then
+            local mid = message.id
+            if mid then
               local response = {
-                id = message.id
+                id = mid
               }
               if type(resp.result) ~= 'nil' and not resp.error then
                 response.result = resp.result
@@ -424,11 +433,21 @@ new = function(config)
             end
           end
           
-          local ok,result = pcall(desc.call_async,reply,unpack(message.params))
-          if not ok and message.id then
+          local ok,result
+          local params = message.params
+          if #params > 0 then
+            ok,result = pcall(desc.call_async,reply,unpack(params))
+          elseif pairs(params)(params) then
+            -- non empty table
+            ok,result = pcall(desc.call_async,reply,params)
+          else
+            ok,result = pcall(desc.call_async,reply)
+          end
+          local mid = message.id
+          if not ok and mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object(result)
             }
           end
@@ -447,11 +466,13 @@ new = function(config)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
           if ok then
-            desc.value = result or value
-            if message.id then
+            local newvalue = result or value
+            desc.value = newvalue
+            local mid = message.id
+            if mid then
               queue
               {
-                id = message.id,
+                id = mid,
                 result = true
               }
             end
@@ -461,7 +482,7 @@ new = function(config)
                 method = 'change',
                 params = {
                   path = desc.path,
-                  value = result or value
+                  value = newvalue
                 }
               }
             end
@@ -478,9 +499,10 @@ new = function(config)
           local value = message.params.value
           assert(value ~= nil,'params.value is required')
           local reply = function(resp,dont_flush)
-            if message.id then
+            local mid = message.id
+            if mid then
               local response = {
-                id = message.id
+                id = mid
               }
               if resp.result ~= nil and not resp.error then
                 response.result = resp.result
@@ -507,20 +529,22 @@ new = function(config)
             end
           end
           local ok,result = pcall(desc.set_async,reply,value)
-          if not ok and message.id then
+          local mid = message.id
+          if not ok and mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object(result)
             }
           end
         end
       else
         dispatch = function(self,message)
-          if message.id then
+          local mid = message.id
+          if mid then
             queue
             {
-              id = message.id,
+              id = mid,
               error = error_object
               {
                 code = -32602,
@@ -551,14 +575,22 @@ new = function(config)
       end
       return ref
     end
-    ev.IO.new(
+    j.connect_io = ev.IO.new(
       function(loop,io)
         io:stop(loop)
-        if config.on_connect then
-          config.on_connect(j)
+        j.connect_io = nil
+        local connected,err = sock:connect(ip,port)
+        if connected or err == 'already connected' then
+          if config.name then
+            j:config({name = config.name})
+          end
+          if config.on_connect then
+            config.on_connect(j)
+          end
+          flush('on_connect')
         end
-        flush('on_connect')
-      end,sock:getfd(),ev.WRITE):start(loop)
+      end,sock:getfd(),ev.WRITE)
+    j.connect_io:start(loop)
     return j
   end
 end

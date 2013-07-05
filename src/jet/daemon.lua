@@ -51,7 +51,8 @@ end
 
 
 local create_daemon = function(options)
-  -- holds all (jet.socket.wrapped) clients index by client itself
+  print = options.print or print
+
   local clients = {}
   local states = {}
   local leaves = {}
@@ -501,6 +502,7 @@ local create_daemon = function(options)
     end
     
     client.fetchers[fetch_id] = fetcher
+    
     if message.id then
       client:queue
       {
@@ -508,7 +510,6 @@ local create_daemon = function(options)
         result = {}
       }
     end
-    
     local cq = client.queue
     queue_notification = function(nparams)
       cq(client,{
@@ -527,8 +528,7 @@ local create_daemon = function(options)
     initializing = false
     if flush then
       flush()
-    end
-    
+    end    
   end
   
   local unfetch = function(client,message)
@@ -618,6 +618,26 @@ local create_daemon = function(options)
       event = 'remove',
       value = leave.value
     }
+  end
+  
+  local config = function(client,message)
+    local params = message.params
+    if params.peer then
+      client = nil
+      for client_ in pairs(clients) do
+        print(client_.name,params.peer)
+        if client_.name == params.peer then
+          client = client_
+          break
+        end
+      end
+      if not client then
+        error('unknown client')
+      end
+    else
+      client.name = params.name
+    end
+    client.debug = params.debug
   end
   
   local sync = function(f)
@@ -767,6 +787,9 @@ local create_daemon = function(options)
     local ok,err = pcall(
       function()
         if message then
+          if client.debug then
+            debug(client.name or 'unnamed client','->',jencode(message))
+          end
           if message == jnull then
             client:queue
             {
@@ -839,13 +862,18 @@ local create_daemon = function(options)
     client.flush = function(_)
       if client.messages then
         local num = #client.messages
+        local message
         if num == 1 then
-          send(client.messages[1])
+          message = client.messages[1]
         elseif num > 1 then
-          send(client.messages)
+          message = client.messages
         else
           assert(false,'messages must contain at least one element if not nil')
         end
+        if client.debug then
+          debug(client.name or 'unnamed client','<-',jencode(message))
+        end
+        send(message)
         client.messages = nil
       end
     end
@@ -870,10 +898,11 @@ local create_daemon = function(options)
         dispatch_message(client,...)
       end)
     jsock:on_close(function(_,...)
+        debug('client socket close ('..(client.name or '')..')',...)
         client:release()
       end)
     jsock:on_error(function(_,...)
-        err('socket error',...)
+        crit('client socket error ('..(client.name or '')..')',...)
         client:release()
       end)
     jsock:read_io():start(loop)
@@ -896,10 +925,11 @@ local create_daemon = function(options)
         end
       end)
     ws:on_close(function(_,...)
+        debug('client websocket close ('..(client.name or '')..')',...)
         client:release()
       end)
     ws:on_error(function(_,...)
-        err('socket error',...)
+        crit('client websocket error ('..(client.name or '')..')',...)
         client:release()
       end)
     clients[client] = client
