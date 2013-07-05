@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
-local jet = require'jet.peer'.new()
+local jet = require'jet.peer'.new({name='some_service'})
 local ev = require'ev'
 
 local assign = function(var)
