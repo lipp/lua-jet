@@ -49,6 +49,7 @@ end
 
 local create_daemon = function(options)
   
+  print = options.print or print
   
   -- holds all (jet.socket.wrapped) clients index by client itself
   local clients = {}
@@ -699,10 +700,11 @@ local create_daemon = function(options)
         dispatch_message(client,...)
       end)
     jsock:on_close(function(_,...)
+        debug('client socket close ('..(client.name or '')..')',...)
         client:release()
       end)
     jsock:on_error(function(_,...)
-        err('socket error',...)
+        crit('client socket error ('..(client.name or '')..')',...)
         client:release()
       end)
     jsock:read_io():start(loop)
@@ -725,10 +727,11 @@ local create_daemon = function(options)
         end
       end)
     ws:on_close(function(_,...)
+        debug('client websocket close ('..(client.name or '')..')',...)
         client:release()
       end)
     ws:on_error(function(_,...)
-        err('socket error',...)
+        crit('client websocket error ('..(client.name or '')..')',...)
         client:release()
       end)
     clients[client] = client
