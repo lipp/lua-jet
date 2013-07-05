@@ -92,7 +92,6 @@ new = function(config)
     local will_flush = true
     local flush = function(reason)
       local n = #messages
-      --         print('FLUSHING',n,reason,ip,messages)
       if n == 1 then
         wsock:send(messages[1])
       elseif n > 1 then
@@ -107,16 +106,13 @@ new = function(config)
       local mid = message.id
       local callbacks = response_dispatchers[mid]
       response_dispatchers[mid] = nil
-      --      log('response',cjson.encode(message),callbacks,message.result,message.error)
       if callbacks then
         if message.result then
           if callbacks.success then
-            --            log('response','success',message.id)
             callbacks.success(message.result)
           end
         elseif message.error then
           if callbacks.error then
-            --            log('response','error',message.id)
             callbacks.error(message.error)
           end
         else
@@ -225,8 +221,6 @@ new = function(config)
           self.read_io:clear_pending(loop)
         end
       end
-      --         request_dispatchers = nil
-      --         response_dispatchers = nil
       wsock:close()
     end
     
@@ -330,11 +324,8 @@ new = function(config)
         path = path
       }
       local remove_dispatcher = function(success)
-        --            if success then
         assert(success)
-        --            print('remove_dispatcher',path,request_dispatchers)
         request_dispatchers[path] = nil
-        --          end
       end
       service('remove',params,remove_dispatcher,callbacks)
     end
@@ -373,12 +364,10 @@ new = function(config)
       fetch_id = fetch_id + 1
       local ref
       local add_fetcher = function()
-        --            print('fetch ',id,expr)
         request_dispatchers[id] = function(peer,message)
           local params = message.params
           f(params.path,params.event,params.data or {},ref)
         end
-        --            print('request_dispatchers assigned',id,request_dispatchers[id])
       end
       local params = {
         id = id,
@@ -393,7 +382,6 @@ new = function(config)
       ref = {
         unfetch = function(_,callbacks)
           local remove_dispatcher = function()
-            --                  print('unfetch ',id,expr)
             request_dispatchers[id] = nil
           end
           service('unfetch',{id=id},remove_dispatcher,callbacks)
@@ -489,13 +477,11 @@ new = function(config)
       el.type = 'state'
       el.schema = desc.schema
       el.value = desc.value
-      --         print(self,ip)
       local dispatch
       if desc.set then
         dispatch = function(self,message)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
-          --               print('set state',desc.path,ok,result,dont_notify)
           if ok then
             local newvalue = result or value
             desc.value = newvalue
@@ -624,6 +610,9 @@ new = function(config)
         j.connect_io = nil
         local connected,err = sock:connect(ip,port)
         if connected or err == 'already connected' then
+          if config.name then
+            j:config({name = config.name})
+          end
           if config.on_connect then
             config.on_connect(j)
           end
