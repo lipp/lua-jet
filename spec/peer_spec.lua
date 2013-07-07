@@ -16,7 +16,10 @@ describe(
     local d
     local peer
     setup(function()
-        d = jetdaemon.new{port = port}
+        d = jetdaemon.new{
+          port = port,
+          print = function() end
+        }
         d:start()
       end)
     
