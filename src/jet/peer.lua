@@ -35,7 +35,7 @@ end
 
 new = function(config)
   config = config or {}
-  local ip = config.ip or 'localhost'
+  local ip = config.ip or '127.0.0.1' -- localhost'
   local port = config.port or 11122
   if config.sync then
     local sock = socket.connect(ip,port)
@@ -82,7 +82,6 @@ new = function(config)
   else
     local sock = socket.tcp()
     sock:settimeout(0)
-    sock:connect(ip,port)
     local loop = config.loop or ev.Loop.default
     local wsock = jsocket.wrap(sock,{loop = loop})
     local messages = {}
@@ -187,11 +186,6 @@ new = function(config)
     wsock:on_error(log)
     wsock:on_close(config.on_close or function() end)
     local j = {}
-    if not config.dont_start_io then
-      j.read_io = wsock:read_io()
-      j.read_io:start(loop)
-      j.read_io:callback()(loop,j.read_io)
-    end
     
     j.io = function(self)
       if not self.read_io then
@@ -356,9 +350,9 @@ new = function(config)
         request_dispatchers[id] = function(peer,message)
           local params = message.params
           if not params.index then
-             f(params.path,params.event,params.value,ref)
+            f(params.path,params.event,params.value,ref)
           else
-             f(params.path,params.event,params.value,params.index,ref)
+            f(params.path,params.event,params.value,params.index,ref)
           end
         end
       end
@@ -575,22 +569,36 @@ new = function(config)
       end
       return ref
     end
-    j.connect_io = ev.IO.new(
-      function(loop,io)
-        io:stop(loop)
-        j.connect_io = nil
-        local connected,err = sock:connect(ip,port)
-        if connected or err == 'already connected' then
-          if config.name then
-            j:config({name = config.name})
-          end
-          if config.on_connect then
-            config.on_connect(j)
-          end
-          flush('on_connect')
-        end
-      end,sock:getfd(),ev.WRITE)
-    j.connect_io:start(loop)
+
+    local on_connect = function()
+       local connected,err = sock:connect(ip,port)
+       if connected or err == 'already connected' then
+	  j.read_io = wsock:read_io()
+	  j.read_io:start(loop)
+	  if config.name then
+	     j:config({name = config.name})
+	  end
+	  if config.on_connect then
+	     config.on_connect(j)
+	  end
+	  flush('on_connect')
+       end
+    end
+
+    local connected,err = sock:connect(ip,port)
+    if connected then
+       on_connect()
+    elseif err == 'timeout' then
+       j.connect_io = ev.IO.new(
+	  function(loop,io)
+	     io:stop(loop)
+	     j.connect_io = nil
+	     on_connect()
+	  end,sock:getfd(),ev.WRITE)
+       j.connect_io:start(loop)       
+    else
+       error('jet.peer.new failed: '..err)
+    end    
     return j
   end
 end
