@@ -304,6 +304,9 @@ new = function(config)
         add = function(ref,value,callbacks)
           assert(not ref:is_added())
           self:add(desc,dispatch,callbacks)
+        end,
+        path = function()
+           return path
         end
       }
       return ref

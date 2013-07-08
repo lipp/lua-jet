@@ -51,7 +51,7 @@ end
 
 
 local create_daemon = function(options)
-  print = options.print or print
+--  print = options.print or print
 
   local clients = {}
   local states = {}
@@ -73,9 +73,11 @@ local create_daemon = function(options)
     for client in pairs(clients) do
       for fetch_id,fetcher in pairs(client.fetchers) do
         local ok,refetch = pcall(fetcher,notification)
+        print('REF',ok,refetch)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
+           print('refetcgh')
           for path,leave in pairs(leaves) do
             fetcher
             {
@@ -141,13 +143,73 @@ local create_daemon = function(options)
   end
   
   local create_value_matcher = function(options)
-    if options.equals ~= nil then
-      local equals = options.equals
-      return function(value)
-        return value == equals
-      end
-    end
-    return nil
+     local ops = {
+        lessThan = function(a,b)
+           return a < b
+        end,
+        greaterThan = function(a,b)
+           return a > b
+        end,
+        equals = function(a,b)
+           return a == b
+        end,
+        equalsNot = function(a,b)
+           return a ~= b
+        end
+     }
+     if options.where ~= nil then         
+        if #options.where > 0 then
+           return function(value)
+       --          print('XXX')
+              local is_table = type(value) == 'table'
+              if not is_table then
+                 return false
+              end            
+              for _,where in ipairs(options.where) do
+                 local op = ops[where.op]
+                 local ok,comp_ok = pcall(op,value[where.prop],where.value)
+                 if not ok or not comp_ok then
+                    return false
+                 end
+              end
+              return true
+           end
+        elseif options.where then
+           local where = options.where
+           local op = ops[where.op]
+           local ref = where.value
+           if not where.prop or where.prop == '' then              
+              return function(value)
+  --               print('OOO')
+                 local is_table = type(value) == 'table'
+                 if is_table then
+                    return false
+                 end                
+                 local ok,comp_ok = pcall(op,value,ref)
+    --             print('op',value,ref,ok,comp_ok)
+                 if not ok or not comp_ok then
+                    return false
+                 end            
+                 return true
+              end
+           else
+              return function(value)
+--                 print('PPP')
+                 local is_table = type(value) == 'table'
+                 if not is_table then
+                    return false
+                 end
+                 local ok,comp_ok = pcall(op,value[where.prop],ref)
+           --      print('op',value,ref,ok,comp_ok)
+                 if not ok or not comp_ok then
+                    return false
+                 end
+                 return true
+              end
+           end
+        end      
+     end
+     return nil
   end
   
   local create_fetcher_with_deps = function(options,notify)
@@ -162,6 +224,8 @@ local create_daemon = function(options)
       local value = notification.value
       local match,backrefs = path_matcher(path)
       local context = contexts[path]
+      print(path,value,deps[path])
+      local refetch
       if match and #backrefs > 0 then
         if not context then
           context = {}
@@ -174,6 +238,7 @@ local create_daemon = function(options)
                 return assert(backrefs[index])
               end)
             if not deps[dep_path] then
+          print('setup',dep_path)
               deps[dep_path] = {
                 value_matcher = create_value_matcher(dep),
                 context = context
@@ -182,6 +247,8 @@ local create_daemon = function(options)
             end
           end
           contexts[path] = context
+          print('setup',dep_path)
+          refetch = true          
         else
           context.value_ok = (value_matcher and value_matcher(value)) or true
         end
@@ -189,7 +256,12 @@ local create_daemon = function(options)
       elseif deps[path] then
         local dep = deps[path]
         context = dep.context
-        context.deps_ok[path] = dep.value_matcher(value) or false
+        if dep.value_matcher then
+           print('VM',path,value)
+           context.deps_ok[path] = dep.value_matcher(value)
+        else
+           context.deps_ok[path] = false
+        end
       end
       
       if context then
@@ -211,7 +283,8 @@ local create_daemon = function(options)
             event = 'remove'
             added[relevant_path] = nil
           else
-            return
+             print('R?',refetch)
+            return refetch
           end
         elseif all_ok then
           if is_added then
@@ -228,6 +301,9 @@ local create_daemon = function(options)
           event = event,
           value = context.value
         }
+
+             print('R?',refetch)
+        return refetch
       end
     end
     return fetchop
@@ -516,14 +592,25 @@ local create_daemon = function(options)
           method = fetch_id,
           params = nparams
       })
-    end
+    end    
+    local refetch
     for path,leave in pairs(leaves) do
-      fetcher
+      refetch = fetcher
       {
         path = path,
         value = leave.value,
         event = 'add'
       }
+    end
+    if refetch then
+       for path,leave in pairs(leaves) do
+      fetcher
+      {
+         path = path,
+         value = leave.value,
+         event = 'add'
+      }
+       end
     end
     initializing = false
     if flush then
