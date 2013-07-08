@@ -306,7 +306,7 @@ new = function(config)
           self:add(desc,dispatch,callbacks)
         end,
         path = function()
-           return path
+          return path
         end
       }
       return ref
@@ -572,36 +572,36 @@ new = function(config)
       end
       return ref
     end
-
+    
     local on_connect = function()
-       local connected,err = sock:connect(ip,port)
-       if connected or err == 'already connected' then
-	  j.read_io = wsock:read_io()
-	  j.read_io:start(loop)
-	  if config.name then
-	     j:config({name = config.name})
-	  end
-	  if config.on_connect then
-	     config.on_connect(j)
-	  end
-	  flush('on_connect')
-       end
+      local connected,err = sock:connect(ip,port)
+      if connected or err == 'already connected' then
+        j.read_io = wsock:read_io()
+        j.read_io:start(loop)
+        if config.name then
+          j:config({name = config.name})
+        end
+        if config.on_connect then
+          config.on_connect(j)
+        end
+        flush('on_connect')
+      end
     end
-
+    
     local connected,err = sock:connect(ip,port)
     if connected then
-       on_connect()
+      on_connect()
     elseif err == 'timeout' then
-       j.connect_io = ev.IO.new(
-	  function(loop,io)
-	     io:stop(loop)
-	     j.connect_io = nil
-	     on_connect()
-	  end,sock:getfd(),ev.WRITE)
-       j.connect_io:start(loop)       
+      j.connect_io = ev.IO.new(
+        function(loop,io)
+          io:stop(loop)
+          j.connect_io = nil
+          on_connect()
+        end,sock:getfd(),ev.WRITE)
+      j.connect_io:start(loop)
     else
-       error('jet.peer.new failed: '..err)
-    end    
+      error('jet.peer.new failed: '..err)
+    end
     return j
   end
 end

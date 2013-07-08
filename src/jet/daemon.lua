@@ -51,8 +51,8 @@ end
 
 
 local create_daemon = function(options)
---  print = options.print or print
-
+  print = options.print or print
+  
   local clients = {}
   local states = {}
   local leaves = {}
@@ -73,11 +73,9 @@ local create_daemon = function(options)
     for client in pairs(clients) do
       for fetch_id,fetcher in pairs(client.fetchers) do
         local ok,refetch = pcall(fetcher,notification)
-        print('REF',ok,refetch)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
-           print('refetcgh')
           for path,leave in pairs(leaves) do
             fetcher
             {
@@ -143,73 +141,68 @@ local create_daemon = function(options)
   end
   
   local create_value_matcher = function(options)
-     local ops = {
-        lessThan = function(a,b)
-           return a < b
-        end,
-        greaterThan = function(a,b)
-           return a > b
-        end,
-        equals = function(a,b)
-           return a == b
-        end,
-        equalsNot = function(a,b)
-           return a ~= b
+    local ops = {
+      lessThan = function(a,b)
+        return a < b
+      end,
+      greaterThan = function(a,b)
+        return a > b
+      end,
+      equals = function(a,b)
+        return a == b
+      end,
+      equalsNot = function(a,b)
+        return a ~= b
+      end
+    }
+    if options.where ~= nil then
+      if #options.where > 0 then
+        return function(value)
+          local is_table = type(value) == 'table'
+          if not is_table then
+            return false
+          end
+          for _,where in ipairs(options.where) do
+            local op = ops[where.op]
+            local ok,comp_ok = pcall(op,value[where.prop],where.value)
+            if not ok or not comp_ok then
+              return false
+            end
+          end
+          return true
         end
-     }
-     if options.where ~= nil then         
-        if #options.where > 0 then
-           return function(value)
-       --          print('XXX')
-              local is_table = type(value) == 'table'
-              if not is_table then
-                 return false
-              end            
-              for _,where in ipairs(options.where) do
-                 local op = ops[where.op]
-                 local ok,comp_ok = pcall(op,value[where.prop],where.value)
-                 if not ok or not comp_ok then
-                    return false
-                 end
-              end
-              return true
-           end
-        elseif options.where then
-           local where = options.where
-           local op = ops[where.op]
-           local ref = where.value
-           if not where.prop or where.prop == '' then              
-              return function(value)
-  --               print('OOO')
-                 local is_table = type(value) == 'table'
-                 if is_table then
-                    return false
-                 end                
-                 local ok,comp_ok = pcall(op,value,ref)
-    --             print('op',value,ref,ok,comp_ok)
-                 if not ok or not comp_ok then
-                    return false
-                 end            
-                 return true
-              end
-           else
-              return function(value)
---                 print('PPP')
-                 local is_table = type(value) == 'table'
-                 if not is_table then
-                    return false
-                 end
-                 local ok,comp_ok = pcall(op,value[where.prop],ref)
-           --      print('op',value,ref,ok,comp_ok)
-                 if not ok or not comp_ok then
-                    return false
-                 end
-                 return true
-              end
-           end
-        end      
-     end
-     return nil
+      elseif options.where then
+        local where = options.where
+        local op = ops[where.op]
+        local ref = where.value
+        if not where.prop or where.prop == '' then
+          return function(value)
+            local is_table = type(value) == 'table'
+            if is_table then
+              return false
+            end
+            local ok,comp_ok = pcall(op,value,ref)
+            if not ok or not comp_ok then
+              return false
+            end
+            return true
+          end
+        else
+          return function(value)
+            local is_table = type(value) == 'table'
+            if not is_table then
+              return false
+            end
+            local ok,comp_ok = pcall(op,value[where.prop],ref)
+            if not ok or not comp_ok then
+              return false
+            end
+            return true
+          end
+        end
+      end
+    end
+    return nil
   end
   
   local create_fetcher_with_deps = function(options,notify)
@@ -224,8 +217,6 @@ local create_daemon = function(options)
       local value = notification.value
       local match,backrefs = path_matcher(path)
       local context = contexts[path]
-      print(path,value,deps[path])
-      local refetch
       if match and #backrefs > 0 then
         if not context then
           context = {}
@@ -238,17 +229,17 @@ local create_daemon = function(options)
                 return assert(backrefs[index])
               end)
             if not deps[dep_path] then
-          print('setup',dep_path)
               deps[dep_path] = {
                 value_matcher = create_value_matcher(dep),
                 context = context
               }
               context.deps_ok[dep_path] = false
+              if leaves[dep_path] then
+                context.deps_ok[dep_path] = deps[dep_path].value_matcher(leaves[dep_path].value)
+              end
             end
           end
           contexts[path] = context
-          print('setup',dep_path)
-          refetch = true          
         else
           context.value_ok = (value_matcher and value_matcher(value)) or true
         end
@@ -256,11 +247,15 @@ local create_daemon = function(options)
       elseif deps[path] then
         local dep = deps[path]
         context = dep.context
+        local last = context.deps_ok[path]
+        local new = false
         if dep.value_matcher then
-           print('VM',path,value)
-           context.deps_ok[path] = dep.value_matcher(value)
+          new = dep.value_matcher(value)
+        end
+        if last ~= new then
+          context.deps_ok[path] = new
         else
-           context.deps_ok[path] = false
+          return
         end
       end
       
@@ -283,8 +278,7 @@ local create_daemon = function(options)
             event = 'remove'
             added[relevant_path] = nil
           else
-             print('R?',refetch)
-            return refetch
+            return
           end
         elseif all_ok then
           if is_added then
@@ -294,16 +288,12 @@ local create_daemon = function(options)
             added[relevant_path] = true
           end
         end
-        
         notify
         {
           path = relevant_path,
           event = event,
           value = context.value
         }
-
-             print('R?',refetch)
-        return refetch
       end
     end
     return fetchop
@@ -592,30 +582,19 @@ local create_daemon = function(options)
           method = fetch_id,
           params = nparams
       })
-    end    
-    local refetch
+    end
     for path,leave in pairs(leaves) do
-      refetch = fetcher
+      fetcher
       {
         path = path,
         value = leave.value,
         event = 'add'
       }
     end
-    if refetch then
-       for path,leave in pairs(leaves) do
-      fetcher
-      {
-         path = path,
-         value = leave.value,
-         event = 'add'
-      }
-       end
-    end
     initializing = false
     if flush then
       flush()
-    end    
+    end
   end
   
   local unfetch = function(client,message)
@@ -712,7 +691,6 @@ local create_daemon = function(options)
     if params.peer then
       client = nil
       for client_ in pairs(clients) do
-        print(client_.name,params.peer)
         if client_.name == params.peer then
           client = client_
           break
