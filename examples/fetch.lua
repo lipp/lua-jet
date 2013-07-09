@@ -9,7 +9,7 @@ local port = arg[3]
 local jet = require'jet.peer'.new{ip=ip,port=port}
 local cjson = require'cjson'
 local info = function(path,event,data)
-   print(path,event,cjson.encode(data))
+  print(path,event,cjson.encode(data))
 end
 jet:fetch(exp,info)
 jet:loop()

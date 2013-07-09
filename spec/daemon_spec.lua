@@ -15,7 +15,8 @@ describe(
       function()
         daemon = jetdaemon.new
         {
-          port = port
+          port = port,
+          print = function() end
         }
       end)
     

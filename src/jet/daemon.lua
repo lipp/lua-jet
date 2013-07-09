@@ -15,9 +15,12 @@ local type = type
 local error = error
 local require = require
 local tostring = tostring
+local tonumber = tonumber
 local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
+local unpack = unpack
+local mmin = math.min
 
 module('jet.daemon')
 
@@ -48,12 +51,9 @@ end
 
 
 local create_daemon = function(options)
-  
   print = options.print or print
   
-  -- holds all (jet.socket.wrapped) clients index by client itself
   local clients = {}
-  local nodes = {}
   local states = {}
   local leaves = {}
   local routes = {}
@@ -70,16 +70,20 @@ local create_daemon = function(options)
   end
   
   local publish = function(notification)
-    --   debug('publish',jencode(notification))
-    local path = notification.path
     for client in pairs(clients) do
-      for fetch_id,matcher in pairs(client.fetchers) do
-        if matcher(path) then
-          client:queue
-          {
-            method = fetch_id,
-            params = notification
-          }
+      for fetch_id,fetcher in pairs(client.fetchers) do
+        local ok,refetch = pcall(fetcher,notification)
+        if not ok then
+          crit('publish failed',fetch_id,refetch)
+        elseif refetch then
+          for path,leave in pairs(leaves) do
+            fetcher
+            {
+              path = path,
+              value = leave.value,
+              event = 'add'
+            }
+          end
         end
       end
     end
@@ -91,37 +95,459 @@ local create_daemon = function(options)
     end
   end
   
-  local matcher = function(match,unmatch)
-    local f
-    if not unmatch and #match == 1 then
-      local match = match[1]
-      f = function(path)
-        return path:match(match)
+  local create_path_matcher = function(options)
+    if not options.match and not options.unmatch and not options.equalsNot then
+      return function()
+        return true
       end
-    elseif type(match) == 'table' and type(unmatch) == 'table' then
-      f = function(path)
-        for _,unmatch in ipairs(unmatch) do
-          if path:match(unmatch) then
-            return false
-          end
+    end
+    local unmatch = options.unmatch or {}
+    local match = options.match or {}
+    local equalsNot = options.equalsNot or {}
+    local ci = options.caseInsensitive
+    if ci then
+      for i,unmat in ipairs(unmatch) do
+        unmatch[i] = unmat:lower()
+      end
+      for i,mat in ipairs(match) do
+        match[i] = mat:lower()
+      end
+      for i,eqnot in ipairs(equalsNot) do
+        equalsNot[i] = eqnot:lower()
+      end
+    end
+    return function(path)
+      if ci then
+        path = path:lower()
+      end
+      for _,unmatch in ipairs(unmatch) do
+        if path:match(unmatch) then
+          return false
         end
-        for _,match in ipairs(match) do
-          if path:match(match) then
+      end
+      for _,eqnot in ipairs(equalsNot) do
+        if eqnot == path then
+          return false
+        end
+      end
+      for _,match in ipairs(match) do
+        local res = {path:match(match)}
+        if #res > 0 then
+          return true,res
+        end
+      end
+      return false
+    end
+  end
+  
+  local create_value_matcher = function(options)
+    local ops = {
+      lessThan = function(a,b)
+        return a < b
+      end,
+      greaterThan = function(a,b)
+        return a > b
+      end,
+      equals = function(a,b)
+        return a == b
+      end,
+      equalsNot = function(a,b)
+        return a ~= b
+      end
+    }
+    if options.where ~= nil then
+      if #options.where > 1 then
+        return function(value)
+          local is_table = type(value) == 'table'
+          for _,where in ipairs(options.where) do
+            local need_table = where.prop and where.prop ~= ''
+            if need_table and not is_table then
+              return false
+            end
+            local op = ops[where.op]
+            local comp
+            if need_table then
+              comp = value[where.prop]
+            else
+              comp = value
+            end
+            local ok,comp_ok = pcall(op,comp,where.value)
+            if not ok or not comp_ok then
+              return false
+            end
+          end
+          return true
+        end
+      elseif options.where then
+        if #options.where == 1 then
+          options.where = options.where[1]
+        end
+        local where = options.where
+        local op = ops[where.op]
+        local ref = where.value
+        if not where.prop or where.prop == '' then
+          return function(value)
+            local is_table = type(value) == 'table'
+            if is_table then
+              return false
+            end
+            local ok,comp_ok = pcall(op,value,ref)
+            if not ok or not comp_ok then
+              return false
+            end
             return true
           end
-        end
-      end
-    else
-      f = function(path)
-        for _,match in ipairs(match) do
-          if path:match(match) then
+        else
+          return function(value)
+            local is_table = type(value) == 'table'
+            if not is_table then
+              return false
+            end
+            local ok,comp_ok = pcall(op,value[where.prop],ref)
+            if not ok or not comp_ok then
+              return false
+            end
             return true
           end
         end
       end
     end
-    assert(f and type(f) == 'function')
-    return f
+    return nil
+  end
+  
+  local create_fetcher_with_deps = function(options,notify)
+    local path_matcher = create_path_matcher(options)
+    local value_matcher = create_value_matcher(options)
+    local added = {}
+    local contexts = {}
+    local deps = {}
+    local ok = {}
+    local fetchop = function(notification)
+      local path = notification.path
+      local value = notification.value
+      local match,backrefs = path_matcher(path)
+      local context = contexts[path]
+      if match and #backrefs > 0 then
+        if not context then
+          context = {}
+          context.path = path
+          context.value_ok = (value_matcher and value_matcher(value)) or true
+          context.deps_ok = {}
+          for i,dep in ipairs(options.deps) do
+            local dep_path = dep.path:gsub('\\(%d)',function(index)
+                index = tonumber(index)
+                return assert(backrefs[index])
+              end)
+            if not deps[dep_path] then
+              deps[dep_path] = {
+                value_matcher = create_value_matcher(dep),
+                context = context
+              }
+              context.deps_ok[dep_path] = false
+              if leaves[dep_path] then
+                context.deps_ok[dep_path] = deps[dep_path].value_matcher(leaves[dep_path].value)
+              end
+            end
+          end
+          contexts[path] = context
+        else
+          context.value_ok = (value_matcher and value_matcher(value)) or true
+        end
+        context.value = value
+      elseif deps[path] then
+        local dep = deps[path]
+        context = dep.context
+        local last = context.deps_ok[path]
+        local new = false
+        if dep.value_matcher then
+          new = dep.value_matcher(value)
+        end
+        if last ~= new then
+          context.deps_ok[path] = new
+        else
+          return
+        end
+      end
+      
+      if context then
+        local all_ok = false
+        if context.value_ok then
+          all_ok = true
+          for _,dep_ok in pairs(context.deps_ok) do
+            if not dep_ok then
+              all_ok = false
+              break
+            end
+          end
+        end
+        local relevant_path = context.path
+        local is_added = added[relevant_path]
+        local event
+        if not all_ok then
+          if is_added then
+            event = 'remove'
+            added[relevant_path] = nil
+          else
+            return
+          end
+        elseif all_ok then
+          if is_added then
+            event = 'change'
+          else
+            event = 'add'
+            added[relevant_path] = true
+          end
+        end
+        notify
+        {
+          path = relevant_path,
+          event = event,
+          value = context.value
+        }
+      end
+    end
+    return fetchop
+  end
+  
+  local create_fetcher_without_deps = function(options,notify)
+    local path_matcher = create_path_matcher(options)
+    local value_matcher = create_value_matcher(options)
+    local max = options.max
+    local added = {}
+    local n = 0
+    
+    local fetchop = function(notification)
+      local path = notification.path
+      local is_added = added[path]
+      if not is_added and max and n == max then
+        return
+      end
+      local path_matching = true
+      if path_matcher and not path_matcher(path) then
+        path_matching = false
+      end
+      local value_matching = true
+      local value = notification.value
+      if value_matcher and not value_matcher(value) then
+        value_matching = false
+      end
+      local is_matching = false
+      if path_matching and value_matching then
+        is_matching = true
+      end
+      if not is_matching or notification.event == 'remove' then
+        if is_added then
+          added[path] = nil
+          n = n - 1
+          notify
+          {
+            path = path,
+            event = 'remove',
+            value = value
+          }
+          if max and n == (max-1) then
+            return true
+          end
+        end
+        return
+      end
+      local event
+      if not is_added then
+        event = 'add'
+        added[path] = true
+        n = n + 1
+      else
+        event = 'change'
+      end
+      notify
+      {
+        path = path,
+        event = event,
+        value = value
+      }
+    end
+    
+    return fetchop
+  end
+  
+  local create_sorter = function(options,notify)
+    if not options.sort then
+      return nil
+    end
+    local from = options.sort.from or 1
+    local to = options.sort.to or 10
+    local matching = {}
+    local sorted = {}
+    
+    local sort
+    if not options.sort.byValue or options.sort.byPath then
+      if options.sort.descending then
+        print('sort descending')
+        sort = function(a,b)
+          return a.path > b.path
+        end
+      else
+        sort = function(a,b)
+          return a.path < b.path
+        end
+      end
+    elseif options.sort.byValue then
+      local lt
+      local gt
+      if options.sort.prop then
+        local prop = options.sort.prop
+        lt = function(a,b)
+          return a[prop] < b[prop]
+        end
+        gt = function(a,b)
+          return a[prop] > b[prop]
+        end
+      else
+        lt = function(a,b)
+          return a < b
+        end
+        gt = function(a,b)
+          return a > b
+        end
+      end
+      -- protected sort
+      local psort = function(s,a,b)
+        local ok,res = pcall(s,a,b)
+        if not ok or not res then
+          return false
+        else
+          return true
+        end
+      end
+      if options.sort.byValue == true or options.sort.byValue == '' then
+        if options.sort.descending then
+          sort = function(a,b)
+            return psort(gt,a.value,b.value)
+          end
+        else
+          sort = function(a,b)
+            return psort(lt,a.value,b.value)
+          end
+        end
+      end
+    end
+    
+    local sorter = function(notification,initializing)
+      local event = notification.event
+      local path = notification.path
+      local value = notification.value
+      if event == 'remove' then
+        matching[path] = nil
+      else
+        matching[path] = {
+          path = path,
+          value = value,
+        }
+      end
+      local new_sorted = {}
+      for _,entry in pairs(matching) do
+        tinsert(new_sorted,entry)
+      end
+      tsort(new_sorted,sort)
+      -- 'first handle index moved'
+      local changes = {}
+      for i=from,mmin(to,#sorted) do
+        if not new_sorted[i] then
+          if not initializing then
+            changes[i] = {
+              path = sorted[i].path,
+              event = 'remove',
+              index = i,
+              value = sorted[i].value
+            }
+          end
+        else
+          if sorted[i].path == new_sorted[i].path then
+            if not initializing and event == 'change' then
+              changes[i] = {
+                path = new_sorted[i].path,
+                event = 'change',
+                index = i,
+                value = new_sorted[i].value
+              }
+            end
+          else
+            local moved
+            for j=from,mmin(to,#new_sorted) do
+              -- index changed
+              if sorted[i].path == new_sorted[j].path then
+                assert(i~=j)
+                if not initializing then
+                  changes[j] = {
+                    path = sorted[i].path,
+                    event = 'change',
+                    index = j,
+                    value = sorted[i].value
+                  }
+                end
+                -- mark old index as free
+                moved = true
+                sorted[i] = nil
+                break
+              end
+            end
+            if not moved then
+              if not initializing then
+                notify
+                {
+                  path = sorted[i].path,
+                  value = sorted[i].value,
+                  event = 'remove',
+                  index = i
+                }
+                sorted[i] = nil
+              end
+            end
+          end
+        end
+      end
+      if not initializing then
+        for _,change in pairs(changes) do
+          notify(change)
+        end
+        for i=from,to do
+          if not sorted[i] and new_sorted[i] and not changes[i] then
+            notify
+            {
+              path = new_sorted[i].path,
+              value = new_sorted[i].value,
+              event = 'add',
+              index = i
+            }
+          end
+        end
+      end
+      sorted = new_sorted
+    end
+    
+    local flush = function()
+      for i=from,to do
+        if not sorted[i] then
+          break
+        end
+        notify
+        {
+          path = sorted[i].path,
+          value = sorted[i].value,
+          event = 'add',
+          index = i
+        }
+      end
+    end
+    return sorter,flush
+  end
+  
+  local create_fetcher = function(options,notify)
+    if options.deps and #options.deps > 0 then
+      return create_fetcher_with_deps(options,notify)
+    else
+      return create_fetcher_without_deps(options,notify)
+    end
   end
   
   local checked = function(params,key,typename)
@@ -156,18 +582,13 @@ local create_daemon = function(options)
     end
   end
   
-  local post = function(client,message)
+  local change = function(client,message)
     local notification = message.params
     local path = checked(notification,'path','string')
-    local event = checked(notification,'event','string')
-    local data = checked(notification,'data','table')
     local leave = leaves[path]
     if leave then
-      if event == 'change' then
-        for k,v in pairs(data) do
-          leave.element[k] = v
-        end
-      end
+      leave.value = notification.value
+      notification.event = 'change'
       publish(notification)
     else
       local error = invalid_params{invalid_path=path}
@@ -185,46 +606,29 @@ local create_daemon = function(options)
   
   local fetch = function(client,message)
     local params = message.params
-    local id = checked(params,'id','string')
-    local match = checked(params,'match','table')
-    local unmatch = optional(params,'unmatch','table')
-    local matcher = matcher(match,unmatch)
-    local notifications = {}
-    if not client.fetchers[id] then
-      for path in pairs(nodes) do
-        if matcher(path) then
-          local notification = {
-            method = id,
-            params = {
-              path = path,
-              event = 'add',
-              data = {
-                type = 'node'
-              }
-            }
-          }
-          tinsert(notifications,notification)
-        end
-      end
-      local compare_path_length = function(not1,not2)
-        return #not1.params.path < #not2.params.path
-      end
-      tsort(notifications,compare_path_length)
-      for path,leave in pairs(leaves) do
-        if matcher(path) then
-          local notification = {
-            method = id,
-            params = {
-              path = path,
-              event = 'add',
-              data = leave.element
-            }
-          }
-          tinsert(notifications,notification)
-        end
+    local fetch_id = checked(params,'id','string')
+    local queue_notification = function(nparams)
+      assert(false,'fetcher misbehaves: must not be called yet')
+    end
+    local notify = function(nparams)
+      queue_notification(nparams)
+    end
+    local sorter_ok,sorter,flush = pcall(create_sorter,params,notify)
+    local initializing = true
+    if sorter_ok and sorter then
+      notify = function(nparams)
+        -- the sorter filters all matches and may
+        -- reorder them
+        sorter(nparams,initializing)
       end
     end
-    client.fetchers[id] = matcher
+    local params_ok,fetcher = pcall(create_fetcher,params,notify)
+    if not params_ok then
+      error(invalid_params{fetchParams = params, reason = fetcher})
+    end
+    
+    client.fetchers[fetch_id] = fetcher
+    
     if message.id then
       client:queue
       {
@@ -232,23 +636,45 @@ local create_daemon = function(options)
         result = {}
       }
     end
-    for _,notification in ipairs(notifications) do
-      client:queue(notification)
+    local cq = client.queue
+    queue_notification = function(nparams)
+      cq(client,{
+          method = fetch_id,
+          params = nparams
+      })
+    end
+    for path,leave in pairs(leaves) do
+      fetcher
+      {
+        path = path,
+        value = leave.value,
+        event = 'add'
+      }
+    end
+    initializing = false
+    if flush then
+      flush()
     end
   end
   
   local unfetch = function(client,message)
     local params = message.params
-    local id = checked(params,'id','string')
-    client.fetchers[id] = nil
+    local fetch_id = checked(params,'id','string')
+    client.fetchers[fetch_id] = nil
+    if message.id then
+      client:queue
+      {
+        id = message.id,
+        result = {}
+      }
+    end
   end
   
-  local set = function(client,message)
+  local route = function(client,message)
     local params = message.params
     local path = checked(params,'path','string')
-    local value = checked(params,'value')
     local leave = leaves[path]
-    if leave and leave.element.type == 'state' then
+    if leave then
       local id
       if message.id then
         id = message.id..tostring(client)
@@ -259,21 +685,20 @@ local create_daemon = function(options)
           id = message.id
         }
       end
-      leave.client:queue
-      {
+      local req = {
         id = id,-- maybe nil
-        method = path,
-        params = {
-          value = value
-        }
+        method = path
       }
-    else
-      local error
-      if leave then
-        error = invalid_params{path_is_not_state=path}
+      
+      local value = params.value
+      if value then
+        req.params = {value = value}
       else
-        error = invalid_params{invalid_path=path}
+        req.params = params.args
       end
+      leave.client:queue(req)
+    else
+      local error = invalid_params{notExists=path}
       if message.id then
         client:queue
         {
@@ -281,123 +706,27 @@ local create_daemon = function(options)
           error = error
         }
       end
-      log('set failed',jencode(error))
-    end
-  end
-  
-  local call = function(client,message)
-    local params = message.params
-    local path = checked(params,'path','string')
-    local args = optional(params,'args','table')
-    local leave = leaves[path]
-    if leave and leave.element.type == 'method' then
-      local id
-      if message.id then
-        id = message.id..tostring(client)
-        assert(not routes[id])
-        -- save route to forward reply
-        routes[id] = {
-          receiver = client,
-          id = message.id
-        }
-      end
-      leave.client:queue
-      {
-        id = id,-- maybe nil
-        method = path,
-        params = args
-      }
-    else
-      local error
-      if leave then
-        error = invalid_params{path_is_not_method=path}
-      else
-        error = invalid_params{invalid_path=path}
-      end
-      if message.id then
-        client:queue
-        {
-          id = message.id,
-          error = error
-        }
-      end
-      log('call failed',jencode(error))
-    end
-  end
-  
-  local increment_nodes = function(path)
-    local parts = {}
-    for part in path:gmatch('[^/]+') do
-      tinsert(parts,part)
-    end
-    for i=1,#parts-1 do
-      local path = tconcat(parts,'/',1,i)
-      local count = nodes[path]
-      if count then
-        nodes[path] = count+1
-      else
-        --         print('new node',path)
-        nodes[path] = 1
-        publish
-        {
-          event = 'add',
-          path = path,
-          data = {
-            type = 'node'
-          }
-        }
-      end
-      --      print('node',node,nodes[path])
-    end
-  end
-  
-  local decrement_nodes = function(path)
-    local parts = {}
-    for part in path:gmatch('[^/]+') do
-      tinsert(parts,part)
-    end
-    for i=#parts-1,1,-1 do
-      local path = tconcat(parts,'/',1,i)
-      local count = nodes[path]
-      if count > 1 then
-        nodes[path] = count-1
-        --         print('node',path,nodes[path])
-      else
-        nodes[path] = nil
-        --         print('delete node',path)
-        publish
-        {
-          event = 'remove',
-          path = path,
-          data = {
-            type = 'node'
-          }
-        }
-      end
+      log('route failed',jencode(error))
     end
   end
   
   local add = function(client,message)
     local params = message.params
     local path = checked(params,'path','string')
-    if nodes[path] or leaves[path] then
-      error(invalid_params{occupied_path = path})
+    if leaves[path] then
+      error(invalid_params{exists = path})
     end
-    increment_nodes(path)
-    local element = checked(params,'element','table')
-    if not element.type then
-      error(invalid_params{missing_param ='element.type',got=params})
-    end
+    local value = params.value-- might be nil for actions / methods
     local leave = {
       client = client,
-      element = element
+      value = value
     }
     leaves[path] = leave
     publish
     {
       path = path,
       event = 'add',
-      data = element
+      value = value
     }
   end
   
@@ -407,15 +736,14 @@ local create_daemon = function(options)
     if not leaves[path] then
       error(invalid_params{invalid_path = path})
     end
-    local element = assert(leaves[path].element)
+    local leave = assert(leaves[path])
     leaves[path] = nil
     publish
     {
       path = path,
       event = 'remove',
-      data = element
+      value = leave.value
     }
-    decrement_nodes(path)
   end
   
   local config = function(client,message)
@@ -423,7 +751,6 @@ local create_daemon = function(options)
     if params.peer then
       client = nil
       for client_ in pairs(clients) do
-        print(client_.name,params.peer)
         if client_.name == params.peer then
           client = client_
           break
@@ -503,12 +830,11 @@ local create_daemon = function(options)
   local services = {
     add = sync(add),
     remove = sync(remove),
-    config = sync(config),
-    call = async(call),
-    set = async(set),
+    call = async(route),
+    set = async(route),
     fetch = async(fetch),
-    unfetch = sync(unfetch),
-    post = sync(post),
+    unfetch = async(unfetch),
+    change = sync(change),
     echo = sync(function(client,message)
         return message.params
       end)
@@ -636,11 +962,8 @@ local create_daemon = function(options)
             {
               event = 'remove',
               path = path,
-              data = {
-                type = leave.element.type
-              }
+              value = leave.value
             }
-            decrement_nodes(path)
             leaves[path] = nil
           end
         end

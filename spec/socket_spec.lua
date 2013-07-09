@@ -152,7 +152,7 @@ describe(
                     done()
                 end))
               wrapped:read_io():start(loop)
-          end),sock:getfd(),ev.WRITE):start(loop) -- connect io
+          end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         sock:connect('127.0.0.1',port)
         finally(function()
             sock:shutdown()

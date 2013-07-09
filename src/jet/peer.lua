@@ -35,7 +35,7 @@ end
 
 new = function(config)
   config = config or {}
-  local ip = config.ip or 'localhost'
+  local ip = config.ip or '127.0.0.1' -- localhost'
   local port = config.port or 11122
   if config.sync then
     local sock = socket.connect(ip,port)
@@ -82,7 +82,6 @@ new = function(config)
   else
     local sock = socket.tcp()
     sock:settimeout(0)
-    sock:connect(ip,port)
     local loop = config.loop or ev.Loop.default
     local wsock = jsocket.wrap(sock,{loop = loop})
     local messages = {}
@@ -125,11 +124,10 @@ new = function(config)
     local on_no_dispatcher
     -- handles both method calls and fetchers (notifications)
     local dispatch_request = function(self,message)
-      --      log('dispatch_request',self,cjson.encode(message))
       local dispatcher = request_dispatchers[message.method]
       local error
       if dispatcher then
-        --      log('dispatch_call',method_name,method)
+        local error
         local ok,err = pcall(dispatcher,self,message)
         if ok then
           return
@@ -188,11 +186,6 @@ new = function(config)
     wsock:on_error(log)
     wsock:on_close(config.on_close or function() end)
     local j = {}
-    if not config.dont_start_io then
-      j.read_io = wsock:read_io()
-      j.read_io:start(loop)
-      j.read_io:callback()(loop,j.read_io)
-    end
     
     j.io = function(self)
       if not self.read_io then
@@ -285,12 +278,10 @@ new = function(config)
       flush('batch')
     end
     
-    j.add = function(self,path,el,dispatch,callbacks)
-      if request_dispatchers[path] then
-        error('path already occupied by this peer: '..path,2)
-      end
+    j.add = function(self,desc,dispatch,callbacks)
+      local path = desc.path
+      assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
-      assert(type(el) == 'table',el)
       assert(type(dispatch) == 'function',dispatch)
       local assign_dispatcher = function(success)
         if success then
@@ -299,7 +290,7 @@ new = function(config)
       end
       local params = {
         path = path,
-        element = el
+        value = desc.value
       }
       service('add',params,assign_dispatcher,callbacks)
       local ref = {
@@ -312,8 +303,10 @@ new = function(config)
         end,
         add = function(ref,value,callbacks)
           assert(not ref:is_added())
-          el.value = value or el.value
-          self:add(path,el,dispatch,callbacks)
+          self:add(desc,dispatch,callbacks)
+        end,
+        path = function()
+          return path
         end
       }
       return ref
@@ -350,34 +343,28 @@ new = function(config)
       service('set',params,nil,callbacks)
     end
     
-    j.notify = function(self,notification,callbacks)
-      assert(notification.path)
-      assert(notification.event)
-      assert(notification.data)
-      service('notify',notification,nil,callbacks)
-    end
-    
     local fetch_id = 0
     
-    j.fetch = function(self,expr,f,callbacks)
+    j.fetch = function(self,params,f,callbacks)
       local id = '__f__'..fetch_id
       fetch_id = fetch_id + 1
       local ref
       local add_fetcher = function()
         request_dispatchers[id] = function(peer,message)
           local params = message.params
-          f(params.path,params.event,params.data or {},ref)
+          if not params.index then
+            f(params.path,params.event,params.value,ref)
+          else
+            f(params.path,params.event,params.value,params.index,ref)
+          end
         end
       end
-      local params = {
-        id = id,
-      }
-      if type(expr) == 'string' then
-        params.match = {expr}
-      else
-        params.match = expr.match
-        params.unmatch = expr.unmatch
+      if type(params) == 'string' then
+        params = {
+          match = {params}
+        }
       end
+      params.id = id
       service('fetch',params,add_fetcher,callbacks)
       ref = {
         unfetch = function(_,callbacks)
@@ -391,9 +378,6 @@ new = function(config)
     end
     
     j.method = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'method'
-      el.schema = desc.schema
       local dispatch
       if desc.call then
         dispatch = function(self,message)
@@ -468,15 +452,11 @@ new = function(config)
       else
         assert(false,'invalid method desc'..(desc.path or '?'))
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc,dispatch,add_callbacks)
       return ref
     end
     
     j.state = function(self,desc,add_callbacks)
-      local el = {}
-      el.type = 'state'
-      el.schema = desc.schema
-      el.value = desc.value
       local dispatch
       if desc.set then
         dispatch = function(self,message)
@@ -496,17 +476,14 @@ new = function(config)
             if not dont_notify then
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = newvalue
-                  }
+                  value = newvalue
                 }
               }
             end
-          else
+          elseif message.id then
             queue
             {
               id = message.id,
@@ -524,7 +501,7 @@ new = function(config)
               local response = {
                 id = mid
               }
-              if type(resp.result) ~= 'nil' and not resp.error then
+              if resp.result ~= nil and not resp.error then
                 response.result = resp.result
               elseif error then
                 response.error = resp.error
@@ -534,19 +511,16 @@ new = function(config)
               queue(response)
             end
             if resp.result and not resp.dont_notify then
+              desc.value = resp.value or value
               queue
               {
-                method = 'post',
+                method = 'change',
                 params = {
-                  event = 'change',
                   path = desc.path,
-                  data = {
-                    value = resp.value or value
-                  }
+                  value = resp.value or value
                 }
               }
             end
-            --                  print('dont flush',dont_flush)
             if not will_flush and not dont_flush then
               flush('set_aync')
             end
@@ -572,27 +546,21 @@ new = function(config)
               {
                 code = -32602,
                 message = 'Invalid params',
-                data = {
-                  read_only = true
-                }
               }
             }
           end
         end
       end
-      local ref = self:add(desc.path,el,dispatch,add_callbacks)
+      local ref = self:add(desc,dispatch,add_callbacks)
       ref.value = function(self,value)
         if value ~= nil then
           desc.value = value
           queue
           {
-            method = 'post',
+            method = 'change',
             params = {
-              event = 'change',
               path = desc.path,
-              data = {
-                value = value
-              }
+              value = value
             }
           }
           if not will_flush then
@@ -604,22 +572,36 @@ new = function(config)
       end
       return ref
     end
-    j.connect_io = ev.IO.new(
-      function(loop,io)
-        io:stop(loop)
-        j.connect_io = nil
-        local connected,err = sock:connect(ip,port)
-        if connected or err == 'already connected' then
-          if config.name then
-            j:config({name = config.name})
-          end
-          if config.on_connect then
-            config.on_connect(j)
-          end
-          flush('on_connect')
+    
+    local on_connect = function()
+      local connected,err = sock:connect(ip,port)
+      if connected or err == 'already connected' then
+        j.read_io = wsock:read_io()
+        j.read_io:start(loop)
+        if config.name then
+          j:config({name = config.name})
         end
-      end,sock:getfd(),ev.WRITE)
-    j.connect_io:start(loop)
+        if config.on_connect then
+          config.on_connect(j)
+        end
+        flush('on_connect')
+      end
+    end
+    
+    local connected,err = sock:connect(ip,port)
+    if connected then
+      on_connect()
+    elseif err == 'timeout' then
+      j.connect_io = ev.IO.new(
+        function(loop,io)
+          io:stop(loop)
+          j.connect_io = nil
+          on_connect()
+        end,sock:getfd(),ev.WRITE)
+      j.connect_io:start(loop)
+    else
+      error('jet.peer.new failed: '..err)
+    end
     return j
   end
 end
