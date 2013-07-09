@@ -11,20 +11,20 @@ local dt = 0.05
 setloop('ev')
 
 describe(
-  'A peer',
+  'A peer basic tests',
   function()
-    local d
+    local daemon
     local peer
     setup(function()
-        d = jetdaemon.new{
+        daemon = jetdaemon.new{
           port = port,
           print = function() end
         }
-        d:start()
+        daemon:start()
       end)
     
     teardown(function()
-        d:stop()
+        daemon:stop()
       end)
     
     it('provides the correct interface',function()
@@ -41,7 +41,6 @@ describe(
       end)
     
     it('on_connect gets called',function(done)
-        local peer
         peer = jetpeer.new
         {
           port = port,
@@ -50,76 +49,108 @@ describe(
               done()
             end)
         }
-        finally(function() peer:close() end)
+        --        finally(function() peer:close() end)
       end)
     
-    describe('when connected working with test_a and test_b',function()
+    it('can add a state',function(done)
+        peer:state(
+          {
+            path = 'bla',
+            value = 213
+          },
+          {
+            success = async(function()
+                assert.is_true(true)
+                done()
+              end)
+        })
+      end)
+    
+    it('can not add same state again',function()
+        assert.has_error(function()
+            peer:state
+            {
+              path = 'bla',
+              value = 623
+            }
+          end)
+      end)
+    
+    it('can add some other state',function(done)
+        peer:state(
+          {
+            path = 'blub',
+            value = 33333
+          },
+          {
+            success = async(function()
+                assert.is_true(true)
+                done()
+              end),
+            error = async(function()
+                assert.is_nil('should not happen')
+              end)
+        })
+        finally(function()
+            peer:close()
+          end)
+      end)
+    
+    describe('with some states in place',function()
         local peer
+        local states = {}
         
-        setup(function(done)
+        before_each(function(done)
             peer = jetpeer.new
             {
               port = port,
-              on_connect = async(function() done() end)
+              on_connect = async(function()
+                  states.test = peer:state
+                  {
+                    path = 'test',
+                    value = 1234,
+                    set = function() end -- make state writeable
+                  }
+                  states.foo = peer:state
+                  {
+                    path = 'foo',
+                    value = 'bar'
+                  }
+                  states.peter = peer:state
+                  {
+                    path = 'persons/1',
+                    value = {
+                      name = 'peter',
+                      age = 35
+                    }
+                  }
+                  states.peters_hobby = peer:state
+                  {
+                    path = 'persons/1/hobby',
+                    value = 'tennis'
+                  }
+                  states.ben = peer:state
+                  {
+                    path = 'persons/2',
+                    value = {
+                      name = 'ben',
+                      age = 46
+                    }
+                  }
+                  states.bens_hobby = peer:state({
+                      path = 'persons/2/hobby',
+                      value = 'soccer'
+                      },{
+                      success = function()
+                        done()
+                      end
+                  })
+                end)
             }
           end)
         
-        teardown(function()
+        after_each(function(done)
             peer:close()
-          end)
-        
-        local test_a = {
-          path = 'test',
-          value = 1234
-        }
-        
-        local test_b = {
-          path = 'foo',
-          value = 'bar'
-        }
-        
-        it('can add a state',function(done)
-            test_a.state = peer:state(
-              {
-                path = test_a.path,
-                value = test_a.value,
-                set = function(newval)
-                  test_a.value = newval
-                end
-              },
-              {
-                success = async(function()
-                    assert.is_true(true)
-                    done()
-                  end)
-            })
-          end)
-        
-        it('can not add same state again',function()
-            assert.has_error(function()
-                peer:state
-                {
-                  path = test_a.path,
-                  value = test_a.value
-                }
-              end)
-          end)
-        
-        it('can add some other state',function(done)
-            test_b.state = peer:state(
-              {
-                path = test_b.path,
-                value = test_b.value
-              },
-              {
-                success = async(function()
-                    assert.is_true(true)
-                    done()
-                  end),
-                error = async(function()
-                    assert.is_nil('should not happen')
-                  end)
-            })
           end)
         
         it(
@@ -129,12 +160,12 @@ describe(
                   assert.is_nil('should not happen, unfetch broken')
               end))
             peer:fetch(
-              test_a.path,
+              '^test$',
               async(
                 function(fpath,fevent,fvalue,fetcher)
                   if fevent == 'add' then
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
+                    assert.is_equal(fpath,states.test:path())
+                    assert.is_equal(fvalue,states.test:value())
                     fetcher:unfetch({
                         error = async(function()
                             assert.is_nil('should not happen')
@@ -145,7 +176,7 @@ describe(
                                   peer:on_no_dispatcher(function() end)
                                   done()
                               end),0.1):start(loop)
-                            test_a.state:value(123)
+                            states.test:value(123)
                           end)
                     })
                   else
@@ -160,7 +191,7 @@ describe(
             {
               port = port,
               on_connect = async(function(other)
-                  other:fetch(test_a.path,async(function(path,event,value,fetcher)
+                  other:fetch(states.test:path(),async(function(path,event,value,fetcher)
                         if event == 'change' then
                           assert.is_equal(value,new_val)
                           fetcher:unfetch()
@@ -168,7 +199,7 @@ describe(
                         end
                     end))
                   
-                  other:set(test_a.path,new_val,{
+                  other:set(states.test:path(),new_val,{
                       success = async(function()
                           assert.is_true(true)
                         end),
@@ -183,10 +214,10 @@ describe(
         
         it('can fetch states with simple match string',function(done)
             local fetcher = peer:fetch(
-              test_a.path,
+              states.test:path(),
               async(function(fpath,fevent,fvalue)
-                  assert.is_equal(fpath,test_a.path)
-                  assert.is_equal(fvalue,test_a.state:value())
+                  assert.is_equal(fpath,states.test:path())
+                  assert.is_equal(fvalue,states.test:value())
                   done()
               end))
             finally(function() fetcher:unfetch() end)
@@ -194,36 +225,57 @@ describe(
         
         it('can remove a state',function(done)
             local fetcher = peer:fetch(
-              test_a.path,
+              states.test:path(),
               async(function(fpath,fevent,fvalue)
                   if fevent == 'remove' then
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
+                    assert.is_equal(fpath,states.test:path())
+                    assert.is_equal(fvalue,states.test:value())
                     done()
                   end
               end))
             finally(function() fetcher:unfetch() end)
-            test_a.state:remove()
+            states.test:remove()
           end)
         
         it('can (re)add a state',function(done)
-            local fetcher = peer:fetch(
-              test_a.path,
-              async(function(fpath,fevent,fvalue,fetcher)
-                  assert.is_equal(fpath,test_a.path)
-                  assert.is_equal(fvalue,test_a.state:value())
+            local expected = {
+              {
+                event = 'add',
+                action = function()
+                  states.test:remove()
+                end,
+              },
+              {
+                event = 'remove',
+                action = function()
+                  states.test:add()
+                end
+              },
+              {
+                event = 'add',
+                action = function()
                   done()
+                end
+              }
+            }
+            local count = 0
+            local fetcher = peer:fetch(
+              states.test:path(),
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_equal(fpath,states.test:path())
+                  expected[count].action()
               end))
             finally(function() fetcher:unfetch() end)
-            test_a.state:add()
           end)
         
         it('can fetch states with match array',function(done)
             local fetcher = peer:fetch(
-              {match={test_a.path}},
-              async(function(fpath,fevent,fvalue,fetcher)
-                  assert.is_equal(fpath,test_a.path)
-                  assert.is_equal(fvalue,test_a.state:value())
+              {match={states.test:path()}},
+              async(function(fpath,fevent,fvalue)
+                  assert.is_equal(fpath,states.test:path())
+                  assert.is_equal(fvalue,states.test:value())
                   done()
               end))
             finally(function() fetcher:unfetch() end)
@@ -236,7 +288,7 @@ describe(
               async(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
-                  assert.is_falsy('should not happen')
+                  assert.is_falsy('should not happen'..fpath)
                   done()
               end))
             timer = ev.Timer.new(async(function()
@@ -263,34 +315,151 @@ describe(
             timer:start(loop)
           end)
         
-        it('can fetch states with match array and a certain value',function(done)
-            local added
-            local changed
-            local readded
-            local other_value = 333
+        it('can fetch states with "equals" and no "prop" value',function(done)
+            local oldval = states.test:value()
+            local newval = 333
+            local expected = {
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  states.test:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  states.test:value(oldval)
+                end
+              },
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
             local fetcher = peer:fetch(
-              {equals=test_a.value},
+              {where={op='equals',value=states.test:value()}},
               async(function(fpath,fevent,fvalue)
-                  if not added then
-                    added = true
-                    assert.is_equal(fevent,'add')
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
-                    test_a.state:value(other_value)
-                  elseif not changed then
-                    changed = true
-                    assert.is_equal(fevent,'remove')
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,other_value)
-                    test_a.state:value(test_a.value)
-                  else
-                    assert.is_equal(fevent,'add')
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
-                    done()
-                  end
+                  count = count + 1
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_equal(expected[count].value,fvalue)
+                  expected[count].action()
               end))
             finally(function() fetcher:unfetch() end)
+          end)
+        
+        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+            local oldval = states.bens_hobby:value()
+            local newval = states.peters_hobby:value()
+            local expected = {
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  states.bens_hobby:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  states.bens_hobby:value(oldval)
+                end
+              },
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
+            local fetcher = peer:fetch(
+              {
+                match = {'hobby'},
+                where = {
+                  op = 'equalsNot',
+                  value = states.peters_hobby:value()
+                }
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal('persons/2/hobby',fpath)
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_equal(expected[count].value,fvalue)
+                  expected[count].action()
+              end))
+            finally(function() fetcher:unfetch() end)
+          end)
+        
+        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+            local oldval = states.peter:value()
+            local newval = {
+              age = 40,
+              name = 'peter'
+            }
+            local expected = {
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  states.peter:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  states.peter:value(oldval)
+                end
+              },
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
+            local fetcher = peer:fetch(
+              {
+                match = {'persons/.*'},
+                where = {
+                  prop = 'age',
+                  op = 'lessThan',
+                  value = 40,
+                }
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal('persons/1',fpath)
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_same(expected[count].value,fvalue)
+                  expected[count].action()
+              end))
+            finally(function() fetcher:unfetch() end)
+          end)
+        
+        it('can fetch states with "equals" and "prop" path',function(done)
+            local fetcher = peer:fetch(
+              {where={op='equals',value='peter',prop='name'}},
+              async(function(fpath,fevent,fvalue,fetcher)
+                  assert.is_equal(fevent,'add')
+                  assert.is_equal(fpath,states.peter:path())
+                  assert.is_same(fvalue,states.peter:value())
+                  done()
+              end))
+            
+            finally(function()
+                fetcher:unfetch()
+              end)
           end)
         
         it('can fetch states with limited number',function(done)
@@ -314,182 +483,168 @@ describe(
         it('can fetch states with limited number updating content',function(done)
             local count = 0
             local newval = 99990
-            local a_val = test_a.state:value()
-            local b_val = test_b.state:value()
+            local test_val = states.test:value()
+            local foo_val = states.foo:value()
             local expected = {
               {
                 event = 'add',
-                value = a_val,
-                path = test_a.path,
+                value = test_val,
+                path = states.test:path(),
                 action = function()
-                  test_a.state:value(newval)
+                  states.test:value(newval)
                 end
               },
               {
                 event = 'remove',
                 value = newval,
-                path = test_a.path,
+                path = states.test:path(),
                 action = function()
-                  test_b.state:value(a_val)
+                  states.foo:value(test_val)
                 end
               },
               {
                 event = 'add',
-                value = a_val,
-                path = test_b.path,
+                value = test_val,
+                path = states.foo:path(),
+                action = function()
+                  ev.Timer.new(function()
+                      done()
+                    end,0.001):start(loop)
+                end
               }
             }
             local fetcher = peer:fetch(
               {
                 max = 1,
-                equals = a_val
+                where={op='equals',value=test_val},
               },
-              async(function(fpath,fevent,fvalue)
+              async(function(fpath,fevent,fvalue,fetcher)
                   count = count + 1
                   assert.is_equal(fevent,expected[count].event)
                   assert.is_equal(fvalue,expected[count].value)
-                  if expected[count].action then
-                    expected[count].action()
-                  end
-                  if count == #expected then
-                    done()
-                  end
+                  expected[count].action()
               end))
             finally(function()
                 fetcher:unfetch()
-                test_a.state:value(a_val)
-                test_b.state:value(b_val)
-              end)
-          end)
-        
-        it('can fetch states with limited number updating content',function(done)
-            local count = 0
-            local newval = 99990
-            local a_val = test_a.state:value()
-            local b_val = test_b.state:value()
-            test_b.state:value(a_val)
-            local expected = {
-              {
-                event = 'add',
-                value = a_val,
-                action = function()
-                  test_a.state:value(191)
-                end
-              },
-              {
-                event = 'remove',
-                value = 191,
-                action = function()
-                  test_b.state:value(a_val)
-                end
-              },
-              {
-                event = 'add',
-                value = a_val,
-              }
-            }
-            local fetcher = peer:fetch(
-              {
-                max = 1,
-                equals = a_val
-              },
-              async(function(fpath,fevent,fvalue)
-                  count = count + 1
-                  assert.is_equal(fevent,expected[count].event)
-                  assert.is_equal(fvalue,expected[count].value)
-                  if expected[count].action then
-                    expected[count].action()
-                  end
-                  if count == #expected then
-                    done()
-                  end
-              end))
-            finally(function()
-                fetcher:unfetch()
-                test_a.state:value(a_val)
-                test_b.state:value(b_val)
               end)
           end)
         
         it('can fetch with deps',function(done)
+            local newval = 7678
+            local expected = {
+              {
+                event = 'add',
+                path = states.test:path(),
+                value = states.test:value(),
+                action = function()
+                  states.test:value(newval)
+                end
+              },
+              {
+                event = 'change',
+                path = states.test:path(),
+                value = newval,
+                action = function()
+                  states.foo:value(999)
+                end
+              },
+              {
+                event = 'remove',
+                path = states.test:path(),
+                value = newval,
+                action = function()
+                  done()
+                end
+              }
+            }
+            local count = 0
+            local fp = {
+              match = {states.test:path()},
+              deps = {
+                {
+                  path = states.foo:path(),
+                  where={op='equals',value=states.foo:value()},
+                }
+              }
+            }
             local fetcher = peer:fetch({
-                match = {'test'},
+                match = {states.test:path()},
                 deps = {
                   {
-                    path = 'foo',
-                    equals = 'bar'
+                    path = states.foo:path(),
+                    where={op='equals',value=states.foo:value()},
                   }
                 }
               },async(function(fpath,fevent,fvalue)
-                  if fevent == 'add' then
-                    test_a.state:value(879)
-                  elseif fevent == 'change' then
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
-                    assert.is_equal(fvalue,879)
-                    test_b.state:value('hello')
-                  elseif fevent == 'remove' then
-                    assert.is_equal(fpath,test_a.path)
-                    assert.is_equal(fvalue,test_a.state:value())
-                    done()
-                  end
+                  count = count + 1
+                  assert.is_equal(fpath,expected[count].path)
+                  assert.is_equal(fevent,expected[count].event)
+                  assert.is_equal(fvalue,expected[count].value)
+                  expected[count].action()
               end))
             finally(function() fetcher:unfetch() end)
           end)
         
         it('can fetch with deps with backrefs',function(done)
-            local state_a
-            local state_a_sub
+            local newval = 66
+            local expected = {
+              {
+                event = 'add',
+                value = states.peter:value(),
+                action = function()
+                  states.peter:value(newval)
+                end
+              },
+              {
+                event = 'change',
+                value = newval,
+                action = function()
+                  states.peters_hobby:value('fishing')
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
             local fetcher = peer:fetch({
-                match = {'a/([^/]*)$'},
+                match = {'persons/([^/]*)$'},
                 deps = {
                   {
-                    path = 'a/\\1/sub',
-                    equals = 123
+                    path = 'persons/\\1/hobby',
+                    where = {
+                      op = 'equals',
+                      value = 'tennis'
+                    }
                   }
                 }
               },async(function(fpath,fevent,fvalue,fetcher)
-                  if fevent == 'add' then
-                    assert.is_equal(fpath,'a/TEST')
-                    assert.is_equal(fvalue,3)
-                    state_a:value(879)
-                  elseif fevent == 'change' then
-                    assert.is_equal(fpath,'a/TEST')
-                    assert.is_equal(fvalue,879)
-                    state_a_sub:value(333)
-                  elseif fevent == 'remove' then
-                    assert.is_equal(fpath,'a/TEST')
-                    assert.is_equal(fvalue,879)
-                    done()
-                  end
+                  count = count + 1
+                  assert.is_equal(fpath,states.peter:path())
+                  assert.is_same(fvalue,expected[count].value)
+                  assert.is_equal(fevent,expected[count].event)
+                  expected[count].action()
               end))
             finally(function() fetcher:unfetch() end)
-            state_a = peer:state
-            {
-              path = 'a/TEST',
-              value = 3
-            }
-            state_a_sub = peer:state
-            {
-              path = 'a/TEST/sub',
-              value = 123
-            }
             
           end)
         
         it('can fetch case insensitive',function(done)
             local expected = {
-              ['a/TEST'] = 879,
-              ['a/TEST/sub'] = 333,
-              ['test'] = 879,
+              ['persons/1/hobby'] = 'tennis',
+              ['persons/2/hobby'] = 'soccer',
             }
             for path in pairs(expected) do
               done:wait_unordered(path)
             end
             local fetcher = peer:fetch({
-                match = {'test'},
-                caseInsensitive = true
-              },async(function(fpath,fevent,fvalue,fetcher)
+                match = {'persons/.*/HOBBY'},
+                caseInsensitive = true,
+              },async(function(fpath,fevent,fvalue)
                   assert.is_equal(fevent,'add')
                   assert.is_equal(expected[fpath],fvalue)
                   done(fpath)
