@@ -33,26 +33,19 @@ The jet daemon provides several services which may be used through:
 - sending a __Request Object__; the daemon will process the message and reply with a corresponding __Response Object__
 - sending a __Notification Object__; the daemon will process the message but will __NOT__ reply
 
-To execute a jet service set the Request's/Notification's field __method__ to the service name and set the field __params__ as required by the service.
+To execute a jet service, set the Request's/Notification Message's field __method__ to the service name and set the field __params__ as required by the service.
 
 ## add
 
-Adds an element to the internal jet tree. The element may either describe a method or a state. After adding, the peer gets forwarded __set__ (state) and __call__ (method) Requests / Notifications. The peer is responsible for processing the message and reply with a Response Object if the message is a Request.
+Adds an element to the jet bus. The element may have a __value__ field. After adding, the peer gets forwarded all __set__ (state) and __call__ (method) Requests / Notifications with a matching __path__ field. The peer is responsible for processing the message and - if the service message is a Request - reply with a Response Object. If there is already a state/method added with equal __path__, the peer will not get __set__ and __call__ Requests routed and - if the service message is a Request - an appropriate error Resonse is returned.
 
 ### path (String)
 
 The element's path, '/' (forward-slash) for delimiting nodes.
 
-### element (Object)
+### value (optional, any type)
 
-MUST contain the fields:
-
-- __type__: either 'state' or 'method'
-
-MAY contain the fields:
-
-- __schema__: a string which describes the element
-- __value__: the current value, only applies for states
+Describes the state's current value. This will be cached by the daemon.
 
 ### Example 
 ```Javascript
@@ -61,11 +54,7 @@ MAY contain the fields:
         "method":"add",
         "params":{
                 "path":"foo/bar/state",
-                "element": {
-                "type": "state",
                 "value": 123,
-                "schema": {"class":"number"} // optional
-                }
         }  
         
 }
@@ -73,28 +62,14 @@ MAY contain the fields:
 
 ### Sideeffects
 
-MUST post Notifications for implicitly added nodes, like:
+The daemon MUST post a Notification for the newly added element, like:
 ```Javascript
 {
         "method":...
         "params":{
                 "event":"add",
-                "path": subpath,
-                "data": {
-                        "type":"node"
-                }               
-        }
-}
-```
-
-MUST post a Notification for the newly added element, like:
-```Javascript
-{
-        "method":...
-        "params":{
-                "event":"add",
-                "path": path,
-                "data": element
+                "path": "foo/bar/state",,
+                "value": 123
         }
 }
 ```
@@ -147,7 +122,7 @@ var call_forward =
 
 ## remove
 
-Removes the (leave) element with the specified path. __call__ and __set__ messages will no longer be forwarded.
+Removes the element with the specified path. __call__ and __set__ messages will no longer be forwarded.
 
 ### path (String)
 
@@ -166,30 +141,14 @@ The element's path, '/' (forward-slash) for delimiting nodes.
 
 ### Sideeffects
 
-MUST post a Notification for the newly removed element, like:
+The daenon MUST post a Notification for the newly removed element, like:
 ```Javascript
 {
         "method":...
         "params":{
                 "event":"remove",
-                "path": path,
-                "data": {
-                        "type": "method" // "method" or "state"
-                }
-        }
-}
-```
-
-MUST post Notifications for implicitly removed (otherwise empty) nodes, like:
-```Javascript
-{
-        "method":...
-        "params":{
-                "event":"remove",
-                "path": subpath,
-                "data": {
-                        "type":"node"
-                }               
+                "path": "foo/bar/state",
+                "value": 123
         }
 }
 ```
@@ -202,7 +161,7 @@ The jet daemon will try to forward the request to a peer.
 
 ### path (String)
 
-The element's path, '/' (forward-slash) for delimiting nodes.
+The element's path.
 
 ### args 
 
@@ -210,13 +169,19 @@ The arguments which will be forwarded to the peer as Array.
 
 ### Example 
 ```Javascript
-{
+var call_msg = {
         "id": 7384, // optional
         "method":"call",
         "params":{
                 "path":"foo/bar/sum",
                 "args":[1,2,3]
        }
+}
+
+var call_forward_msg = {
+        "id": 7384, // optional
+        "method":"foo/bar/sum",
+        "params":[1,2,3]
 }
 ```
 
