@@ -539,189 +539,187 @@ describe(
             
           end)
         
-        -- it('can fetch case insensitive',function(done)
-        --     local expected = {
-        --       ['a/TEST'] = 879,
-        --       ['a/TEST/sub'] = 333,
-        --       ['test'] = 879,
-        --     }
-        --     for path in pairs(expected) do
-        --       done:wait_unordered(path)
-        --     end
-        --     local fetcher = peer:fetch({
-        --                                   match = {'test'},
-        --         caseInsensitive = true,
-        --       },async(function(fpath,fevent,fvalue)
-        --                  print(fpath,fevent,fvalue)
-        --           assert.is_equal(fevent,'add')
-        --           assert.is_equal(expected[fpath],fvalue)
-        --           done(fpath)
-        --       end))
-        --   end)
+        it('can fetch case insensitive',function(done)
+            local expected = {
+              ['persons/1/hobby'] = 'tennis',
+              ['persons/2/hobby'] = 'soccer',
+            }
+            for path in pairs(expected) do
+              done:wait_unordered(path)
+            end
+            local fetcher = peer:fetch({
+                match = {'persons/.*/HOBBY'},
+                caseInsensitive = true,
+              },async(function(fpath,fevent,fvalue)
+                  assert.is_equal(fevent,'add')
+                  assert.is_equal(expected[fpath],fvalue)
+                  done(fpath)
+              end))
+          end)
         
         
-        --   end)
+      end)
+    
+    describe('when working with clean jet',function()
+        local peer
         
-        -- describe('when working with clean jet',function()
-        --     local peer
+        before_each(function(done)
+            peer = jetpeer.new
+            {
+              port = port,
+              on_connect = async(function() done() end)
+            }
+          end)
         
-        --     before_each(function(done)
-        --         peer = jetpeer.new
-        --         {
-        --           port = port,
-        --           on_connect = async(function() done() end)
-        --         }
-        --       end)
+        after_each(function()
+            peer:close()
+          end)
         
-        --     after_each(function()
-        --         peer:close()
-        --       end)
+        it('fetch with sort works when states are already added',function(done)
+            local expected_adds = {
+              [1] = {
+                path = 'abc',
+                value = 'bla',
+                index = 1
+              },
+              [2] = {
+                path = 'cde',
+                value = 123,
+                index = 2
+              }
+            }
+            
+            -- add some other states which are not expected
+            peer:state{
+              path = 'xcd',
+              value = true
+            }
+            
+            peer:state{
+              path = 'ii98',
+              value = {}
+            }
+            
+            -- add expected states in reverse order to be more evil
+            for i=#expected_adds,1,-1 do
+              peer:state{
+                path = expected_adds[i].path,
+                value = expected_adds[i].value
+              }
+            end
+            
+            
+            local count = 0
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 1,
+                  to = 2
+                }
+              },async(function(path,event,data,index)
+                  count = count + 1
+                  if event == 'add' then
+                    local expected = expected_adds[count]
+                    assert.is_same(path,expected.path)
+                    assert.is_same(data,expected.value)
+                    assert.is_same(index,expected.index)
+                  else
+                    assert.is_nil('should not happen')
+                  end
+                  if count == #expected_adds then
+                    done()
+                  end
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            
+          end)
         
-        --     it('fetch with sort works when states are already added',function(done)
-        --         local expected_adds = {
-        --           [1] = {
-        --             path = 'abc',
-        --             value = 'bla',
-        --             index = 1
-        --           },
-        --           [2] = {
-        --             path = 'cde',
-        --             value = 123,
-        --             index = 2
-        --           }
-        --         }
-        
-        --         -- add some other states which are not expected
-        --         peer:state{
-        --           path = 'xcd',
-        --           value = true
-        --         }
-        
-        --         peer:state{
-        --           path = 'ii98',
-        --           value = {}
-        --         }
-        
-        --         -- add expected states in reverse order to be more evil
-        --         for i=#expected_adds,1,-1 do
-        --           peer:state{
-        --             path = expected_adds[i].path,
-        --             value = expected_adds[i].value
-        --           }
-        --         end
-        
-        
-        --         local count = 0
-        --         local fetcher = peer:fetch({
-        --             sort = {
-        --               from = 1,
-        --               to = 2
-        --             }
-        --           },async(function(path,event,data,index)
-        --               count = count + 1
-        --               if event == 'add' then
-        --                 local expected = expected_adds[count]
-        --                 assert.is_same(path,expected.path)
-        --                 assert.is_same(data,expected.value)
-        --                 assert.is_same(index,expected.index)
-        --               else
-        --                 assert.is_nil('should not happen')
-        --               end
-        --               if count == #expected_adds then
-        --                 done()
-        --               end
-        --           end))
-        
-        --         finally(function() fetcher:unfetch() end)
-        
-        
-        --       end)
-        
-        --     it('fetch with sort works when states are added afterwards',function(done)
-        --         local expected = {
-        --           -- when xcd is added
-        --           {
-        --             path = 'xcd',
-        --             value = true,
-        --             index = 1,
-        --             event = 'add'
-        --           },
-        --           -- when ii98 is added, xcd is reordered
-        --           {
-        --             path = 'xcd',
-        --             value = true,
-        --             index = 2,
-        --             event = 'change'
-        --           },
-        --           {
-        --             path = 'ii98',
-        --             value = {},
-        --             index = 1,
-        --             event = 'add'
-        --           },
-        --           -- when abc is added, ii98 is reordered and xcd  is
-        --           -- removed
-        --           {
-        --             path = 'xcd',
-        --             value = true,
-        --             index = 2,
-        --             event = 'remove'
-        --           },
-        --           {
-        --             path = 'ii98',
-        --             value = {},
-        --             index = 2,
-        --             event = 'change'
-        --           },
-        --           {
-        --             path = 'abc',
-        --             value = 123,
-        --             index = 1,
-        --             event = 'add'
-        --           },
-        --         }
-        
-        
-        --         local count = 0
-        --         local fetcher = peer:fetch({
-        --             sort = {
-        --               from = 1,
-        --               to = 2
-        --             }
-        --           },async(function(path,event,data,index)
-        --               count = count + 1
-        --               local fetched = {
-        --                 path = path,
-        --                 event = event,
-        --                 value = data,
-        --                 index = index
-        --               }
-        --               assert.is_same(fetched,expected[count])
-        --               if count == #expected then
-        --                 done()
-        --               end
-        --           end))
-        
-        --         finally(function() fetcher:unfetch() end)
-        
-        --         -- add some other states which are not expected
-        --         peer:state{
-        --           path = 'xcd',
-        --           value = true
-        --         }
-        
-        --         peer:state{
-        --           path = 'ii98',
-        --           value = {}
-        --         }
-        
-        --         peer:state{
-        --           path = 'abc',
-        --           value = 123
-        --         }
-        
-        
-        --       end)
+        it('fetch with sort works when states are added afterwards',function(done)
+            local expected = {
+              -- when xcd is added
+              {
+                path = 'xcd',
+                value = true,
+                index = 1,
+                event = 'add'
+              },
+              -- when ii98 is added, xcd is reordered
+              {
+                path = 'xcd',
+                value = true,
+                index = 2,
+                event = 'change'
+              },
+              {
+                path = 'ii98',
+                value = {},
+                index = 1,
+                event = 'add'
+              },
+              -- when abc is added, ii98 is reordered and xcd  is
+              -- removed
+              {
+                path = 'xcd',
+                value = true,
+                index = 2,
+                event = 'remove'
+              },
+              {
+                path = 'ii98',
+                value = {},
+                index = 2,
+                event = 'change'
+              },
+              {
+                path = 'abc',
+                value = 123,
+                index = 1,
+                event = 'add'
+              },
+            }
+            
+            
+            local count = 0
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 1,
+                  to = 2
+                }
+              },async(function(path,event,data,index)
+                  count = count + 1
+                  local fetched = {
+                    path = path,
+                    event = event,
+                    value = data,
+                    index = index
+                  }
+                  assert.is_same(fetched,expected[count])
+                  if count == #expected then
+                    done()
+                  end
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            -- add some other states which are not expected
+            peer:state{
+              path = 'xcd',
+              value = true
+            }
+            
+            peer:state{
+              path = 'ii98',
+              value = {}
+            }
+            
+            peer:state{
+              path = 'abc',
+              value = 123
+            }
+            
+            
+          end)
         
       end)
     
