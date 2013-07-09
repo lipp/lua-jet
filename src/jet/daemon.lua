@@ -156,15 +156,22 @@ local create_daemon = function(options)
       end
     }
     if options.where ~= nil then
-      if #options.where > 0 then
+      if #options.where > 1 then
         return function(value)
           local is_table = type(value) == 'table'
-          if not is_table then
-            return false
-          end
           for _,where in ipairs(options.where) do
+            local need_table = where.prop and where.prop ~= ''
+            if need_table and not is_table then
+              return false
+            end
             local op = ops[where.op]
-            local ok,comp_ok = pcall(op,value[where.prop],where.value)
+            local comp
+            if need_table then
+              comp = value[where.prop]
+            else
+              comp = value
+            end
+            local ok,comp_ok = pcall(op,comp,where.value)
             if not ok or not comp_ok then
               return false
             end
@@ -172,6 +179,9 @@ local create_daemon = function(options)
           return true
         end
       elseif options.where then
+        if #options.where == 1 then
+          options.where = options.where[1]
+        end
         local where = options.where
         local op = ops[where.op]
         local ref = where.value
@@ -364,12 +374,62 @@ local create_daemon = function(options)
     if not options.sort then
       return nil
     end
-    local from = options.sort.from
-    local to = options.sort.to
+    local from = options.sort.from or 1
+    local to = options.sort.to or 10
     local matching = {}
     local sorted = {}
-    local sort = function(a,b)
-      return a.path < b.path
+    
+    local sort
+    if not options.sort.byValue or options.sort.byPath then
+      if options.sort.descending then
+        print('sort descending')
+        sort = function(a,b)
+          return a.path > b.path
+        end
+      else
+        sort = function(a,b)
+          return a.path < b.path
+        end
+      end
+    elseif options.sort.byValue then
+      local lt
+      local gt
+      if options.sort.prop then
+        local prop = options.sort.prop
+        lt = function(a,b)
+          return a[prop] < b[prop]
+        end
+        gt = function(a,b)
+          return a[prop] > b[prop]
+        end
+      else
+        lt = function(a,b)
+          return a < b
+        end
+        gt = function(a,b)
+          return a > b
+        end
+      end
+      -- protected sort
+      local psort = function(s,a,b)
+        local ok,res = pcall(s,a,b)
+        if not ok or not res then
+          return false
+        else
+          return true
+        end
+      end
+      if options.sort.byValue == true or options.sort.byValue == '' then
+        if options.sort.descending then
+          sort = function(a,b)
+            return psort(gt,a.value,b.value)
+          end
+        else
+          sort = function(a,b)
+            return psort(lt,a.value,b.value)
+          end
+        end
+      end
     end
     
     local sorter = function(notification,initializing)
