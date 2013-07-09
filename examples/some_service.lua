@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
-local jet = require'jet.peer'.new()
+local jet = require'jet.peer'.new({name='some_service'})
 local ev = require'ev'
 
 local assign = function(var)
@@ -95,6 +95,7 @@ jet:method
       end
       products[name].a:remove()
       products[name].b:remove()
+      products[name] = nil
    end
 }
 
@@ -105,7 +106,6 @@ jet:method
    call = function(a,b) 
       return a+b
    end,
-   schema = {params={{class='double'},{class='double'}},result={class="double"}}
 }
 
 jet:method
