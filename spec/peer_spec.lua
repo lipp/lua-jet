@@ -134,7 +134,7 @@ describe(
                     path = 'persons/2',
                     value = {
                       name = 'ben',
-                      age = 35
+                      age = 46
                     }
                   }
                   states.bens_hobby = peer:state({
@@ -315,7 +315,7 @@ describe(
             timer:start(loop)
           end)
         
-        it('can fetch states with a certain value',function(done)
+        it('can fetch states with "equals" and no "prop" value',function(done)
             local oldval = states.test:value()
             local newval = 333
             local expected = {
@@ -353,7 +353,101 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch states with a certain object value',function(done)
+        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+            local oldval = states.bens_hobby:value()
+            local newval = states.peters_hobby:value()
+            local expected = {
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  states.bens_hobby:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  states.bens_hobby:value(oldval)
+                end
+              },
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
+            local fetcher = peer:fetch(
+              {
+                match = {'hobby'},
+                where = {
+                  op = 'equalsNot',
+                  value = states.peters_hobby:value()
+                }
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal('persons/2/hobby',fpath)
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_equal(expected[count].value,fvalue)
+                  expected[count].action()
+              end))
+            finally(function() fetcher:unfetch() end)
+          end)
+        
+        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+            local oldval = states.peter:value()
+            local newval = {
+              age = 40,
+              name = 'peter'
+            }
+            local expected = {
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  states.peter:value(newval)
+                end
+              },
+              {
+                event = 'remove',
+                value = newval,
+                action = function()
+                  states.peter:value(oldval)
+                end
+              },
+              {
+                event = 'add',
+                value = oldval,
+                action = function()
+                  done()
+                end
+              },
+            }
+            local count = 0
+            local fetcher = peer:fetch(
+              {
+                match = {'persons/.*'},
+                where = {
+                  prop = 'age',
+                  op = 'lessThan',
+                  value = 40,
+                }
+              },
+              async(function(fpath,fevent,fvalue)
+                  count = count + 1
+                  assert.is_equal('persons/1',fpath)
+                  assert.is_equal(expected[count].event,fevent)
+                  assert.is_same(expected[count].value,fvalue)
+                  expected[count].action()
+              end))
+            finally(function() fetcher:unfetch() end)
+          end)
+        
+        it('can fetch states with "equals" and "prop" path',function(done)
             local fetcher = peer:fetch(
               {where={op='equals',value='peter',prop='name'}},
               async(function(fpath,fevent,fvalue,fetcher)
