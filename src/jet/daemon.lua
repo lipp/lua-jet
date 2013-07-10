@@ -778,6 +778,7 @@ local create_daemon = function(options)
           }
         end
         client.flush()
+        client.is_binary = true
         client.encode = cmsgpack.pack
         client.decode = cmsgpack.unpack
         return nil,true -- set dont_auto_reply true
@@ -1060,19 +1061,27 @@ local create_daemon = function(options)
   end
   
   local accept_websocket = function(ws)
-    local client = create_client
+    local client
+    client = create_client
     {
       close = function()
         ws:close()
       end,
       send = function(msg)
-        ws:send(msg)
+        local type
+        if client.is_binary then
+          type = 2
+        else
+          type = 1
+        end
+        ws:send(msg,type)
       end,
     }
+    client.encode = cjson.encode
+    client.decode = cjson.decode
+    
     ws:on_message(function(_,msg,opcode)
-        if opcode == 1 then
-          dispatch_message(client,client.decode(msg))
-        end
+        dispatch_message(client,client.decode(msg))
       end)
     ws:on_close(function(_,...)
         debug('client websocket close ('..(client.name or '')..')',...)
