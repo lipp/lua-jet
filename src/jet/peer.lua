@@ -187,13 +187,6 @@ new = function(config)
     wsock:on_close(config.on_close or function() end)
     local j = {}
     
-    j.io = function(self)
-      if not self.read_io then
-        self.read_io = wsock:read_io()
-      end
-      return self.read_io
-    end
-    
     j.loop = function()
       loop:loop()
     end
@@ -303,6 +296,9 @@ new = function(config)
         end,
         add = function(ref,value,callbacks)
           assert(not ref:is_added())
+          if value ~= nil then
+            desc.value = value
+          end
           self:add(desc,dispatch,callbacks)
         end,
         path = function()
