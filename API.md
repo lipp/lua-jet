@@ -1,4 +1,6 @@
-# jet.peer
+# Jet module API doc.
+
+## jet.peer
 
 To access the `jet.peer` module:
 
@@ -6,7 +8,7 @@ To access the `jet.peer` module:
 local peer = require('jet.peer')
 ```
 
-## pi = peer.new([config])
+### pi = peer.new([config])
 
 Creates a new peer using Jet's "trivial" message protocol and returns it.
 If `config.sync` is not `true` then all methods of `pi` are async/non-blocking.
@@ -33,11 +35,11 @@ local pi = peer.new({
 When the `config.sync` flag is set, the peer instance behaves very different than the 'default/async' one.
 The 'sync' peer is documented separatly.
 
-## pi:close()
+### pi:close()
 
 Closes the peer instance. All states, methods and fetchers will be removed from the Jet daemon.
 
-## pi:call(path,[params],[callbacks])
+### pi:call(path,[params],[callbacks])
 
 Issues a 'call' Jet message to the daemon with the specified path and parameters. If `callbacks` is provided, the message is a Request and either `callbacks.success` or `callbacks.error` will be called on Response.
 
@@ -52,7 +54,7 @@ pi:call('persons/create',{name='peter',age=23},{
 })
 ```
 
-## pi:set(path,value,[callbacks])
+### pi:set(path,value,[callbacks])
 
 Issues a 'set' Jet message to the daemon with the specified path and value. If `callbacks` is provided, the message is a Request and either `callbacks.success` or `callbacks.error` will be called on Response.
 
@@ -67,7 +69,7 @@ pi:set('persons/ae62a',{name='peter',age=33},{
 })
 ```
 
-## fetcher = pi:fetch(match|fetch_params,fetch_callback,[callbacks])
+### fetcher = pi:fetch(match|fetch_params,fetch_callback,[callbacks])
 
 Creates a new fetcher. If the first parameter is a string, a 'fetch' message whith the following `fetch_params` is send to the daemon:
 
@@ -80,7 +82,28 @@ fetch_params = {
 Else the `fetch_params` are used unmodified. The fetch_callback receives the following params `(event,path,value,[index,]fetcher)`.
 The param `event`, `path`, `value`, and `index` are the values of the corresponding Jet 'fetch' message/notification. The `index` is only present, if the is sorted. The `fetcher` is the same as returned by the `pi:fetch(...)` call. You can use the `fetcher` to call `fetcher:unfetch()`.
 
-## state = pi:state(desc,[callbacks])
+```lua
+local allstuff = pi:fetch('.*',function(event,path,value)
+  print(event,path,value)
+end)
+```
+
+```lua
+local top_ten = pi:fetch({
+    matches = {'player'},
+	sort = {
+	  byValue = true,
+	  descending = true,
+	  prop = 'score',
+	  from = 1,
+	  to = 10
+	}
+  },function(event,path,value,index)
+    print(event,path,value,index)
+  end)
+```
+
+### state = pi:state(desc,[callbacks])
 
 Adds a new state to the daemon and returns a `state` instance.
 The `callbacks` table is optional. The `desc` parameter must look like this:
@@ -103,7 +126,7 @@ local net_state = pi:state({
 
 If the `path` is already in use by any peer, the error callback is called. The `set` and `set_async` callbacks must ot be defined at the same time for one state. If the `set` and `set_async` callback are not set, the state is considered read-only. 
 
-### set
+#### set
 
 If the `set` callback is set, it gets called with the requested value:
 
@@ -140,7 +163,7 @@ end
 
 If `change_net` returns `true` at second position, the `set` operation is considered a success BUT no change notification will be posted automatically. Instead some other "dude" must do it, e.g. in this case through `net:value({...})`.
 
-### set_async
+#### set_async
 
 If the `set_async` callback is set, it gets called with a reply function and the requested value:
 
@@ -161,24 +184,24 @@ local change_net_async = function(reply,requested_net)
 end
 ```
 
-## pi:loop()
+### pi:loop()
 
 Starts the event loop. This call only returns if the `pi` gets closed for some reason. (Internally just calls lua-ev `loop:loop()).
 If integrating with other lua-ev watchers, this may not need to be called.
 
-# fetcher
+## fetcher
 
 Fetcher can be create by a peer instance (`pi:fetch(...)`).
 
-## fetcher:unfetch([callbacks])
+### fetcher:unfetch([callbacks])
 
 Sends a 'unfetch' Jet message to the daemon.
 
-# state
+## state
 
 States can be created by a peer instance (`pi:state(...)`).
 
-## state:remove([callbacks])
+### state:remove([callbacks])
 
 Removes the state from the jet daemon. The state's `set` or `set_async` callbacks will not be called any more.
 The `callbacks` argument is optional. 
@@ -190,7 +213,7 @@ net:remove({
 })
 ```
 
-## state:add([value],[callbacks])
+### state:add([value],[callbacks])
 
 Once removed, re-adds the state to the jet daemon. The state's `set` or `set_async` callbacks will be called again.
 The `value` and `callbacks` arguments are optional. 
@@ -211,10 +234,14 @@ net:add(nil,{  -- keep state's value
 })
 ```
 
-## [current_val] = state:value([new_val])
+### [current_val] = state:value([new_val])
 
 If `new_val` is `nil` returns the state's current value. Else posts a change notification for this state.
 
+```lua
+local val = a_state:value() -- read current val
+a_state:value(val+1) -- post a state change
+```
 
 
 
