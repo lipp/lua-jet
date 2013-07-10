@@ -2,6 +2,7 @@ local jsocket = require'jet.socket'
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
+local require = require
 local pcall = pcall
 local pairs = pairs
 local ipairs = ipairs
@@ -584,8 +585,28 @@ new = function(config)
         if config.name then
           j:config({name = config.name})
         end
-        if config.on_connect then
-          config.on_connect(j)
+        if config.encoding then
+          if config.encoding ~= 'msgpack' then
+            error('unsupported encoding')
+          end
+          local cmsgpack = require'cmsgpack'
+          local change_encoding = function()
+            encode = cmsgpack.pack
+            decode = cmsgpack.unpack
+          end
+          j:config({encoding = 'msgpack'},{
+              success = function()
+                flush('encoding')
+                change_encoding()
+                config.on_connect(j)
+              end,
+              error = function(err)
+              end
+          })
+        else
+          if config.on_connect then
+            config.on_connect(j)
+          end
         end
         flush('on_connect')
       end

@@ -382,7 +382,6 @@ local create_daemon = function(options)
     local sort
     if not options.sort.byValue or options.sort.byPath then
       if options.sort.descending then
-        print('sort descending')
         sort = function(a,b)
           return a.path > b.path
         end
@@ -759,16 +758,38 @@ local create_daemon = function(options)
       if not client then
         error('unknown client')
       end
-    else
+    end
+    if params.name then
       client.name = params.name
+    end
+    if params.encoding then
+      if params.encoding == 'msgpack' then
+        local ok,cmsgpack = pcall(require,'cmsgpack')
+        if not ok then
+          error('encoding not supported')
+        end
+        -- send any outstanding messages with old encoding
+        -- and the response to this config call immediatly
+        if message.id then
+          client:queue
+          {
+            id = message.id,
+            result = true
+          }
+        end
+        client.flush()
+        client.encode = cmsgpack.pack
+        client.decode = cmsgpack.unpack
+        return nil,true -- set dont_auto_reply true
+      end
     end
     client.debug = params.debug
   end
   
   local sync = function(f)
     local sc = function(client,message)
-      local ok,result = pcall(f,client,message)
-      if message.id then
+      local ok,result,dont_auto_reply = pcall(f,client,message)
+      if message.id and not dont_auto_reply then
         if ok then
           client:queue
           {
@@ -828,6 +849,7 @@ local create_daemon = function(options)
   end
   
   local services = {
+    config = sync(config),
     add = sync(add),
     remove = sync(remove),
     call = async(route),

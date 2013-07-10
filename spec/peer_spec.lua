@@ -817,4 +817,82 @@ describe(
         
       end)
     
+    describe('when working with clean jet with msgpack encoding',function()
+        local peer
+        
+        before_each(function(done)
+            peer = jetpeer.new
+            {
+              port = port,
+              msgpack = true,
+              on_connect = async(function() done() end)
+            }
+          end)
+        
+        after_each(function()
+            peer:close()
+          end)
+        
+        it('fetch with sort works when states are already added',function(done)
+            local expected_adds = {
+              [1] = {
+                path = 'abc',
+                value = 'bla',
+                index = 1
+              },
+              [2] = {
+                path = 'cde',
+                value = 123,
+                index = 2
+              }
+            }
+            
+            -- add some other states which are not expected
+            peer:state{
+              path = 'xcd',
+              value = true
+            }
+            
+            peer:state{
+              path = 'ii98',
+              value = {}
+            }
+            
+            -- add expected states in reverse order to be more evil
+            for i=#expected_adds,1,-1 do
+              peer:state{
+                path = expected_adds[i].path,
+                value = expected_adds[i].value
+              }
+            end
+            
+            
+            local count = 0
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 1,
+                  to = 2
+                }
+              },async(function(path,event,data,index)
+                  count = count + 1
+                  if event == 'add' then
+                    local expected = expected_adds[count]
+                    assert.is_same(path,expected.path)
+                    assert.is_same(data,expected.value)
+                    assert.is_same(index,expected.index)
+                  else
+                    assert.is_nil('should not happen')
+                  end
+                  if count == #expected_adds then
+                    done()
+                  end
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            
+          end)
+        
+      end)
+    
   end)

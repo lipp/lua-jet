@@ -11,6 +11,7 @@ description = {
 dependencies = {
   'lua >= 5.1',
   'lua-cjson >= 1.0',
+  'lua-cmsgpack',
   'luasocket',
   'lua-ev',
   'lpack'
