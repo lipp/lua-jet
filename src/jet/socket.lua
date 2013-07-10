@@ -1,6 +1,5 @@
 local ev = require'ev'
 local socket = require'socket'
-local cjson = require'cjson'
 require'pack'-- blends pack/unpack into string table
 
 local print = print
@@ -22,10 +21,9 @@ local wrap_sync = function(sock)
   assert(sock)
   local wrapped = {}
   sock:setoption('tcp-nodelay',true)
-  wrapped.send = function(_,message_object)
-    local json_message = cjson.encode(message_object)
-    sock:send(spack('>I',#json_message))
-    sock:send(json_message)
+  wrapped.send = function(_,message)
+    sock:send(spack('>I',#message))
+    sock:send(message)
   end
   wrapped.receive = function(_)
     local bin_len = sock:receive(4)
@@ -48,8 +46,6 @@ local wrap = function(sock,args)
   local on_message = args.on_message or function() end
   local on_close = args.on_close or function() end
   local on_error = args.on_error or function() end
-  local encode = not args.dont_encode
-  local decode = not args.dont_decode
   local loop = args.loop or ev.Loop.default
   local send_buffer = ''
   local wrapped = {}
@@ -83,9 +79,6 @@ local wrap = function(sock,args)
   -- the message format is 32bit big endian integer
   -- denoting the size of the JSON following
   wrapped.send = function(_,message)
-    if encode then
-      message = cjson.encode(message)
-    end
     send_buffer = send_buffer..spack('>I',#message)..message
     if not send_io:is_active() then
       send_io:start(loop)
@@ -114,7 +107,7 @@ local wrap = function(sock,args)
     if not read_io then
       local len
       local len_bin
-      local json_message
+      local message
       local _
       local receive_message = function(loop,read_io)
         while true do
@@ -147,23 +140,14 @@ local wrap = function(sock,args)
               sock:close()
               return
             end
-            json_message,err,sub = sock:receive(len,json_message)
-            if json_message then
-              if decode then
-                local ok,message = pcall(cjson.decode,json_message)
-                if ok then
-                  on_message(wrapped,message)
-                else
-                  on_message(wrapped,nil,message)
-                end
-              else
-                on_message(wrapped,json_message)
-              end
+            message,err,sub = sock:receive(len,message)
+            if message then
+              on_message(wrapped,message)
               len = nil
               len_bin = nil
-              json_message = nil
+              message = nil
             elseif err == 'timeout' then
-              json_message = sub
+              message = sub
               return
             elseif err == 'closed' then
               read_io:stop(loop)

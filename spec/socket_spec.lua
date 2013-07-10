@@ -72,18 +72,14 @@ describe(
         sock:close()
       end)
     
-    it('can echo numbers',echo(1234))
-    it('can echo strings',echo('hello'))
-    it('can echo boolean',echo(true))
-    it('can echo tables',echo{a = 1,b = 3, c = 'aps'})
-    it('can echo nested tables',echo{a = { sub = false }})
-    it('can echo arrays',echo{1,2,3,4})
-    it('can echo many messages fast',
+    it('can echo ascii',echo('ablbalblasdkjhsdkuhqdkkbjasdkjheiurq,jwek'))
+    it('can echo binary',echo(string.char(0,0,0,0,1,0,10,230,0)))
+    it('can echo many messages',
       function(done)
         local wrapped = jetsocket.wrap(sock)
         local count = 0
         local messages = {
-          '123',{a='HAHA'},false
+          '123','sjygdjhgsudkshd','askjdhksahdkshkshdkshdkhaiuysd'
         }
         
         wrapped:on_message(
