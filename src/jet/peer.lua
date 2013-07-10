@@ -37,6 +37,8 @@ new = function(config)
   config = config or {}
   local ip = config.ip or '127.0.0.1' -- localhost'
   local port = config.port or 11122
+  local encode = cjson.encode
+  local decode = cjson.decode
   if config.sync then
     local sock = socket.connect(ip,port)
     if not sock then
@@ -50,12 +52,12 @@ new = function(config)
         id = id + 1
         rid = id
       end
-      wsock:send
-      {
-        id = rid,
-        method = method,
-        params = params
-      }
+      wsock:send(encode
+        {
+          id = rid,
+          method = method,
+          params = params
+      })
       if not as_notification then
         local response = wsock:receive()
         assert(response.id == rid)
@@ -92,9 +94,9 @@ new = function(config)
     local flush = function(reason)
       local n = #messages
       if n == 1 then
-        wsock:send(messages[1])
+        wsock:send(encode(messages[1]))
       elseif n > 1 then
-        wsock:send(messages)
+        wsock:send(encode(messages))
       end
       messages = {}
       will_flush = false
@@ -161,7 +163,12 @@ new = function(config)
         log('unhandled message',cjson.encode(message))
       end
     end
-    local dispatch_message = function(self,message,err)
+    local dispatch_message = function(self,message)
+      local ok,message = pcall(decode,message)
+      if not ok then
+        log('decoding message failed',ok)
+        return
+      end
       will_flush = true
       if message then
         if #message > 0 then
@@ -261,7 +268,7 @@ new = function(config)
       if will_flush then
         queue(message)
       else
-        wsock:send(message)
+        wsock:send(encode(message))
       end
     end
     

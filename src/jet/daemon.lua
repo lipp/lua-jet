@@ -998,7 +998,7 @@ local create_daemon = function(options)
         if client.debug then
           debug(client.name or 'unnamed client','<-',jencode(message))
         end
-        send(message)
+        send(client.encode(message))
         client.messages = nil
       end
     end
@@ -1017,10 +1017,13 @@ local create_daemon = function(options)
     local client = create_client
     {
       close = function() jsock:close() end,
-      send = function(msg) jsock:send(msg) end
+      send = function(msg) jsock:send(msg) end,
     }
-    jsock:on_message(function(_,...)
-        dispatch_message(client,...)
+    client.encode = cjson.encode
+    client.decode = cjson.decode
+    
+    jsock:on_message(function(_,message)
+        dispatch_message(client,client.decode(message))
       end)
     jsock:on_close(function(_,...)
         debug('client socket close ('..(client.name or '')..')',...)
@@ -1041,12 +1044,12 @@ local create_daemon = function(options)
         ws:close()
       end,
       send = function(msg)
-        ws:send(jencode(msg))
+        ws:send(msg)
       end,
     }
     ws:on_message(function(_,msg,opcode)
         if opcode == 1 then
-          dispatch_message(client,jdecode(msg))
+          dispatch_message(client,client.decode(msg))
         end
       end)
     ws:on_close(function(_,...)
