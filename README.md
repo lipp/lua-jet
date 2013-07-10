@@ -1,7 +1,7 @@
 # About
 
 lua-jet is a [Jet](http://lipp.github.io/jet) daemon and peer implementation written in Lua. 
-[![Build Status](https://travis-ci.org/lipp/jet.png?branch=master)](https://travis-ci.org/lipp/jet/builds)
+[![Build Status](https://travis-ci.org/lipp/lua-jet.png?branch=master)](https://travis-ci.org/lipp/lua-jet/builds)
 
 # Installation
 
