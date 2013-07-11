@@ -4,7 +4,7 @@ local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
-local port = os.getenv('JET_PORT')
+local port = os.getenv('JET_PORT') or 11122+5
 
 local dt = 0.05
 
