@@ -443,6 +443,9 @@ local create_daemon = function(options)
           value = value,
         }
       end
+      if initializing then
+        return
+      end
       local new_sorted = {}
       for _,entry in pairs(matching) do
         tinsert(new_sorted,entry)
@@ -452,17 +455,15 @@ local create_daemon = function(options)
       local changes = {}
       for i=from,mmin(to,#sorted) do
         if not new_sorted[i] then
-          if not initializing then
-            changes[i] = {
-              path = sorted[i].path,
-              event = 'remove',
-              index = i,
-              value = sorted[i].value
-            }
-          end
+          changes[i] = {
+            path = sorted[i].path,
+            event = 'remove',
+            index = i,
+            value = sorted[i].value
+          }
         else
           if sorted[i].path == new_sorted[i].path then
-            if not initializing and event == 'change' then
+            if event == 'change' then
               changes[i] = {
                 path = new_sorted[i].path,
                 event = 'change',
@@ -476,14 +477,12 @@ local create_daemon = function(options)
               -- index changed
               if sorted[i].path == new_sorted[j].path then
                 assert(i~=j)
-                if not initializing then
-                  changes[j] = {
-                    path = sorted[i].path,
-                    event = 'change',
-                    index = j,
-                    value = sorted[i].value
-                  }
-                end
+                changes[j] = {
+                  path = sorted[i].path,
+                  event = 'change',
+                  index = j,
+                  value = sorted[i].value
+                }
                 -- mark old index as free
                 moved = true
                 sorted[i] = nil
@@ -491,40 +490,41 @@ local create_daemon = function(options)
               end
             end
             if not moved then
-              if not initializing then
-                notify
-                {
-                  path = sorted[i].path,
-                  value = sorted[i].value,
-                  event = 'remove',
-                  index = i
-                }
-                sorted[i] = nil
-              end
+              notify
+              {
+                path = sorted[i].path,
+                value = sorted[i].value,
+                event = 'remove',
+                index = i
+              }
+              sorted[i] = nil
             end
           end
         end
       end
-      if not initializing then
-        for _,change in pairs(changes) do
-          notify(change)
-        end
-        for i=from,to do
-          if not sorted[i] and new_sorted[i] and not changes[i] then
-            notify
-            {
-              path = new_sorted[i].path,
-              value = new_sorted[i].value,
-              event = 'add',
-              index = i
-            }
-          end
+      for _,change in pairs(changes) do
+        notify(change)
+      end
+      for i=from,to do
+        if not sorted[i] and new_sorted[i] and not changes[i] then
+          notify
+          {
+            path = new_sorted[i].path,
+            value = new_sorted[i].value,
+            event = 'add',
+            index = i
+          }
         end
       end
       sorted = new_sorted
     end
     
     local flush = function()
+      sorted = {}
+      for _,entry in pairs(matching) do
+        tinsert(sorted,entry)
+      end
+      tsort(sorted,sort)
       for i=from,to do
         if not sorted[i] then
           break
