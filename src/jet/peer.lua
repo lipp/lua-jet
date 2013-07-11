@@ -216,6 +216,9 @@ new = function(config)
         end
       end
       wsock:close()
+      if config.on_close then
+        config.on_close(j)
+      end
     end
     
     local id = 0
@@ -577,36 +580,40 @@ new = function(config)
       return ref
     end
     
+    local cmsgpack
+    if config.encoding then
+      if config.encoding ~= 'msgpack' then
+        error('unsupported encoding')
+      end
+      cmsgpack = require'cmsgpack'
+    end
+    
     local on_connect = function()
       local connected,err = sock:connect(ip,port)
       if connected or err == 'already connected' then
         j.read_io = wsock:read_io()
         j.read_io:start(loop)
-        if config.name then
-          j:config({name = config.name})
-        end
-        if config.encoding then
-          if config.encoding ~= 'msgpack' then
-            error('unsupported encoding')
-          end
-          local cmsgpack = require'cmsgpack'
-          local change_encoding = function()
-            encode = cmsgpack.pack
-            decode = cmsgpack.unpack
-          end
-          j:config({encoding = 'msgpack'},{
+        if config.name or config.encoding then
+          j:config({
+              name = config.name,
+              encoding = config.encoding
+              },{
               success = function()
-                flush('encoding')
-                change_encoding()
-                config.on_connect(j)
+                flush('config')
+                if config.encoding then
+                  encode = cmsgpack.pack
+                  decode = cmsgpack.unpack
+                end
+                if config.on_connect then
+                  config.on_connect(j)
+                end
               end,
               error = function(err)
+                j:close()
               end
           })
-        else
-          if config.on_connect then
-            config.on_connect(j)
-          end
+        elseif config.on_connect then
+          config.on_connect(j)
         end
         flush('on_connect')
       end
