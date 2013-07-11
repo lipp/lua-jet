@@ -54,7 +54,6 @@ local create_daemon = function(options)
   print = options.print or print
   
   local clients = {}
-  local states = {}
   local leaves = {}
   local routes = {}
   
