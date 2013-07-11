@@ -27,9 +27,7 @@ local hobby = 'dance'
 jet:state
 { 
    path = 'hobby',
-   set = function()
-      return true,1,nil
-   end, 
+   set = assign(hobby),
    value = hobby
 }
  
@@ -121,53 +119,43 @@ jet:method
    end
 }
 
--- local counter_slow = 0
--- local slow = j:domain('test'):state{
---    ['counter_slow'] = {
---       value = counter_slow
---    }
---                                    }
+local peter = {
+   age = 35,
+   name = 'peter',   
+}
+jet:state
+{
+   path = 'persons/1232',
+   value = peter,
+   set = assign(peter)
+}
 
--- local counter_fast = 0
--- local fast = j:domain('test'):state{
---    ['counter_fast'] = {
---       value = counter_fast
---    }
---                                    }
+local peters_hobby = 'soccer'
+jet:state
+{
+   path = 'persons/1232/hobby',
+   value = peters_hobby,
+   set = assign(peters_hobby)
+}
 
--- --local counter_fast = 0
--- local fast2 = j:domain('test'):state{
---    ['once.again.counter_fast'] = {
---       value = counter_fast
---    }
---                                     }
+local jim = {
+   age = 40,
+   name = 'jim',   
+}
+jet:state
+{
+   path = 'persons/1233',
+   value = jim,
+   set = assign(jim)
+}
 
+local jims_hobby = 'guitar'
+jet:state
+{
+   path = 'persons/1233/hobby',
+   value = jims_hobby,
+   set = assign(jims_hobby)
+}
 
--- local timer_slow = ev.Timer.new(
---    function()
---       counter_slow = counter_slow + 1
---       slow:change({value=counter_slow})
---    end,0.0001,arg[1] or 2)
-
--- local rem_slow
--- rem_slow =
---    jet:method{
---    ['remove_counter_slow'] = {
---       call = function()
---          timer_slow:stop(ev.Loop.default)
---          slow:remove()
---          rem_slow:remove()
---       end
---    }
---              }
-
---    local timer_fast = ev.Timer.new(
---       function()
---          counter_fast = counter_fast + 1
---          fast2:change({value=counter_fast},true)
---          fast:change({value=counter_fast})
---       end,0.0001,arg[2] or 1)
-
---    j:loop{ios={timer_slow,timer_fast}}
 jet:loop()
 
