@@ -436,113 +436,142 @@ local create_daemon = function(options)
       end
     end
     
+    local from = options.sort.from or 1
+    local to = options.sort.to or 10
+    local sorted = {}
+    local matches = {}
+    local index = {}
+    local max = from-1
+    
+    local is_in_range = function(i)
+      return i and i >= from and i <= to
+    end
+    
     local sorter = function(notification,initializing)
       local event = notification.event
       local path = notification.path
       local value = notification.value
-      if event == 'remove' then
-        matching[path] = nil
-      else
-        matching[path] = {
-          path = path,
-          value = value,
-        }
-      end
       if initializing then
+        if index[path] then
+          return
+        end
+        index[path] = #matches+1
+        tinsert(matches,{
+            path = path,
+            value = value,
+        })
         return
-      end
-      local new_sorted = {}
-      for _,entry in pairs(matching) do
-        tinsert(new_sorted,entry)
-      end
-      tsort(new_sorted,sort)
-      -- 'first handle index moved'
-      local changes = {}
-      for i=from,mmin(to,#sorted) do
-        if not new_sorted[i] then
-          changes[i] = {
-            path = sorted[i].path,
-            event = 'remove',
-            index = i,
-            value = sorted[i].value
-          }
-        else
-          if sorted[i].path == new_sorted[i].path then
-            if event == 'change' then
-              changes[i] = {
-                path = new_sorted[i].path,
-                event = 'change',
-                index = i,
-                value = new_sorted[i].value
-              }
-            end
+      else
+        local lastindex = index[path]
+        if event == 'remove' then
+          if lastindex then
+            tremove(matches,lastindex)
+            index[path] = nil
           else
-            local moved
-            for j=from,mmin(to,#new_sorted) do
-              -- index changed
-              if sorted[i].path == new_sorted[j].path then
-                assert(i~=j)
-                changes[j] = {
-                  path = sorted[i].path,
-                  event = 'change',
-                  index = j,
-                  value = sorted[i].value
+            return
+          end
+        elseif lastindex then
+          matches[lastindex].value = value
+        elseif not lastindex then
+          tinsert(matches,{
+              path = path,
+              value = value,
+          })
+        end
+        
+        tsort(matches,sort)
+        
+        for i,m in ipairs(matches) do
+          index[m.path] = i
+        end
+        
+        local newindex = index[path] or -1
+        
+        -- this may happen due to a refetch :(
+        if newindex == lastindex then
+          if event == 'change' then
+            notify{
+              max = max,
+              value = {
+                {
+                  path = path,
+                  value = value,
+                  index = newindex,
                 }
-                -- mark old index as free
-                moved = true
-                sorted[i] = nil
-                break
-              end
-            end
-            if not moved then
-              notify
-              {
-                path = sorted[i].path,
-                value = sorted[i].value,
-                event = 'remove',
-                index = i
               }
-              sorted[i] = nil
-            end
+            }
+          end
+          return
+        end
+        local start
+        local stop
+        local is_in = is_in_range(newindex)
+        local was_in = is_in_range(lastindex)
+        print(path,event,was_in,is_in,max,lastindex,newindex)
+        if is_in and was_in then
+          start = mmin(lastindex,newindex)
+          stop = mmax(lastindex,newindex)
+        elseif is_in and not was_in then
+          if max < to then
+            max = max + 1
+          end
+          start = newindex
+          stop = max
+        elseif not is_in and was_in then
+          start = lastindex
+          max = max-1
+          stop = max
+        elseif not is_in and not was_in then
+          return
+        end
+        local changes = {}
+        for i=start,stop do
+          local new = matches[i]
+          if not new then
+            break
+          end
+          local old = sorted[i]
+          if new ~= old then
+            tinsert(changes,{
+                path = new.path,
+                value = new.value,
+                index = i
+            })
           end
         end
+        local noti = {
+          value = changes,
+          max = max,
+        }
+        --  print('AA',cjson.encode(noti))
+        notify(noti)
       end
-      for _,change in pairs(changes) do
-        notify(change)
-      end
-      for i=from,to do
-        if not sorted[i] and new_sorted[i] and not changes[i] then
-          notify
-          {
-            path = new_sorted[i].path,
-            value = new_sorted[i].value,
-            event = 'add',
-            index = i
-          }
-        end
-      end
-      sorted = new_sorted
     end
     
     local flush = function()
-      sorted = {}
-      for _,entry in pairs(matching) do
-        tinsert(sorted,entry)
+      tsort(matches,sort)
+      
+      for i,m in ipairs(matches) do
+        index[m.path] = i
       end
-      tsort(sorted,sort)
+      
       for i=from,to do
-        if not sorted[i] then
-          break
+        local new = matches[i]
+        if new then
+          max = max + 1
+          new.index = i
+          tinsert(sorted,new)
         end
-        notify
-        {
-          path = sorted[i].path,
-          value = sorted[i].value,
-          event = 'add',
-          index = i
-        }
       end
+      local notification = {
+        value = sorted,
+        max = max,
+      }
+      --print('BB',cjson.encode(notification))
+      notify(notification)
     end
+    
+    
     return sorter,flush
   end
   
@@ -638,13 +667,16 @@ local create_daemon = function(options)
       has_case_insensitives = true
     end
     
-    if message.id then
-      client:queue
-      {
-        id = message.id,
-        result = {}
-      }
+    if not flush then
+      if message.id then
+        client:queue
+        {
+          id = message.id,
+          result = {}
+        }
+      end
     end
+    
     local cq = client.queue
     queue_notification = function(nparams)
       cq(client,{
@@ -663,6 +695,13 @@ local create_daemon = function(options)
     end
     initializing = false
     if flush then
+      if message.id then
+        client:queue
+        {
+          id = message.id,
+          result = {}
+        }
+      end
       flush()
     end
   end
