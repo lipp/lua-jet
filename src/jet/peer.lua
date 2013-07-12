@@ -216,9 +216,6 @@ new = function(config)
         end
       end
       wsock:close()
-      if config.on_close then
-        config.on_close(j)
-      end
     end
     
     local id = 0
