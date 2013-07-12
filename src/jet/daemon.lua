@@ -57,6 +57,9 @@ local create_daemon = function(options)
   local leaves = {}
   local routes = {}
   
+  local has_case_insensitives
+  local case_insensitives = {}
+  
   local route_message = function(client,message)
     local route = routes[message.id]
     if route then
@@ -69,7 +72,7 @@ local create_daemon = function(options)
   end
   
   local publish = function(notification)
-    notification.lpath = notification.path:lower()
+    notification.lpath = has_case_insensitives and notification.path:lower()
     for client in pairs(clients) do
       for fetch_id,fetcher in pairs(client.fetchers) do
         local ok,refetch = pcall(fetcher,notification)
@@ -307,7 +310,7 @@ local create_daemon = function(options)
         }
       end
     end
-    return fetchop
+    return fetchop,options.caseInsensitive
   end
   
   local create_fetcher_without_deps = function(options,notify)
@@ -369,7 +372,7 @@ local create_daemon = function(options)
       }
     end
     
-    return fetchop
+    return fetchop,options.caseInsensitive
   end
   
   local create_sorter = function(options,notify)
@@ -623,12 +626,17 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
-    local params_ok,fetcher = pcall(create_fetcher,params,notify)
+    local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params{fetchParams = params, reason = fetcher})
     end
     
     client.fetchers[fetch_id] = fetcher
+    
+    if is_case_insensitive then
+      case_insensitives[fetcher] = true
+      has_case_insensitives = true
+    end
     
     if message.id then
       client:queue
@@ -648,7 +656,7 @@ local create_daemon = function(options)
       fetcher
       {
         path = path,
-        lpath = path:lower(),
+        lpath = has_case_insensitives and path:lower(),
         value = leave.value,
         event = 'add'
       }
@@ -662,7 +670,12 @@ local create_daemon = function(options)
   local unfetch = function(client,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
+    local fetcher = client.fetchers[fetch_id]
     client.fetchers[fetch_id] = nil
+    
+    case_insensitives[fetcher] = nil
+    has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+    
     if message.id then
       client:queue
       {
@@ -981,7 +994,11 @@ local create_daemon = function(options)
     local client = {}
     client.release = function()
       if client then
-        client.fetchers = {}
+        for _,fetcher in pairs(client.fetchers) do
+          case_insensitives[fetcher] = nil
+        end
+        has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+        client.fetchers =  {}
         for path,leave in pairs(leaves) do
           if leave.client == client then
             publish
