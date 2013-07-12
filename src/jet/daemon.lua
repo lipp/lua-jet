@@ -69,6 +69,7 @@ local create_daemon = function(options)
   end
   
   local publish = function(notification)
+    notification.lpath = notification.path:lower()
     for client in pairs(clients) do
       for fetch_id,fetcher in pairs(client.fetchers) do
         local ok,refetch = pcall(fetcher,notification)
@@ -115,9 +116,9 @@ local create_daemon = function(options)
         equalsNot[i] = eqnot:lower()
       end
     end
-    return function(path)
+    return function(path,lpath)
       if ci then
-        path = path:lower()
+        path = lpath
       end
       for _,unmatch in ipairs(unmatch) do
         if path:match(unmatch) then
@@ -222,9 +223,10 @@ local create_daemon = function(options)
     local deps = {}
     local ok = {}
     local fetchop = function(notification)
+      local lpath = notification.lpath
       local path = notification.path
       local value = notification.value
-      local match,backrefs = path_matcher(path)
+      local match,backrefs = path_matcher(path,lpath)
       local context = contexts[path]
       if match and #backrefs > 0 then
         if not context then
@@ -321,8 +323,9 @@ local create_daemon = function(options)
       if not is_added and max and n == max then
         return
       end
+      local lpath = notification.lpath
       local path_matching = true
-      if path_matcher and not path_matcher(path) then
+      if path_matcher and not path_matcher(path,lpath) then
         path_matching = false
       end
       local value_matching = true
@@ -645,6 +648,7 @@ local create_daemon = function(options)
       fetcher
       {
         path = path,
+        lpath = path:lower(),
         value = leave.value,
         event = 'add'
       }

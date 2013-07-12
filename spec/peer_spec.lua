@@ -635,19 +635,33 @@ describe(
         
         it('can fetch case insensitive',function(done)
             local expected = {
-              ['persons/1/hobby'] = 'tennis',
-              ['persons/2/hobby'] = 'soccer',
+              {
+                path = 'persons/1/hobby',
+                value = 'tennis',
+                event = 'add',
+                action = function()
+                  states.peters_hobby:value('socker')
+                end
+              },
+              {
+                path = 'persons/1/hobby',
+                value = 'socker',
+                event = 'change',
+                action = function()
+                  done()
+                end
+              },
             }
-            for path in pairs(expected) do
-              done:wait_unordered(path)
-            end
+            local count = 0
             local fetcher = peer:fetch({
-                match = {'persons/.*/HOBBY'},
+                match = {'persons/1/HOBBY'},
                 caseInsensitive = true,
               },async(function(fpath,fevent,fvalue)
-                  assert.is_equal(fevent,'add')
-                  assert.is_equal(expected[fpath],fvalue)
-                  done(fpath)
+                  count = count + 1
+                  assert.is_equal(fevent,expected[count].event)
+                  assert.is_equal(fpath,expected[count].path)
+                  assert.is_equal(fvalue,expected[count].value)
+                  expected[count].action()
               end))
           end)
         
