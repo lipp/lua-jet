@@ -121,7 +121,7 @@ new = function(config)
           log('invalid result:',cjson.encode(message))
         end
       else
-        log('invalid result id:',id)
+        log('invalid result id:',id,cjson.encode(message))
       end
     end
     local on_no_dispatcher
@@ -351,15 +351,16 @@ new = function(config)
     
     j.fetch = function(self,params,f,callbacks)
       local id = '__f__'..fetch_id
+      local sorting = params.sort
       fetch_id = fetch_id + 1
       local ref
       local add_fetcher = function()
         request_dispatchers[id] = function(peer,message)
           local params = message.params
-          if not params.index then
+          if not sorting then
             f(params.path,params.event,params.value,ref)
           else
-            f(params.path,params.event,params.value,params.index,ref)
+            f(params.value,params.max,ref)
           end
         end
       end
@@ -507,8 +508,8 @@ new = function(config)
               }
               if resp.result ~= nil and not resp.error then
                 response.result = resp.result
-              elseif error then
-                response.error = resp.error
+              elseif resp.error then
+                response.error = error_object(resp.error)
               else
                 response.error = 'jet.peer Invalid async state response '..desc.path
               end

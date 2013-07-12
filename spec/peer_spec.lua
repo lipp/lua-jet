@@ -705,7 +705,7 @@ describe(
             
             peer:state{
               path = 'ii98',
-              value = {}
+              value = {foo = 'bar'}
             }
             
             -- add expected states in reverse order to be more evil
@@ -716,26 +716,17 @@ describe(
               }
             end
             
-            
-            local count = 0
-            local fetcher = peer:fetch({
+            local fetcher
+            fetcher = peer:fetch({
                 sort = {
                   from = 1,
                   to = 2
                 }
-              },async(function(path,event,data,index)
-                  count = count + 1
-                  if event == 'add' then
-                    local expected = expected_adds[count]
-                    assert.is_same(path,expected.path)
-                    assert.is_same(data,expected.value)
-                    assert.is_same(index,expected.index)
-                  else
-                    assert.is_nil('should not happen')
-                  end
-                  if count == #expected_adds then
-                    done()
-                  end
+              },async(function(sorted,max,fetcher2)
+                  assert.is_equal(max,2)
+                  assert.is_equal(fetcher,fetcher2)
+                  assert.is_same(sorted,expected_adds)
+                  done()
               end))
             
             finally(function() fetcher:unfetch() end)
@@ -747,44 +738,52 @@ describe(
             local expected = {
               -- when xcd is added
               {
-                path = 'xcd',
-                value = true,
-                index = 1,
-                event = 'add'
+                value = {},
+                max = 0
+              },
+              {
+                value = {
+                  {
+                    path = 'xcd',
+                    value = true,
+                    index = 1,
+                  }
+                },
+                max = 1
               },
               -- when ii98 is added, xcd is reordered
               {
-                path = 'xcd',
-                value = true,
-                index = 2,
-                event = 'change'
-              },
-              {
-                path = 'ii98',
-                value = {},
-                index = 1,
-                event = 'add'
+                max = 2,
+                value = {
+                  {
+                    path = 'ii98',
+                    value = {},
+                    index = 1,
+                  },
+                  {
+                    path = 'xcd',
+                    value = true,
+                    index = 2,
+                  }
+                }
               },
               -- when abc is added, ii98 is reordered and xcd  is
               -- removed
               {
-                path = 'xcd',
-                value = true,
-                index = 2,
-                event = 'remove'
-              },
-              {
-                path = 'ii98',
-                value = {},
-                index = 2,
-                event = 'change'
-              },
-              {
-                path = 'abc',
-                value = 123,
-                index = 1,
-                event = 'add'
-              },
+                max = 2,
+                value = {
+                  {
+                    path = 'abc',
+                    value = 123,
+                    index = 1,
+                  },
+                  {
+                    path = 'ii98',
+                    value = {},
+                    index = 2,
+                  },
+                }
+              }
             }
             
             
@@ -794,15 +793,13 @@ describe(
                   from = 1,
                   to = 2
                 }
-              },async(function(path,event,data,index)
+              },async(function(sorted,max)
                   count = count + 1
-                  local fetched = {
-                    path = path,
-                    event = event,
-                    value = data,
-                    index = index
+                  local s = {
+                    value = sorted,
+                    max = max
                   }
-                  assert.is_same(fetched,expected[count])
+                  assert.is_same(s,expected[count])
                   if count == #expected then
                     done()
                   end
@@ -844,37 +841,57 @@ describe(
               finally(function()
                   peer:close()
                 end)
-              local expected_adds = {
-                [1] = {
-                  path = 'abc1',
-                  value = 'bla',
-                  index = 1
+              
+              local expected = {
+                -- when xcd is added
+                {
+                  value = {},
+                  max = 0
                 },
-                [2] = {
-                  path = 'cde1',
-                  value = 123,
-                  index = 2
+                {
+                  value = {
+                    {
+                      path = 'xcd',
+                      value = true,
+                      index = 1,
+                    }
+                  },
+                  max = 1
+                },
+                -- when ii98 is added, xcd is reordered
+                {
+                  max = 2,
+                  value = {
+                    {
+                      path = 'ii98',
+                      value = {},
+                      index = 1,
+                    },
+                    {
+                      path = 'xcd',
+                      value = true,
+                      index = 2,
+                    }
+                  }
+                },
+                -- when abc is added, ii98 is reordered and xcd  is
+                -- removed
+                {
+                  max = 2,
+                  value = {
+                    {
+                      path = 'abc',
+                      value = 123,
+                      index = 1,
+                    },
+                    {
+                      path = 'ii98',
+                      value = {},
+                      index = 2,
+                    },
+                  }
                 }
               }
-              
-              -- add some other states which are not expected
-              peer:state{
-                path = 'xcd1',
-                value = true
-              }
-              
-              peer:state{
-                path = 'ii981',
-                value = {}
-              }
-              
-              -- add expected states in reverse order to be more evil
-              for i=#expected_adds,1,-1 do
-                peer:state{
-                  path = expected_adds[i].path,
-                  value = expected_adds[i].value
-                }
-              end
               
               
               local count = 0
@@ -883,22 +900,35 @@ describe(
                     from = 1,
                     to = 2
                   }
-                },async(function(path,event,data,index)
+                },async(function(sorted,max)
                     count = count + 1
-                    if event == 'add' then
-                      local expected = expected_adds[count]
-                      assert.is_same(path,expected.path)
-                      assert.is_same(data,expected.value)
-                      assert.is_same(index,expected.index)
-                    else
-                      assert.is_nil('should not happen')
-                    end
-                    if count == #expected_adds then
+                    local s = {
+                      value = sorted,
+                      max = max
+                    }
+                    assert.is_same(s,expected[count])
+                    if count == #expected then
                       done()
                     end
                 end))
               
               finally(function() fetcher:unfetch() end)
+              
+              -- add some other states which are not expected
+              peer:state{
+                path = 'xcd',
+                value = true
+              }
+              
+              peer:state{
+                path = 'ii98',
+                value = {}
+              }
+              
+              peer:state{
+                path = 'abc',
+                value = 123
+              }
               
               
             end)
