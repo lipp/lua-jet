@@ -379,10 +379,6 @@ local create_daemon = function(options)
     if not options.sort then
       return nil
     end
-    local from = options.sort.from or 1
-    local to = options.sort.to or 10
-    local matching = {}
-    local sorted = {}
     
     local sort
     if not options.sort.byValue or options.sort.byPath then
@@ -507,7 +503,6 @@ local create_daemon = function(options)
         local stop
         local is_in = is_in_range(newindex)
         local was_in = is_in_range(lastindex)
-        print(path,event,was_in,is_in,max,lastindex,newindex)
         if is_in and was_in then
           start = mmin(lastindex,newindex)
           stop = mmax(lastindex,newindex)
@@ -527,23 +522,23 @@ local create_daemon = function(options)
         local changes = {}
         for i=start,stop do
           local new = matches[i]
-          if not new then
-            break
-          end
           local old = sorted[i]
-          if new ~= old then
+          if new and new ~= old then
             tinsert(changes,{
                 path = new.path,
                 value = new.value,
                 index = i
             })
           end
+          sorted[i] = new
+          if not new then
+            break
+          end
         end
         local noti = {
           value = changes,
           max = max,
         }
-        --  print('AA',cjson.encode(noti))
         notify(noti)
       end
     end
@@ -555,19 +550,20 @@ local create_daemon = function(options)
         index[m.path] = i
       end
       
+      local changes = {}
       for i=from,to do
         local new = matches[i]
         if new then
           max = max + 1
           new.index = i
-          tinsert(sorted,new)
+          sorted[i] = new
+          tinsert(changes,new)
         end
       end
       local notification = {
-        value = sorted,
+        value = changes,
         max = max,
       }
-      --print('BB',cjson.encode(notification))
       notify(notification)
     end
     
