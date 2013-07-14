@@ -1,5 +1,3 @@
-package.path = package.path..'../src'
-
 local ev = require'ev'
 local socket = require'socket'
 local jetsocket = require'jet.socket'

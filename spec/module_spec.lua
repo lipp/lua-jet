@@ -1,5 +1,3 @@
-package.path = package.path..'../src'
-
 describe(
   'The jet (global) module',
   function()

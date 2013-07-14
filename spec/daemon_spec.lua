@@ -1,5 +1,3 @@
-package.path = package.path..'../src'
-
 local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local loop = ev.Loop.default
