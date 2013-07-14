@@ -681,6 +681,49 @@ describe(
             peer:close()
           end)
         
+        it('set gets timeout error',function(done)
+            local not_responding = peer:state
+            {
+              path = 'abc',
+              value = 123,
+              set_async = async(function() -- never responds
+                end)
+            }
+            
+            peer:set('abc',231,{
+                timeout = 0.2,
+                success = async(function()
+                    assert.is_nil('should never happen')
+                  end),
+                error = async(function(err)
+                    assert.is_equal(err.message,'Response Timeout')
+                    assert.is_equal(err.code,-32001)
+                    done()
+                  end)
+            })
+          end)
+        
+        it('call gets timeout error',function(done)
+            local not_responding = peer:method
+            {
+              path = 'abc2',
+              call_async = async(function() -- never responds
+                end)
+            }
+            
+            peer:call('abc2',{},{
+                timeout = 0.2,
+                success = async(function()
+                    assert.is_nil('should never happen')
+                  end),
+                error = async(function(err)
+                    assert.is_equal(err.message,'Response Timeout')
+                    assert.is_equal(err.code,-32001)
+                    done()
+                  end)
+            })
+          end)
+        
         it('fetch with sort works when states are already added',function(done)
             local expected_adds = {
               [1] = {

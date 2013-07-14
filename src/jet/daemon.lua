@@ -5,6 +5,7 @@ local jsocket = require'jet.socket'
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
+local new_timer = ev.Timer.new
 local tsort = table.sort
 local print = print
 local pairs = pairs
@@ -49,8 +50,21 @@ local invalid_params = function(data)
   return err
 end
 
+local response_timeout = function(data)
+  local err = {
+    code = -32001,
+    message = 'Response Timeout',
+    data = data
+  }
+  return err
+end
 
 local create_daemon = function(options)
+  
+  local options = options or {}
+  local port = options.port or 11122
+  local loop = options.loop or ev.Loop.default
+  
   print = options.print or print
   
   local peers = {}
@@ -63,6 +77,7 @@ local create_daemon = function(options)
   local route_message = function(peer,message)
     local route = routes[message.id]
     if route then
+      route.timer:stop(loop)
       routes[message.id] = nil
       message.id = route.id
       route.receiver:queue(message)
@@ -586,24 +601,24 @@ local create_daemon = function(options)
         if type(p) == typename then
           return p
         else
-          error(invalid_params{wrong_type=key,got=params})
+          error(invalid_params{wrongType=key,got=params})
         end
       else
         return p
       end
     else
-      error(invalid_params{missing_param=key,got=params})
+      error(invalid_params{missingParam=key,got=params})
     end
   end
   
   local optional = function(params,key,typename)
     local p = params[key]
-    if p then
+    if p ~= nil then
       if typename then
         if type(p) == typename then
           return p
         else
-          error(invalid_params{wrong_type=key,got=params})
+          error(invalid_params{wrongType=key,got=params})
         end
       else
         return p
@@ -723,16 +738,29 @@ local create_daemon = function(options)
   local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
+    local timeout = optional(params,'timeout','number') or 5
     local element = elements[path]
     if element then
       local id
-      if message.id then
-        id = message.id..tostring(peer)
+      local mid = message.id
+      if mid then
+        local timer = new_timer(function()
+            routes[id] = nil
+            peer:queue
+            {
+              id = mid,
+              error = response_timeout(params)
+            }
+            peer:flush()
+          end,timeout)
+        timer:start(loop)
+        id = mid..tostring(peer)
         assert(not routes[id])
         -- save route to forward reply
         routes[id] = {
           receiver = peer,
-          id = message.id
+          id = mid,
+          timer = timer
         }
       end
       local req = {
@@ -1020,10 +1048,6 @@ local create_daemon = function(options)
     end
     flush_peers()
   end
-  
-  local options = options or {}
-  local port = options.port or 11122
-  local loop = options.loop or ev.Loop.default
   
   local create_peer = function(ops)
     local peer = {}

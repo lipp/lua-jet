@@ -47,11 +47,12 @@ new = function(config)
     end
     local wsock = jsocket.wrap_sync(sock)
     local id = 0
-    local service = function(method,params,as_notification)
+    local service = function(method,params,timeout)
       local rid
-      if not as_notification then
+      if not timeout == false then
         id = id + 1
         rid = id
+        params.timeout = timeout
       end
       wsock:send(encode
         {
@@ -226,6 +227,7 @@ new = function(config)
       -- If no id is specified in the message, no Response
       -- is expected, aka Notification.
       if callbacks then
+        params.timeout = callbacks.timeout
         id = id + 1
         rpc_id = id
         if complete then
