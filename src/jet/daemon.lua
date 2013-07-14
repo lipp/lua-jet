@@ -53,14 +53,14 @@ end
 local create_daemon = function(options)
   print = options.print or print
   
-  local clients = {}
+  local peers = {}
   local leaves = {}
   local routes = {}
   
   local has_case_insensitives
   local case_insensitives = {}
   
-  local route_message = function(client,message)
+  local route_message = function(peer,message)
     local route = routes[message.id]
     if route then
       routes[message.id] = nil
@@ -73,8 +73,8 @@ local create_daemon = function(options)
   
   local publish = function(notification)
     notification.lpath = has_case_insensitives and notification.path:lower()
-    for client in pairs(clients) do
-      for fetch_id,fetcher in pairs(client.fetchers) do
+    for peer in pairs(peers) do
+      for fetch_id,fetcher in pairs(peer.fetchers) do
         local ok,refetch = pcall(fetcher,notification)
         if not ok then
           crit('publish failed',fetch_id,refetch)
@@ -92,9 +92,9 @@ local create_daemon = function(options)
     end
   end
   
-  local flush_clients = function()
-    for client in pairs(clients) do
-      client:flush()
+  local flush_peers = function()
+    for peer in pairs(peers) do
+      peer:flush()
     end
   end
   
@@ -611,7 +611,7 @@ local create_daemon = function(options)
     end
   end
   
-  local change = function(client,message)
+  local change = function(peer,message)
     local notification = message.params
     local path = checked(notification,'path','string')
     local leave = leaves[path]
@@ -622,7 +622,7 @@ local create_daemon = function(options)
     else
       local error = invalid_params{invalid_path=path}
       if message.id then
-        client:queue
+        peer:queue
         {
           id = message.id,
           error = error
@@ -633,7 +633,7 @@ local create_daemon = function(options)
     end
   end
   
-  local fetch = function(client,message)
+  local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
     local queue_notification = function(nparams)
@@ -656,7 +656,7 @@ local create_daemon = function(options)
       error(invalid_params{fetchParams = params, reason = fetcher})
     end
     
-    client.fetchers[fetch_id] = fetcher
+    peer.fetchers[fetch_id] = fetcher
     
     if is_case_insensitive then
       case_insensitives[fetcher] = true
@@ -665,7 +665,7 @@ local create_daemon = function(options)
     
     if not flush then
       if message.id then
-        client:queue
+        peer:queue
         {
           id = message.id,
           result = {}
@@ -673,9 +673,9 @@ local create_daemon = function(options)
       end
     end
     
-    local cq = client.queue
+    local cq = peer.queue
     queue_notification = function(nparams)
-      cq(client,{
+      cq(peer,{
           method = fetch_id,
           params = nparams
       })
@@ -692,7 +692,7 @@ local create_daemon = function(options)
     initializing = false
     if flush then
       if message.id then
-        client:queue
+        peer:queue
         {
           id = message.id,
           result = {}
@@ -702,17 +702,17 @@ local create_daemon = function(options)
     end
   end
   
-  local unfetch = function(client,message)
+  local unfetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
-    local fetcher = client.fetchers[fetch_id]
-    client.fetchers[fetch_id] = nil
+    local fetcher = peer.fetchers[fetch_id]
+    peer.fetchers[fetch_id] = nil
     
     case_insensitives[fetcher] = nil
     has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
     
     if message.id then
-      client:queue
+      peer:queue
       {
         id = message.id,
         result = {}
@@ -720,18 +720,18 @@ local create_daemon = function(options)
     end
   end
   
-  local route = function(client,message)
+  local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
     local leave = leaves[path]
     if leave then
       local id
       if message.id then
-        id = message.id..tostring(client)
+        id = message.id..tostring(peer)
         assert(not routes[id])
         -- save route to forward reply
         routes[id] = {
-          receiver = client,
+          receiver = peer,
           id = message.id
         }
       end
@@ -746,11 +746,11 @@ local create_daemon = function(options)
       else
         req.params = params.args
       end
-      leave.client:queue(req)
+      leave.peer:queue(req)
     else
       local error = invalid_params{notExists=path}
       if message.id then
-        client:queue
+        peer:queue
         {
           id = message.id,
           error = error
@@ -760,7 +760,7 @@ local create_daemon = function(options)
     end
   end
   
-  local add = function(client,message)
+  local add = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
     if leaves[path] then
@@ -768,7 +768,7 @@ local create_daemon = function(options)
     end
     local value = params.value-- might be nil for actions / methods
     local leave = {
-      client = client,
+      peer = peer,
       value = value
     }
     leaves[path] = leave
@@ -780,7 +780,7 @@ local create_daemon = function(options)
     }
   end
   
-  local remove = function(client,message)
+  local remove = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
     if not leaves[path] then
@@ -796,22 +796,22 @@ local create_daemon = function(options)
     }
   end
   
-  local config = function(client,message)
+  local config = function(peer,message)
     local params = message.params
     if params.peer then
-      client = nil
-      for client_ in pairs(clients) do
-        if client_.name == params.peer then
-          client = client_
+      peer = nil
+      for peer_ in pairs(peers) do
+        if peer_.name == params.peer then
+          peer = peer_
           break
         end
       end
-      if not client then
-        error('unknown client')
+      if not peer then
+        error('unknown peer')
       end
     end
     if params.name then
-      client.name = params.name
+      peer.name = params.name
     end
     if params.encoding then
       if params.encoding == 'msgpack' then
@@ -822,28 +822,28 @@ local create_daemon = function(options)
         -- send any outstanding messages with old encoding
         -- and the response to this config call immediatly
         if message.id then
-          client:queue
+          peer:queue
           {
             id = message.id,
             result = true
           }
         end
-        client.flush()
-        client.is_binary = true
-        client.encode = cmsgpack.pack
-        client.decode = cmsgpack.unpack
+        peer.flush()
+        peer.is_binary = true
+        peer.encode = cmsgpack.pack
+        peer.decode = cmsgpack.unpack
         return nil,true -- set dont_auto_reply true
       end
     end
-    client.debug = params.debug
+    peer.debug = params.debug
   end
   
   local sync = function(f)
-    local sc = function(client,message)
-      local ok,result,dont_auto_reply = pcall(f,client,message)
+    local sc = function(peer,message)
+      local ok,result,dont_auto_reply = pcall(f,peer,message)
       if message.id and not dont_auto_reply then
         if ok then
-          client:queue
+          peer:queue
           {
             id = message.id,
             result = result or {}
@@ -859,7 +859,7 @@ local create_daemon = function(options)
               data = result
             }
           end
-          client:queue
+          peer:queue
           {
             id = message.id,
             error = error
@@ -873,8 +873,8 @@ local create_daemon = function(options)
   end
   
   local async = function(f)
-    local ac = function(client,message)
-      local ok,err = pcall(f,client,message)
+    local ac = function(peer,message)
+      local ok,err = pcall(f,peer,message)
       if message.id then
         if not ok then
           local error
@@ -887,7 +887,7 @@ local create_daemon = function(options)
               data = err
             }
           end
-          client:queue
+          peer:queue
           {
             id = message.id,
             error = err
@@ -909,17 +909,17 @@ local create_daemon = function(options)
     fetch = async(fetch),
     unfetch = async(unfetch),
     change = sync(change),
-    echo = sync(function(client,message)
+    echo = sync(function(peer,message)
         return message.params
       end)
   }
   
-  local dispatch_request = function(client,message)
+  local dispatch_request = function(peer,message)
     local error
     assert(message.method)
     local service = services[message.method]
     if service then
-      local ok,err = pcall(service,client,message)
+      local ok,err = pcall(service,peer,message)
       if ok then
         return
       else
@@ -940,31 +940,31 @@ local create_daemon = function(options)
         data = message.method
       }
     end
-    client:queue
+    peer:queue
     {
       id = message.id,
       error = error
     }
   end
   
-  local dispatch_notification = function(client,message)
+  local dispatch_notification = function(peer,message)
     local service = services[message.method]
     if service then
-      local ok,err = pcall(service,client,message)
+      local ok,err = pcall(service,peer,message)
       if not ok then
         log('dispatch_notification error:',jencode(err))
       end
     end
   end
   
-  local dispatch_single_message = function(client,message)
+  local dispatch_single_message = function(peer,message)
     if message.id then
       if message.method then
-        dispatch_request(client,message)
+        dispatch_request(peer,message)
       elseif message.result or message.error then
-        route_message(client,message)
+        route_message(peer,message)
       else
-        client:queue
+        peer:queue
         {
           id = message.id,
           error = {
@@ -976,21 +976,21 @@ local create_daemon = function(options)
         log('message not dispatched:',jencode(message))
       end
     elseif message.method then
-      dispatch_notification(client,message)
+      dispatch_notification(peer,message)
     else
       log('message not dispatched:',jencode(message))
     end
   end
   
-  local dispatch_message = function(client,message,err)
+  local dispatch_message = function(peer,message,err)
     local ok,err = pcall(
       function()
         if message then
-          if client.debug then
-            debug(client.name or 'unnamed client','->',jencode(message))
+          if peer.debug then
+            debug(peer.name or 'unnamed peer','->',jencode(message))
           end
           if message == jnull then
-            client:queue
+            peer:queue
             {
               error = {
                 code = -32600,
@@ -1000,13 +1000,13 @@ local create_daemon = function(options)
             }
           elseif #message > 0 then
             for i,message in ipairs(message) do
-              dispatch_single_message(client,message)
+              dispatch_single_message(peer,message)
             end
           else
-            dispatch_single_message(client,message)
+            dispatch_single_message(peer,message)
           end
         else
-          client:queue
+          peer:queue
           {
             error = {
               code  = -32700,
@@ -1018,24 +1018,24 @@ local create_daemon = function(options)
     if not ok then
       crit('dispatching message',jencode(message),err)
     end
-    flush_clients()
+    flush_peers()
   end
   
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
   
-  local create_client = function(ops)
-    local client = {}
-    client.release = function()
-      if client then
-        for _,fetcher in pairs(client.fetchers) do
+  local create_peer = function(ops)
+    local peer = {}
+    peer.release = function()
+      if peer then
+        for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
         end
         has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
-        client.fetchers =  {}
+        peer.fetchers =  {}
         for path,leave in pairs(leaves) do
-          if leave.client == client then
+          if leave.peer == peer then
             publish
             {
               event = 'remove',
@@ -1045,86 +1045,86 @@ local create_daemon = function(options)
             leaves[path] = nil
           end
         end
-        flush_clients()
+        flush_peers()
         ops.close()
-        clients[client] = nil
-        client = nil
+        peers[peer] = nil
+        peer = nil
       end
     end
-    client.close = function(_)
-      client:flush()
+    peer.close = function(_)
+      peer:flush()
       ops.close()
     end
-    client.queue = function(_,message)
-      if not client.messages then
-        client.messages = {}
+    peer.queue = function(_,message)
+      if not peer.messages then
+        peer.messages = {}
       end
-      tinsert(client.messages,message)
+      tinsert(peer.messages,message)
     end
     local send = ops.send
-    client.flush = function(_)
-      if client.messages then
-        local num = #client.messages
+    peer.flush = function(_)
+      if peer.messages then
+        local num = #peer.messages
         local message
         if num == 1 then
-          message = client.messages[1]
+          message = peer.messages[1]
         elseif num > 1 then
-          message = client.messages
+          message = peer.messages
         else
           assert(false,'messages must contain at least one element if not nil')
         end
-        if client.debug then
-          debug(client.name or 'unnamed client','<-',jencode(message))
+        if peer.debug then
+          debug(peer.name or 'unnamed peer','<-',jencode(message))
         end
-        send(client.encode(message))
-        client.messages = nil
+        send(peer.encode(message))
+        peer.messages = nil
       end
     end
-    client.fetchers = {}
-    return client
+    peer.fetchers = {}
+    return peer
   end
   
   local listener
   local accept_tcp = function(loop,accept_io)
     local sock = listener:accept()
     if not sock then
-      log('accepting client failed')
+      log('accepting peer failed')
       return
     end
     local jsock = jsocket.wrap(sock)
-    local client = create_client
+    local peer = create_peer
     {
       close = function() jsock:close() end,
       send = function(msg) jsock:send(msg) end,
     }
-    client.encode = cjson.encode
-    client.decode = cjson.decode
+    peer.encode = cjson.encode
+    peer.decode = cjson.decode
     
     jsock:on_message(function(_,message)
-        dispatch_message(client,client.decode(message))
+        dispatch_message(peer,peer.decode(message))
       end)
     jsock:on_close(function(_,...)
-        debug('client socket close ('..(client.name or '')..')',...)
-        client:release()
+        debug('peer socket close ('..(peer.name or '')..')',...)
+        peer:release()
       end)
     jsock:on_error(function(_,...)
-        crit('client socket error ('..(client.name or '')..')',...)
-        client:release()
+        crit('peer socket error ('..(peer.name or '')..')',...)
+        peer:release()
       end)
     jsock:read_io():start(loop)
-    clients[client] = client
+    peers[peer] = peer
   end
   
   local accept_websocket = function(ws)
-    local client
-    client = create_client
+    local peer
+    peer = create_peer
     {
       close = function()
         ws:close()
       end,
       send = function(msg)
         local type
-        if client.is_binary then
+        if peer.is_binary then
           type = 2
         else
           type = 1
@@ -1132,21 +1132,21 @@ local create_daemon = function(options)
         ws:send(msg,type)
       end,
     }
-    client.encode = cjson.encode
-    client.decode = cjson.decode
+    peer.encode = cjson.encode
+    peer.decode = cjson.decode
     
     ws:on_message(function(_,msg,opcode)
-        dispatch_message(client,client.decode(msg))
+        dispatch_message(peer,peer.decode(msg))
       end)
     ws:on_close(function(_,...)
-        debug('client websocket close ('..(client.name or '')..')',...)
-        client:release()
+        debug('peer websocket close ('..(peer.name or '')..')',...)
+        peer:release()
       end)
     ws:on_error(function(_,...)
-        crit('client websocket error ('..(client.name or '')..')',...)
-        client:release()
+        crit('peer websocket error ('..(peer.name or '')..')',...)
+        peer:release()
       end)
-    clients[client] = client
+    peers[peer] = peer
   end
   
   local listen_io
@@ -1180,8 +1180,8 @@ local create_daemon = function(options)
     stop = function()
       listen_io:stop(loop)
       listener:close()
-      for _,client in pairs(clients) do
-        client:close()
+      for _,peer in pairs(peers) do
+        peer:close()
       end
       if websocket_server then
         websocket_server:close()
