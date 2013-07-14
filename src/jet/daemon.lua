@@ -54,7 +54,7 @@ local create_daemon = function(options)
   print = options.print or print
   
   local peers = {}
-  local leaves = {}
+  local elements = {}
   local routes = {}
   
   local has_case_insensitives
@@ -79,11 +79,11 @@ local create_daemon = function(options)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
-          for path,leave in pairs(leaves) do
+          for path,element in pairs(elements) do
             fetcher
             {
               path = path,
-              value = leave.value,
+              value = element.value,
               event = 'add'
             }
           end
@@ -248,8 +248,8 @@ local create_daemon = function(options)
                 context = context
               }
               context.deps_ok[dep_path] = false
-              if leaves[dep_path] then
-                context.deps_ok[dep_path] = deps[dep_path].value_matcher(leaves[dep_path].value)
+              if elements[dep_path] then
+                context.deps_ok[dep_path] = deps[dep_path].value_matcher(elements[dep_path].value)
               end
             end
           end
@@ -614,9 +614,9 @@ local create_daemon = function(options)
   local change = function(peer,message)
     local notification = message.params
     local path = checked(notification,'path','string')
-    local leave = leaves[path]
-    if leave then
-      leave.value = notification.value
+    local element = elements[path]
+    if element then
+      element.value = notification.value
       notification.event = 'change'
       publish(notification)
     else
@@ -680,12 +680,12 @@ local create_daemon = function(options)
           params = nparams
       })
     end
-    for path,leave in pairs(leaves) do
+    for path,element in pairs(elements) do
       fetcher
       {
         path = path,
         lpath = has_case_insensitives and path:lower(),
-        value = leave.value,
+        value = element.value,
         event = 'add'
       }
     end
@@ -723,8 +723,8 @@ local create_daemon = function(options)
   local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
-    local leave = leaves[path]
-    if leave then
+    local element = elements[path]
+    if element then
       local id
       if message.id then
         id = message.id..tostring(peer)
@@ -746,7 +746,7 @@ local create_daemon = function(options)
       else
         req.params = params.args
       end
-      leave.peer:queue(req)
+      element.peer:queue(req)
     else
       local error = invalid_params{notExists=path}
       if message.id then
@@ -763,15 +763,15 @@ local create_daemon = function(options)
   local add = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
-    if leaves[path] then
+    if elements[path] then
       error(invalid_params{exists = path})
     end
     local value = params.value-- might be nil for actions / methods
-    local leave = {
+    local element = {
       peer = peer,
       value = value
     }
-    leaves[path] = leave
+    elements[path] = element
     publish
     {
       path = path,
@@ -783,16 +783,16 @@ local create_daemon = function(options)
   local remove = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
-    if not leaves[path] then
+    if not elements[path] then
       error(invalid_params{invalid_path = path})
     end
-    local leave = assert(leaves[path])
-    leaves[path] = nil
+    local element = assert(elements[path])
+    elements[path] = nil
     publish
     {
       path = path,
       event = 'remove',
-      value = leave.value
+      value = element.value
     }
   end
   
@@ -1034,15 +1034,15 @@ local create_daemon = function(options)
         end
         has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
         peer.fetchers =  {}
-        for path,leave in pairs(leaves) do
-          if leave.peer == peer then
+        for path,element in pairs(elements) do
+          if element.peer == peer then
             publish
             {
               event = 'remove',
               path = path,
-              value = leave.value
+              value = element.value
             }
-            leaves[path] = nil
+            elements[path] = nil
           end
         end
         flush_peers()
