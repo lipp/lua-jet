@@ -502,7 +502,7 @@ local create_daemon = function(options)
         if newindex == lastindex then
           if event == 'change' then
             notify{
-              max = max,
+              n = max - from + 1,
               value = {
                 {
                   path = path,
@@ -532,7 +532,10 @@ local create_daemon = function(options)
           start = lastindex
           stop = max
           max = max - 1
-        elseif not is_in and not was_in then
+        elseif not is_in and not was_in and lastindex < from then
+          start = from
+          stop = max
+        else
           return
         end
         local changes = {}

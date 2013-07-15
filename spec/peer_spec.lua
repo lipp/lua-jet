@@ -854,7 +854,7 @@ describe(
             
           end)
         
-        it('fetch with sort has n properly reduced',function(done)
+        it('fetch with sort has n properly reduced with from = 2',function(done)
             local a = peer:state{path = 'a', value = 1}
             local b = peer:state{path = 'b', value = 2}
             local c = peer:state{path = 'c', value = 3}
@@ -926,6 +926,59 @@ describe(
                   done()
                 end
               },
+            }
+            
+            
+            local count = 0
+            
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 2,
+                  to = 4
+                }
+              },async(function(sorted,n)
+                  count = count + 1
+                  assert.is_equal(expected[count].n,n)
+                  assert.is_same(expected[count].sorted,sorted)
+                  assert.is_same(#expected[count].sorted,#sorted)
+                  expected[count].action()
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            
+          end)
+        
+        it('fetch with from = 2 works when elements from top are removed',function(done)
+            local a = peer:state{path = 'a', value = 1}
+            local b = peer:state{path = 'b', value = 2}
+            local c = peer:state{path = 'c', value = 3}
+            local d = peer:state{path = 'd', value = 4}
+            local e = peer:state{path = 'e', value = 5}
+            
+            local expected = {
+              {
+                sorted = {
+                  {path = 'b', value = 2, index = 2},
+                  {path = 'c', value = 3, index = 3},
+                  {path = 'd', value = 4, index = 4},
+                },
+                n = 3,
+                action = function()
+                  a:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'c', value = 3, index = 2},
+                  {path = 'd', value = 4, index = 3},
+                  {path = 'e', value = 5, index = 4},
+                },
+                n = 3,
+                action = function()
+                  done()
+                end
+              }
             }
             
             
