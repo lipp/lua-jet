@@ -555,7 +555,7 @@ local create_daemon = function(options)
         end
         notify({
             value = changes,
-            max = max,
+            n = max - from + 1,
         })
       end
     end
@@ -579,7 +579,7 @@ local create_daemon = function(options)
       end
       local notification = {
         value = changes,
-        max = max,
+        n = max - from + 1,
       }
       notify(notification)
     end

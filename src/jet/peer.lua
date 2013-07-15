@@ -366,7 +366,7 @@ new = function(config)
           if not sorting then
             f(params.path,params.event,params.value,ref)
           else
-            f(params.value,params.max,ref)
+            f(params.value,params.n,ref)
           end
         end
       end

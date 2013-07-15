@@ -763,8 +763,8 @@ describe(
                   from = 1,
                   to = #expected_adds
                 }
-              },async(function(sorted,max,fetcher2)
-                  assert.is_equal(max,#expected_adds)
+              },async(function(sorted,n,fetcher2)
+                  assert.is_equal(n,#expected_adds)
                   assert.is_equal(fetcher,fetcher2)
                   assert.is_same(sorted,expected_adds)
                   done()
@@ -790,7 +790,7 @@ describe(
                   {path = 'c', value = 3, index = 3},
                   {path = 'd', value = 4, index = 4},
                 },
-                max = 4,
+                n = 4,
                 action = function()
                   c:remove()
                 end
@@ -800,7 +800,7 @@ describe(
                   {path = 'd', value = 4, index = 3},
                   {path = 'e', value = 5, index = 4},
                 },
-                max = 4,
+                n = 4,
                 action = function()
                   e:remove()
                 end
@@ -808,7 +808,7 @@ describe(
               {
                 sorted = {
                 },
-                max = 3,
+                n = 3,
                 action = function()
                   e:add()
                 end
@@ -817,7 +817,7 @@ describe(
                 sorted = {
                   {path = 'e', value = 5, index = 4},
                 },
-                max = 4,
+                n = 4,
                 action = function()
                   d:remove()
                 end
@@ -826,7 +826,7 @@ describe(
                 sorted = {
                   {path = 'e', value = 5, index = 3},
                 },
-                max = 3,
+                n = 3,
                 action = function()
                   done()
                 end
@@ -841,9 +841,104 @@ describe(
                   from = 1,
                   to = 4
                 }
-              },async(function(sorted,max)
+              },async(function(sorted,n)
                   count = count + 1
-                  assert.is_equal(expected[count].max,max)
+                  assert.is_equal(expected[count].n,n)
+                  assert.is_same(expected[count].sorted,sorted)
+                  assert.is_same(#expected[count].sorted,#sorted)
+                  expected[count].action()
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            
+          end)
+        
+        it('fetch with sort has n properly reduced',function(done)
+            local a = peer:state{path = 'a', value = 1}
+            local b = peer:state{path = 'b', value = 2}
+            local c = peer:state{path = 'c', value = 3}
+            local d = peer:state{path = 'd', value = 4}
+            local e = peer:state{path = 'e', value = 5}
+            
+            local expected = {
+              {
+                sorted = {
+                  {path = 'b', value = 2, index = 2},
+                  {path = 'c', value = 3, index = 3},
+                  {path = 'd', value = 4, index = 4},
+                },
+                n = 3,
+                action = function()
+                  c:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'd', value = 4, index = 3},
+                  {path = 'e', value = 5, index = 4},
+                },
+                n = 3,
+                action = function()
+                  e:remove()
+                end
+              },
+              {
+                sorted = {
+                },
+                n = 2,
+                action = function()
+                  e:add()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'e', value = 5, index = 4},
+                },
+                n = 3,
+                action = function()
+                  d:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'e', value = 5, index = 3},
+                },
+                n = 2,
+                action = function()
+                  b:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'e', value = 5, index = 2},
+                },
+                n = 1,
+                action = function()
+                  e:remove()
+                end
+              },
+              {
+                sorted = {
+                },
+                n = 0,
+                action = function()
+                  done()
+                end
+              },
+            }
+            
+            
+            local count = 0
+            
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 2,
+                  to = 4
+                }
+              },async(function(sorted,n)
+                  count = count + 1
+                  assert.is_equal(expected[count].n,n)
                   assert.is_same(expected[count].sorted,sorted)
                   assert.is_same(#expected[count].sorted,#sorted)
                   expected[count].action()
@@ -859,7 +954,7 @@ describe(
               -- when xcd is added
               {
                 value = {},
-                max = 0
+                n = 0
               },
               {
                 value = {
@@ -869,11 +964,11 @@ describe(
                     index = 1,
                   }
                 },
-                max = 1
+                n = 1
               },
               -- when ii98 is added, xcd is reordered
               {
-                max = 2,
+                n = 2,
                 value = {
                   {
                     path = 'ii98',
@@ -890,7 +985,7 @@ describe(
               -- when abc is added, ii98 is reordered and xcd  is
               -- removed
               {
-                max = 2,
+                n = 2,
                 value = {
                   {
                     path = 'abc',
@@ -913,11 +1008,11 @@ describe(
                   from = 1,
                   to = 2
                 }
-              },async(function(sorted,max)
+              },async(function(sorted,n)
                   count = count + 1
                   local s = {
                     value = sorted,
-                    max = max
+                    n = n
                   }
                   assert.is_same(s,expected[count])
                   if count == #expected then
@@ -966,7 +1061,7 @@ describe(
                 -- when xcd is added
                 {
                   value = {},
-                  max = 0
+                  n = 0
                 },
                 {
                   value = {
@@ -976,11 +1071,11 @@ describe(
                       index = 1,
                     }
                   },
-                  max = 1
+                  n = 1
                 },
                 -- when ii98 is added, xcd is reordered
                 {
-                  max = 2,
+                  n = 2,
                   value = {
                     {
                       path = 'ii98',
@@ -997,7 +1092,7 @@ describe(
                 -- when abc is added, ii98 is reordered and xcd  is
                 -- removed
                 {
-                  max = 2,
+                  n = 2,
                   value = {
                     {
                       path = 'abc',
@@ -1020,11 +1115,11 @@ describe(
                     from = 1,
                     to = 2
                   }
-                },async(function(sorted,max)
+                },async(function(sorted,n)
                     count = count + 1
                     local s = {
                       value = sorted,
-                      max = max
+                      n = n
                     }
                     assert.is_same(s,expected[count])
                     if count == #expected then
