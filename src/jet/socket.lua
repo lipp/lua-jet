@@ -28,8 +28,7 @@ local wrap_sync = function(sock)
   wrapped.receive = function(_)
     local bin_len = sock:receive(4)
     local _,len = bin_len:unpack('>I')
-    local json_message = sock:receive(len)
-    return cjson.decode(json_message)
+    return sock:receive(len)
   end
   return wrapped
 end

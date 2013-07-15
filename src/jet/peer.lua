@@ -49,7 +49,7 @@ new = function(config)
     local id = 0
     local service = function(method,params,timeout)
       local rid
-      if not timeout == false then
+      if not (timeout == false) then
         id = id + 1
         rid = id
         params.timeout = timeout
@@ -61,7 +61,11 @@ new = function(config)
           params = params
       })
       if not as_notification then
-        local response = wsock:receive()
+        local response,err = wsock:receive()
+        if err then
+          error(err)
+        end
+        response = decode(response)
         assert(response.id == rid)
         if response.result then
           return response.result
