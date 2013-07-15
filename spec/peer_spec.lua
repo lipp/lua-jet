@@ -735,17 +735,17 @@ describe(
                 path = 'cde',
                 value = 123,
                 index = 2
+              },
+              [3] = {
+                path = 'iii',
+                value = {bla=123},
+                index = 3
               }
             }
             
             -- add some other states which are not expected
             peer:state{
-              path = 'xcd',
-              value = true
-            }
-            
-            peer:state{
-              path = 'ii98',
+              path = 'xyz',
               value = {foo = 'bar'}
             }
             
@@ -761,13 +761,92 @@ describe(
             fetcher = peer:fetch({
                 sort = {
                   from = 1,
-                  to = 2
+                  to = #expected_adds
                 }
               },async(function(sorted,max,fetcher2)
-                  assert.is_equal(max,2)
+                  assert.is_equal(max,#expected_adds)
                   assert.is_equal(fetcher,fetcher2)
                   assert.is_same(sorted,expected_adds)
                   done()
+              end))
+            
+            finally(function() fetcher:unfetch() end)
+            
+            
+          end)
+        
+        it('fetch with sort has max properly reduced',function(done)
+            local a = peer:state{path = 'a', value = 1}
+            local b = peer:state{path = 'b', value = 2}
+            local c = peer:state{path = 'c', value = 3}
+            local d = peer:state{path = 'd', value = 4}
+            local e = peer:state{path = 'e', value = 5}
+            
+            local expected = {
+              {
+                sorted = {
+                  {path = 'a', value = 1, index = 1},
+                  {path = 'b', value = 2, index = 2},
+                  {path = 'c', value = 3, index = 3},
+                  {path = 'd', value = 4, index = 4},
+                },
+                max = 4,
+                action = function()
+                  c:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'd', value = 4, index = 3},
+                  {path = 'e', value = 5, index = 4},
+                },
+                max = 4,
+                action = function()
+                  e:remove()
+                end
+              },
+              {
+                sorted = {
+                },
+                max = 3,
+                action = function()
+                  e:add()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'e', value = 5, index = 4},
+                },
+                max = 4,
+                action = function()
+                  d:remove()
+                end
+              },
+              {
+                sorted = {
+                  {path = 'e', value = 5, index = 3},
+                },
+                max = 3,
+                action = function()
+                  done()
+                end
+              },
+            }
+            
+            
+            local count = 0
+            
+            local fetcher = peer:fetch({
+                sort = {
+                  from = 1,
+                  to = 4
+                }
+              },async(function(sorted,max)
+                  count = count + 1
+                  assert.is_equal(expected[count].max,max)
+                  assert.is_same(expected[count].sorted,sorted)
+                  assert.is_same(#expected[count].sorted,#sorted)
+                  expected[count].action()
               end))
             
             finally(function() fetcher:unfetch() end)

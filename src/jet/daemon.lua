@@ -523,14 +523,15 @@ local create_daemon = function(options)
           stop = mmax(lastindex,newindex)
         elseif is_in and not was_in then
           if max < to then
-            max = max + 1
+            stop = max + 1
+          else
+            stop = to
           end
           start = newindex
-          stop = max
         elseif not is_in and was_in then
           start = lastindex
-          max = max-1
           stop = max
+          max = max - 1
         elseif not is_in and not was_in then
           return
         end
@@ -546,15 +547,16 @@ local create_daemon = function(options)
             })
           end
           sorted[i] = new
-          if not new then
+          if new then
+            max = i
+          else
             break
           end
         end
-        local noti = {
-          value = changes,
-          max = max,
-        }
-        notify(noti)
+        notify({
+            value = changes,
+            max = max,
+        })
       end
     end
     
