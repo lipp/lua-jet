@@ -532,7 +532,7 @@ local create_daemon = function(options)
           start = lastindex
           stop = max
           max = max - 1
-        elseif not is_in and not was_in and lastindex < from then
+        elseif not is_in and not was_in and lastindex and lastindex < from then
           start = from
           stop = max
         else
