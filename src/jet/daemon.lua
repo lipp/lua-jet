@@ -782,10 +782,10 @@ local create_daemon = function(options)
       }
       
       local value = params.value
-      if value then
+      if value ~= nil then
         req.params = {value = value}
       else
-        req.params = params.args
+        req.params = params.args or {}
       end
       element.peer:queue(req)
     else
