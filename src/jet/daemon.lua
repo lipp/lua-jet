@@ -22,6 +22,7 @@ local jdecode = cjson.decode
 local jnull = cjson.null
 local unpack = unpack
 local mmin = math.min
+local mmax = math.max
 
 module('jet.daemon')
 
@@ -452,7 +453,7 @@ local create_daemon = function(options)
     local sorted = {}
     local matches = {}
     local index = {}
-    local max = from-1
+    local n
     
     local is_in_range = function(i)
       return i and i >= from and i <= to
@@ -466,99 +467,104 @@ local create_daemon = function(options)
         if index[path] then
           return
         end
-        index[path] = #matches+1
         tinsert(matches,{
             path = path,
             value = value,
         })
+        index[path] = #matches
         return
-      else
-        local lastindex = index[path]
-        if event == 'remove' then
-          if lastindex then
-            tremove(matches,lastindex)
-            index[path] = nil
-          else
-            return
-          end
-        elseif lastindex then
-          matches[lastindex].value = value
-        elseif not lastindex then
-          tinsert(matches,{
-              path = path,
-              value = value,
-          })
-        end
-        
-        tsort(matches,sort)
-        
-        for i,m in ipairs(matches) do
-          index[m.path] = i
-        end
-        
-        local newindex = index[path] or -1
-        
-        -- this may happen due to a refetch :(
-        if newindex == lastindex then
-          if event == 'change' then
-            notify{
-              n = max - from + 1,
-              value = {
-                {
-                  path = path,
-                  value = value,
-                  index = newindex,
-                }
-              }
-            }
-          end
-          return
-        end
-        local start
-        local stop
-        local is_in = is_in_range(newindex)
-        local was_in = is_in_range(lastindex)
-        if is_in and was_in then
-          start = mmin(lastindex,newindex)
-          stop = mmax(lastindex,newindex)
-        elseif is_in and not was_in then
-          if max < to then
-            stop = max + 1
-          else
-            stop = to
-          end
-          start = newindex
-        elseif not is_in and was_in then
-          start = lastindex
-          stop = max
-          max = max - 1
-        elseif not is_in and not was_in and lastindex and lastindex < from then
-          start = from
-          stop = max
+      end
+      local last_matches_len = #matches
+      local lastindex = index[path]
+      if event == 'remove' then
+        if lastindex then
+          tremove(matches,lastindex)
+          index[path] = nil
         else
           return
         end
-        local changes = {}
-        for i=start,stop do
-          local new = matches[i]
-          local old = sorted[i]
-          if new and new ~= old then
-            tinsert(changes,{
-                path = new.path,
-                value = new.value,
-                index = i
-            })
-          end
-          sorted[i] = new
-          if new then
-            max = i
-          else
-            break
-          end
+      elseif lastindex then
+        matches[lastindex].value = value
+      else
+        tinsert(matches,{
+            path = path,
+            value = value,
+        })
+      end
+      
+      tsort(matches,sort)
+      
+      for i,m in ipairs(matches) do
+        index[m.path] = i
+      end
+      
+      if last_matches_len < from and #matches < from then
+        return
+      end
+      
+      local newindex = index[path]
+      
+      -- this may happen due to a refetch :(
+      if newindex and lastindex and newindex == lastindex then
+        if event == 'change' then
+          notify{
+            n = n,
+            value = {
+              {
+                path = path,
+                value = value,
+                index = newindex,
+              }
+            }
+          }
         end
+        return
+      end
+      
+      local start
+      local stop
+      local is_in = is_in_range(newindex)
+      local was_in = is_in_range(lastindex)
+      
+      if is_in and was_in then
+        start = mmin(lastindex,newindex)
+        stop = mmax(lastindex,newindex)
+      elseif is_in and not was_in then
+        start = newindex
+        stop = mmin(to,#matches)
+      elseif not is_in and was_in then
+        start = lastindex
+        stop = mmin(to,#matches)
+      else
+        start = from
+        stop = mmin(to,#matches)
+      end
+      
+      local new_n = 0
+      local changes = {}
+      for i=start,stop do
+        local new = matches[i]
+        local old = sorted[i]
+        if new and new ~= old then
+          tinsert(changes,{
+              path = new.path,
+              value = new.value,
+              index = i
+          })
+        end
+        sorted[i] = new
+        if new then
+          new_n = i - from + 1
+        else
+          break
+        end
+      end
+      
+      if new_n ~= n or #changes > 0 then
+        n = new_n
         notify({
             value = changes,
-            n = max - from + 1,
+            n = n
         })
       end
     end
@@ -574,17 +580,17 @@ local create_daemon = function(options)
       for i=from,to do
         local new = matches[i]
         if new then
-          max = max + 1
           new.index = i
+          n = i
           sorted[i] = new
           tinsert(changes,new)
         end
       end
-      local notification = {
-        value = changes,
-        n = max - from + 1,
-      }
-      notify(notification)
+      
+      notify({
+          value = changes,
+          n = n,
+      })
     end
     
     
