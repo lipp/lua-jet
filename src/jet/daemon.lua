@@ -540,7 +540,7 @@ local create_daemon = function(options)
         stop = mmin(to,#matches)
       end
       
-      local new_n = 0
+      local new_n = n - 1 -- assume element has been removed
       local changes = {}
       for i=start,stop do
         local new = matches[i]
@@ -576,12 +576,14 @@ local create_daemon = function(options)
         index[m.path] = i
       end
       
+      n = 0
+      
       local changes = {}
       for i=from,to do
         local new = matches[i]
         if new then
           new.index = i
-          n = i
+          n = i - from + 1
           sorted[i] = new
           tinsert(changes,new)
         end

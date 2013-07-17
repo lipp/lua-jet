@@ -775,7 +775,7 @@ describe(
             
           end)
         
-        it('fetch with sort has max properly reduced',function(done)
+        it('fetch with sort has n properly reduced',function(done)
             local a = peer:state{path = 'a', value = 1}
             local b = peer:state{path = 'b', value = 2}
             local c = peer:state{path = 'c', value = 3}
