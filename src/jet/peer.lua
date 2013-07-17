@@ -474,7 +474,12 @@ new = function(config)
           local value = message.params.value
           local ok,result,dont_notify = pcall(desc.set,value)
           if ok then
-            local newvalue = result or value
+            local newvalue
+            if result ~= nil then
+              newvalue = result
+            else
+              newvalue = value
+            end
             desc.value = newvalue
             local mid = message.id
             if mid then
@@ -522,13 +527,17 @@ new = function(config)
               queue(response)
             end
             if resp.result and not resp.dont_notify then
-              desc.value = resp.value or value
+              if resp.value ~= nil then
+                desc.value = resp.value
+              else
+                desc.value = value
+              end
               queue
               {
                 method = 'change',
                 params = {
                   path = desc.path,
-                  value = resp.value or value
+                  value = desc.value
                 }
               }
             end
