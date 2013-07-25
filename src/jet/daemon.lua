@@ -179,7 +179,7 @@ local create_daemon = function(options)
         return function(value)
           local is_table = type(value) == 'table'
           for _,where in ipairs(options.where) do
-            local need_table = where.prop and where.prop ~= ''
+            local need_table = where.prop and where.prop ~= '' and where.prop ~= jnull
             if need_table and not is_table then
               return false
             end
@@ -204,7 +204,7 @@ local create_daemon = function(options)
         local where = options.where
         local op = ops[where.op]
         local ref = where.value
-        if not where.prop or where.prop == '' then
+        if not where.prop or where.prop == '' or where.prop == jnull then
           return function(value)
             local is_table = type(value) == 'table'
             if is_table then
