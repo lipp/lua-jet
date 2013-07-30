@@ -464,15 +464,14 @@ local create_daemon = function(options)
           return true
         end
       end
-      if options.sort.byValue == true or options.sort.byValue == '' then
-        if options.sort.descending then
-          sort = function(a,b)
-            return psort(gt,a.value,b.value)
-          end
-        else
-          sort = function(a,b)
-            return psort(lt,a.value,b.value)
-          end
+      
+      if options.sort.descending then
+        sort = function(a,b)
+          return psort(gt,a.value,b.value)
+        end
+      else
+        sort = function(a,b)
+          return psort(lt,a.value,b.value)
         end
       end
     end
@@ -569,7 +568,6 @@ local create_daemon = function(options)
         stop = mmin(to,#matches)
       end
       
-      local new_n = n - 1 -- assume element has been removed
       local changes = {}
       for i=start,stop do
         local new = matches[i]
@@ -582,12 +580,12 @@ local create_daemon = function(options)
           })
         end
         sorted[i] = new
-        if new then
-          new_n = i - from + 1
-        else
+        if not new then
           break
         end
       end
+      
+      local new_n = mmin(to,#matches) - from + 1
       
       if new_n ~= n or #changes > 0 then
         n = new_n
