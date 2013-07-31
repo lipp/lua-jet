@@ -87,7 +87,7 @@ local allstuff = pi:fetch('.*',function(event,path,value)
 end)
 ```
 
-Else, if `fetch_params.sort` specifies a valid sort config, the `fetch_callback` receives the parameters `(changes,n)`. To minimize network traffic, only the changes are posted to the peers. `changes` is an array, which contains all entries within the requested sort range (`from`,`to`) which have been changed, added or moved. `n` denotes the number of elements that are currently in the requested sorted collection. `n` >= 0 and n <= (`to` - `from`). 
+Else, if `fetch_params.sort` specifies a valid sort config, the `fetch_callback` receives the parameters `(changes,n)`. To minimize network traffic, only the changes are posted to the peers. `changes` is an array, which contains all entries within the requested sort range (`from`,`to`) which have been changed, added or moved. In addition to their respective `path` and `value` there is also the `index` field, specifying the position within the sort range. `n` denotes the number of elements that are currently in the requested sorted collection. `n` >= 0 and n <= (`to` - `from`). 
 
 ```lua
 local top_ten = {}
