@@ -79,8 +79,7 @@ fetch_params = {
 }
 ```
 
-Else the `fetch_params` are used unmodified. The fetch_callback receives the following params `(event,path,value,[index,]fetcher)`.
-The param `event`, `path`, `value`, and `index` are the values of the corresponding Jet 'fetch' message/notification. The `index` is only present, if the is sorted. The `fetcher` is the same as returned by the `pi:fetch(...)` call. You can use the `fetcher` to call `fetcher:unfetch()`.
+Else the `fetch_params` are used unmodified. If `fetch_params.sort` is not defined or is no valid sort option, the `fetch_callback` receives the parameters `(event,path,value,fetcher)`. The `event` can be either `add`, `change` or `remove`. `add` is always the first event. `change` means that the paths's associated `value` has changed and `remove` means that the state or method are not available at the Jet bus any longer. States and methods may become available any time later on, though. Note that `value` is `nil` for methods. 
 
 ```lua
 local allstuff = pi:fetch('.*',function(event,path,value)
@@ -88,20 +87,76 @@ local allstuff = pi:fetch('.*',function(event,path,value)
 end)
 ```
 
+Else, if `fetch_params.sort` specifies a valid sort config, the `fetch_callback` receives the parameters `(changes,n)`. To minimize network traffic, only the changes are posted to the peers. `changes` is an array, which contains all entries within the requested sort range (`from`,`to`) which have been changed, added or moved. `n` denotes the number of elements that are currently in the requested sorted collection. `n` >= 0 and n <= (`to` - `from`). 
+
 ```lua
-local top_ten = pi:fetch({
+local top_ten = {}
+
+local show_top_ten = function(changes,n)
+  -- merge the changes into top_ten
+  for _,change in ipairs(changes) do
+    top_ten[change.index] = {
+		path = change.path,
+		value = change.value
+	}
+  end
+  -- display top_ten
+  -- note: maybe there are only 5 players available (some may lhave left the game meanwhile)
+  -- in this case n is 5.
+  for i=1,n do
+    print('pos:',i,top_ten[i].path,top_ten[i].value)
+  end
+end
+
+pi:fetch({
     matches = {'player'},
 	sort = {
-	  byValue = true,
-	  descending = true,
-	  prop = 'score',
-	  from = 1,
-	  to = 10
+	  byValue = true,    -- optional, default is false
+	  descending = true, -- optional, default is false
+	  prop = 'score', -- optional, tells which entry of table to use as order criteria
+	  from = 1, -- optional, default is 1
+	  to = 10, -- optional, default is 10
 	}
-  },function(event,path,value,index)
-    print(event,path,value,index)
+  },function(changes,n)    
+    print(changes,n)
   end)
 ```
+
+The `fetcher` argument passed in as `fetch_callback` param is the same as returned by the `pi:fetch(...)` call. You can use the `fetcher` to call `fetcher:unfetch()`.
+
+```lua
+-- print first 5 events
+local i = 0
+pi:fetch('.*',function(event,path,value,fetcher)
+  print(event,path,value)
+  i = i + 1
+  if i == 5 then
+    fetcher:unfetch()
+  end
+end)
+```
+
+```lua
+-- fetches all available jet states and methods and prints
+-- the basic notification info until 'toggle_the_fetch' is called
+local print_fetch = pi:fetch(exp,function(path,event,data)
+    print(path,event,data)
+  end)
+
+pi:method({
+    path = 'toggle_the_fetch',
+    call = function()
+      if print_fetch:is_fetching() then
+        print_fetch:unfetch()
+        return 'off'
+      else
+        print_fetch:fetch()
+        return 'on'
+      end
+    end
+})
+```
+
 
 ### state = pi:state(desc,[callbacks])
 
@@ -195,7 +250,15 @@ Fetcher can be create by a peer instance (`pi:fetch(...)`).
 
 ### fetcher:unfetch([callbacks])
 
-Sends a 'unfetch' Jet message to the daemon.
+Sends a 'unfetch' Jet message to the daemon. No more notifications are send to the peer.
+
+### fetcher:fetch([callbacks])
+
+Sends a 'fetch' Jet message to the daemon. Notifications will be send again to the peer. This is shorthand for creating the same fetcher again with `pi:fetch(...)`.
+
+### fetcher:is_fetching([callbacks])
+
+Returns true if the fetch is currently active/fetching.
 
 ## state
 

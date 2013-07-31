@@ -383,6 +383,12 @@ new = function(config)
             request_dispatchers[id] = nil
           end
           service('unfetch',{id=id},remove_dispatcher,callbacks)
+        end,
+        is_fetching = function()
+          return request_dispatchers[id] ~= nil
+        end,
+        fetch = function(_,callbacks)
+          service('fetch',params,add_fetcher,callbacks)
         end
       }
       return ref
