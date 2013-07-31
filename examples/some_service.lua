@@ -1,5 +1,5 @@
 #!/usr/bin/env lua
-local jet = require'jet.peer'.new({name='some_service'})
+local peer = require'jet.peer'.new({name='some_service'})
 local ev = require'ev'
 
 local assign = function(var)
@@ -9,7 +9,7 @@ local assign = function(var)
 end
 
 local my_name = 'KLAUS'
-jet:state
+peer:state
 {
   path = 'name',
   set = function(new_name)
@@ -22,9 +22,36 @@ jet:state
   value = my_name
 }
 
+local big_object = {
+  some = {
+    really = {
+      big = {
+        nested = "shit"
+      }
+    },
+    numbers = {
+      1,2,2,35,6,7
+    }
+  }
+}
+
+peer:state
+{
+  path = 'biggy',
+  value = big_object,
+  set = assign(big_object)
+}
+
+local longy = {1,2,3}
+peer:state
+{
+  path = 'longpath/to/the/deepest/resource/available/on/planet/earth',
+  value = longy,
+  set = assign(longy)
+}
 
 local hobby = 'dance'
-jet:state
+peer:state
 {
   path = 'hobby',
   set = assign(hobby),
@@ -33,7 +60,7 @@ jet:state
 
 
 local fluid = math.pi
-jet:state
+peer:state
 {
   path = 'digital/is/great/and/fluid',
   set = assign(fluid),
@@ -41,7 +68,7 @@ jet:state
 }
 
 local num = 12349
-jet:state
+peer:state
 {
   path = 'digital/magic',
   set = function(new)
@@ -53,7 +80,7 @@ jet:state
 
 
 local products = {}
-jet:method
+peer:method
 {
   path = 'products/create',
   call = function(name)
@@ -65,14 +92,14 @@ jet:method
     end
     products[name] = {}
     local a = 1
-    products[name].a = jet:state
+    products[name].a = peer:state
     {
       path = 'products/'..name..'/a',
       set = assign(a),
       value = a
     }
     local b = 2
-    products[name].b = jet:state
+    products[name].b = peer:state
     {
       path = 'products/'..name..'/b',
       set = assign(b),
@@ -81,7 +108,7 @@ jet:method
   end
 }
 
-jet:method
+peer:method
 {
   path = 'products/delete',
   call = function(name)
@@ -98,7 +125,7 @@ jet:method
 }
 
 
-jet:method
+peer:method
 {
   path = 'add_numbers',
   call = function(a,b)
@@ -106,7 +133,7 @@ jet:method
   end,
 }
 
-jet:method
+peer:method
 {
   path = 'sum_numbers',
   call = function(...)
@@ -123,7 +150,7 @@ local peter = {
   age = 35,
   name = 'peter',
 }
-jet:state
+peer:state
 {
   path = 'persons/1232',
   value = peter,
@@ -131,7 +158,7 @@ jet:state
 }
 
 local peters_hobby = 'soccer'
-jet:state
+peer:state
 {
   path = 'persons/1232/hobby',
   value = peters_hobby,
@@ -142,7 +169,7 @@ local jim = {
   age = 40,
   name = 'jim',
 }
-jet:state
+peer:state
 {
   path = 'persons/1233',
   value = jim,
@@ -150,7 +177,7 @@ jet:state
 }
 
 local jims_hobby = 'guitar'
-jet:state
+peer:state
 {
   path = 'persons/1233/hobby',
   value = jims_hobby,
@@ -158,7 +185,7 @@ jet:state
 }
 
 local slow_dude = 5262
-jet:state
+peer:state
 {
   path = 'slow_dude',
   value = slow_dude,
@@ -178,5 +205,5 @@ jet:state
   end
 }
 
-jet:loop()
+peer:loop()
 
