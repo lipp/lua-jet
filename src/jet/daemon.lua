@@ -537,7 +537,7 @@ local create_daemon = function(options)
         if event == 'change' then
           notify{
             n = n,
-            value = {
+            changes = {
               {
                 path = path,
                 value = value,
@@ -590,7 +590,7 @@ local create_daemon = function(options)
       if new_n ~= n or #changes > 0 then
         n = new_n
         notify({
-            value = changes,
+            changes = changes,
             n = n
         })
       end
@@ -617,7 +617,7 @@ local create_daemon = function(options)
       end
       
       notify({
-          value = changes,
+          changes = changes,
           n = n,
       })
     end
