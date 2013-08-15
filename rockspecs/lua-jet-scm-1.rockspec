@@ -1,21 +1,25 @@
-package = 'jet'
+package = 'lua-jet'
 version = 'scm-1'
+
 source = {
-  url = 'git://github.com/lipp/jet.git',
+  url = 'git://github.com/lipp/lua-jet.git',
 }
+
 description = {
-  summary = 'A simple JSON based bus.',
-  homepage = 'http://github.com/lipp/jet',
+  summary = 'The JSON Bus. Daemon and Peer implementations for Lua.',
+  homepage = 'http://jetbus.io',
   license = 'MIT/X11'
 }
+
 dependencies = {
   'lua >= 5.1',
   'lua-cjson >= 1.0',
-  'lua-cmsgpack',
+  'lua-websockets',
   'luasocket',
   'lua-ev',
   'lpack'
 }
+
 build = {
   type = 'none',
   install = {
