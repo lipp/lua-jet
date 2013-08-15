@@ -1,4 +1,4 @@
-package = 'jet'
+package = 'lua-jet'
 version = '@VERSION@-1'
 
 source = {
