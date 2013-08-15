@@ -15,7 +15,7 @@ install:
   - git checkout add-finally
   - sudo luarocks make
   - cd ../
-  - sudo luarocks make rockspecs/jet-scm-1.rockspec
+  - sudo luarocks make rockspecs/lua-jet-scm-1.rockspec
 
 script: "busted spec"
 
