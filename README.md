@@ -1,6 +1,6 @@
 # About
 
-lua-jet is a [Jet](http://lipp.github.io/jet) daemon and peer implementation written in Lua. 
+lua-jet is a [Jet](http://jetbus.io) daemon and peer implementation written in Lua. 
 [![Build Status](https://travis-ci.org/lipp/lua-jet.png?branch=master)](https://travis-ci.org/lipp/lua-jet/builds)
 
 # Installation
@@ -20,12 +20,14 @@ lua-jet is a [Jet](http://lipp.github.io/jet) daemon and peer implementation wri
 
 # Radar
 
+[Radar](http://github.com/lipp/radar) is a web application that gives you access to a Jet bus.
+
     $ sudo luarocks install orbit
     $ git clone https://github.com/lipp/radar
     $ cd radar 
     $ ./simple_webserver.lua
 
-Visit [Your Radar](http://localhost:8080).
+Watch Your Jet Bus on [Your local Radar](http://localhost:8080).
 
 # Doc
 
