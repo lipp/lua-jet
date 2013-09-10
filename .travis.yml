@@ -2,10 +2,6 @@ language: erlang
 
 env:
 
-branches:
-  only:
-    - master
-
 install:
   - sudo apt-get install libev-dev
   - sudo apt-get install luajit
