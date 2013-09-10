@@ -2,6 +2,7 @@ local ev = require'ev'
 local jetdaemon = require'jet.daemon'
 local jetpeer = require'jet.peer'
 local loop = ev.Loop.default
+local socket = require'socket'
 local port = os.getenv('JET_PORT') or 11122+5
 
 local dt = 0.05
@@ -1207,3 +1208,49 @@ describe(
       end)
     
   end)
+
+local ipv6_localhost_addr
+
+if socket.dns and socket.dns.getaddrinfo then
+  for _,info in pairs(socket.dns.getaddrinfo('localhost')) do
+    if info.family == 'inet6' then
+      ipv6_localhost_addr = info.addr
+    end
+  end
+end
+
+if ipv6_localhost_addr then
+  
+  describe('ipv6 stuff',function()
+      local daemon
+      local peer
+      setup(function()
+          daemon = jetdaemon.new{
+            port = port,
+            interface = ipv6_localhost_addr,
+            print = function() end
+          }
+          daemon:start()
+        end)
+      
+      teardown(function()
+          daemon:stop()
+          if peer then
+            peer:close()
+          end
+        end)
+      
+      it('The jet.peer can connect to the ipv6 localhost addr '..ipv6_localhost_addr..' and on_connect gets called',function(done)
+          peer = jetpeer.new
+          {
+            port = port,
+            ip = ipv6_localhost_addr,
+            on_connect = async(function(p)
+                assert.is_equal(peer,p)
+                done()
+              end)
+          }
+        end)
+      
+    end)
+end
