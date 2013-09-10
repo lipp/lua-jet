@@ -88,7 +88,23 @@ new = function(config)
     end
     return j_sync
   else
-    local sock = socket.tcp()
+    local sock
+    if socket.dns and socket.dns.getaddrinfo then
+      local addrinfo,err = socket.dns.getaddrinfo(ip)
+      if addrinfo then
+        assert(#addrinfo > 0)
+        if addrinfo[1].family == 'inet6' then
+          sock = socket.tcp6()
+        else
+          sock = socket.tcp()
+        end
+      else
+        assert(err,'error message expected')
+        error(err)
+      end
+    else
+      sock = socket.tcp()
+    end
     sock:settimeout(0)
     local loop = config.loop or ev.Loop.default
     local wsock = jsocket.wrap(sock,{loop = loop})
