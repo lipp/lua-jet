@@ -80,7 +80,10 @@ local wrap = function(sock,args)
   wrapped.send = function(_,message)
     send_buffer = send_buffer..spack('>I',#message)..message
     if not send_io:is_active() then
-      send_io:start(loop)
+      send_message(loop,send_io)
+      if send_buffer ~= '' then
+        send_io:start(loop)
+      end
     end
   end
   wrapped.close = function()
@@ -131,7 +134,7 @@ local wrap = function(sock,args)
             end
           end
           if len then
-            if len > 1000000 then
+            if len > 10000000 then
               local err = 'message too big:'..len..'bytes'
               print('jet.socket error',err)
               on_error(wrapped,err)
