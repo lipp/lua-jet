@@ -59,6 +59,28 @@ describe(
       return f
     end
     
+    local echo_array = function(messages,done)
+      local f = function(done)
+        local wrapped = jetsocket.wrap(sock)
+        local received = 0
+        wrapped:on_message(
+          async(
+            function(wrapped,echoed)
+              received = received + 1
+              assert.is.same(messages[received],echoed)
+              if received == #messages then
+                wrapped:close()
+                done()
+              end
+          end))
+        wrapped:read_io():start(loop)
+        for _,message in ipairs(messages) do
+          wrapped:send(message)
+        end
+      end
+      return f
+    end
+    
     before_each(
       function()
         sock = socket.connect('localhost',port)
@@ -71,6 +93,8 @@ describe(
       end)
     
     it('can echo ascii',echo('ablbalblasdkjhsdkuhqdkkbjasdkjheiurq,jwek'))
+    it('can echo really long data',echo(string.rep('foo',1000000)))
+    it('can echo really long data twice',echo_array({string.rep('foo',1000000),string.rep('bar',1000000)}))
     it('can echo binary',echo(string.char(0,0,0,0,1,0,10,230,0)))
     it('can echo many messages',
       function(done)
