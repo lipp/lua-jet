@@ -704,6 +704,78 @@ describe(
             })
           end)
         
+        it('call method passes correct args and result',function(done)
+            local m = peer:method
+            {
+              path = 'abc3',
+              call = function(arg1,arg2)
+                return 123
+              end
+            }
+            finally(function()
+                m:remove()
+              end)
+            peer:call('abc3',{4,25},{
+                success = async(function(result)
+                    assert.is_same(result,123)
+                    done()
+                  end),
+                error = async(function(err)
+                    assert.is_nil(err or 'should not happen')
+                  end)
+            })
+          end)
+        
+        it('call method forwards "non-json-rpc" error as "Internal error"',function(done)
+            local m = peer:method
+            {
+              path = 'abc4',
+              call = function()
+                error('terror')
+              end
+            }
+            finally(function()
+                m:remove()
+              end)
+            peer:call('abc4',{},{
+                success = async(function(result)
+                    assert.is_nil(result or 'should not happen')
+                  end),
+                error = async(function(err)
+                    assert.is_same(err.message,'Internal error')
+                    assert.is_same(err.code,-32602)
+                    assert.is_truthy(err.data:match('terror'))
+                    done()
+                  end)
+            })
+          end)
+        
+        it('call method forwards json-rpc-error unchanged',function(done)
+            local m = peer:method
+            {
+              path = 'abc5',
+              call = function()
+                error({message='foo',code=9182,data='bar'})
+              end
+            }
+            finally(function()
+                m:remove()
+              end)
+            peer:call('abc5',{},{
+                success = async(function(result)
+                    assert.is_nil(result or 'should not happen')
+                  end),
+                error = async(function(err)
+                    assert.is_same(err.message,'foo')
+                    assert.is_same(err.code,9182)
+                    assert.is_same(err.data,'bar')
+                    done()
+                  end)
+            })
+          end)
+        
+        
+        
         it('call gets timeout error',function(done)
             local not_responding = peer:method
             {
