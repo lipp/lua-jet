@@ -157,6 +157,52 @@ for _,info in ipairs(addresses_to_test) do
                 end))
               message_socket:read_io():start(loop)
             end)
+          
+          it(
+            'sending an Invalid Request is reported correctly',
+            function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    assert.is_same(response,{
+                        error = {
+                          data = 123,
+                          code = -32600,
+                          message = 'Invalid Request'
+                        }
+                    })
+                    done()
+                end))
+              message_socket:read_io():start(loop)
+              message_socket:send('123')
+            end)
+          
+          it(
+            'sending an Invalid JSON is reported correctly',
+            function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    assert.is_same(response,{
+                        error = {
+                          data = 'this is no json',
+                          code = -32700,
+                          message = 'Parse error',
+                        }
+                    })
+                    done()
+                end))
+              message_socket:read_io():start(loop)
+              message_socket:send('this is no json')
+            end)
+          
+          
         end)
     end)
   

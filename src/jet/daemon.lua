@@ -984,7 +984,6 @@ local create_daemon = function(options)
   
   local dispatch_request = function(peer,message)
     local error
-    assert(message.method)
     local service = services[message.method]
     if service then
       local ok,err = pcall(service,peer,message)
@@ -1029,41 +1028,42 @@ local create_daemon = function(options)
     if message.id then
       if message.method then
         dispatch_request(peer,message)
+        return
       elseif message.result or message.error then
         route_message(peer,message)
-      else
-        peer:queue
-        {
-          id = message.id,
-          error = {
-            code = -32600,
-            message = 'Invalid Request',
-            data = message
-          }
-        }
-        log('message not dispatched:',jencode(message))
+        return
       end
     elseif message.method then
       dispatch_notification(peer,message)
-    else
-      log('message not dispatched:',jencode(message))
+      return
     end
+    log('invalid request:',jencode(message))
+    peer:queue
+    {
+      id = message.id,
+      error = {
+        code = -32600,
+        message = 'Invalid Request',
+        data = message
+      }
+    }
   end
   
-  local dispatch_message = function(peer,message,err)
+  local dispatch_message = function(peer,msg)
     local ok,err = pcall(
       function()
-        if message then
+        local ok,message = pcall(peer.decode,msg)
+        if ok then
           if peer.debug then
             debug(peer.name or 'unnamed peer','->',jencode(message))
           end
-          if message == jnull then
+          if type(message) ~= 'table' then
             peer:queue
             {
               error = {
                 code = -32600,
                 message = 'Invalid Request',
-                data = 'message is null'
+                data = message,
               }
             }
           elseif #message > 0 then
@@ -1074,11 +1074,13 @@ local create_daemon = function(options)
             dispatch_single_message(peer,message)
           end
         else
+          log('invalid json ('..(peer.name or 'unnamed')..')',msg,message)
           peer:queue
           {
             error = {
               code  = -32700,
-              messsage = 'Parse error'
+              message = 'Parse error',
+              data = msg,
             }
           }
         end
@@ -1091,13 +1093,14 @@ local create_daemon = function(options)
   
   local create_peer = function(ops)
     local peer = {}
-    peer.release = function()
+    peer.release = function(_)
       if peer then
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
         end
         has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
-        peer.fetchers =  {}
+        peer.fetchers = {}
+        peers[peer] = nil
         for path,element in pairs(elements) do
           if element.peer == peer then
             publish
@@ -1111,7 +1114,6 @@ local create_daemon = function(options)
         end
         flush_peers()
         ops.close()
-        peers[peer] = nil
         peer = nil
       end
     end
@@ -1145,6 +1147,9 @@ local create_daemon = function(options)
       end
     end
     peer.fetchers = {}
+    peer.encode = cjson.encode
+    peer.decode = cjson.decode
+    
     return peer
   end
   
@@ -1161,11 +1166,9 @@ local create_daemon = function(options)
       close = function() jsock:close() end,
       send = function(msg) jsock:send(msg) end,
     }
-    peer.encode = cjson.encode
-    peer.decode = cjson.decode
     
-    jsock:on_message(function(_,message)
-        dispatch_message(peer,peer.decode(message))
+    jsock:on_message(function(_,message_string)
+        dispatch_message(peer,message_string)
       end)
     jsock:on_close(function(_,...)
         debug('peer socket close ('..(peer.name or '')..')',...)
@@ -1196,11 +1199,9 @@ local create_daemon = function(options)
         ws:send(msg,type)
       end,
     }
-    peer.encode = cjson.encode
-    peer.decode = cjson.decode
     
-    ws:on_message(function(_,msg,opcode)
-        dispatch_message(peer,peer.decode(msg))
+    ws:on_message(function(_,message_string)
+        dispatch_message(peer,message_string)
       end)
     ws:on_close(function(_,...)
         debug('peer websocket close ('..(peer.name or '')..')',...)
