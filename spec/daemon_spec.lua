@@ -76,15 +76,24 @@ for _,info in ipairs(addresses_to_test) do
               daemon:stop()
             end)
           
-          it(
-            'listens on specified port',
-            function(done)
-              local sock
+          local sock
+          
+          before_each(function()
               if info.family == 'inet6' then
                 sock = socket.tcp6()
               else
                 sock = socket.tcp()
               end
+            end)
+          
+          after_each(function()
+              sock:shutdown()
+              sock:close()
+            end)
+          
+          it(
+            'listens on specified port',
+            function(done)
               sock:settimeout(0)
               assert.is_truthy(sock)
               ev.IO.new(
@@ -92,8 +101,6 @@ for _,info in ipairs(addresses_to_test) do
                   function(loop,io)
                     io:stop(loop)
                     assert.is_true(true)
-                    sock:shutdown()
-                    sock:close()
                     done()
                 end),sock:getfd(),ev.WRITE):start(loop)
               sock:connect(info.addr,port)
@@ -103,17 +110,7 @@ for _,info in ipairs(addresses_to_test) do
             'adding and removing states does not leak memory',
             function(done)
               settimeout(20)
-              local sock
-              if info.family == 'inet6' then
-                sock = socket.tcp6()
-              else
-                sock = socket.tcp()
-              end
-              assert.is_truthy(sock)
-              finally(function()
-                  sock:shutdown()
-                  sock:close()
-                end)
+              
               local add_msg = cjson.encode({
                   method = 'add',
                   params = {
