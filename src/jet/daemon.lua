@@ -75,7 +75,7 @@ local invalid_params = function(data)
   local err = {
     code = -32602,
     message = 'Invalid params',
-    data = data
+    data = data,
   }
   return err
 end
@@ -84,7 +84,7 @@ local response_timeout = function(data)
   local err = {
     code = -32001,
     message = 'Response Timeout',
-    data = data
+    data = data,
   }
   return err
 end
@@ -125,11 +125,10 @@ local create_daemon = function(options)
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
           for path,element in pairs(elements) do
-            fetcher
-            {
+            fetcher{
               path = path,
               value = element.value,
-              event = 'add'
+              event = 'add',
             }
           end
         end
@@ -290,7 +289,7 @@ local create_daemon = function(options)
             if not deps[dep_path] then
               deps[dep_path] = {
                 value_matcher = create_value_matcher(dep),
-                context = context
+                context = context,
               }
               context.deps_ok[dep_path] = false
               if elements[dep_path] then
@@ -347,11 +346,10 @@ local create_daemon = function(options)
             added[relevant_path] = true
           end
         end
-        notify
-        {
+        notify{
           path = relevant_path,
           event = event,
-          value = context.value
+          value = context.value,
         }
       end
     end
@@ -389,11 +387,10 @@ local create_daemon = function(options)
         if is_added then
           added[path] = nil
           n = n - 1
-          notify
-          {
+          notify{
             path = path,
             event = 'remove',
-            value = value
+            value = value,
           }
           if max and n == (max-1) then
             return true
@@ -409,11 +406,10 @@ local create_daemon = function(options)
       else
         event = 'change'
       end
-      notify
-      {
+      notify{
         path = path,
         event = event,
-        value = value
+        value = value,
       }
     end
     
@@ -576,7 +572,7 @@ local create_daemon = function(options)
           tinsert(changes,{
               path = new.path,
               value = new.value,
-              index = i
+              index = i,
           })
         end
         sorted[i] = new
@@ -591,7 +587,7 @@ local create_daemon = function(options)
         n = new_n
         notify({
             changes = changes,
-            n = n
+            n = n,
         })
       end
     end
@@ -677,10 +673,9 @@ local create_daemon = function(options)
     else
       local error = invalid_params{invalid_path=path}
       if message.id then
-        peer:queue
-        {
+        peer:queue{
           id = message.id,
-          error = error
+          error = error,
         }
       else
         log('post failed',jencode(message))
@@ -720,10 +715,9 @@ local create_daemon = function(options)
     
     if not flush then
       if message.id then
-        peer:queue
-        {
+        peer:queue{
           id = message.id,
-          result = {}
+          result = {},
         }
       end
     end
@@ -732,25 +726,23 @@ local create_daemon = function(options)
     queue_notification = function(nparams)
       cq(peer,{
           method = fetch_id,
-          params = nparams
+          params = nparams,
       })
     end
     for path,element in pairs(elements) do
-      fetcher
-      {
+      fetcher{
         path = path,
         lpath = has_case_insensitives and path:lower(),
         value = element.value,
-        event = 'add'
+        event = 'add',
       }
     end
     initializing = false
     if flush then
       if message.id then
-        peer:queue
-        {
+        peer:queue{
           id = message.id,
-          result = {}
+          result = {},
         }
       end
       flush()
@@ -767,10 +759,9 @@ local create_daemon = function(options)
     has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
     
     if message.id then
-      peer:queue
-      {
+      peer:queue{
         id = message.id,
-        result = {}
+        result = {},
       }
     end
   end
@@ -786,10 +777,9 @@ local create_daemon = function(options)
       if mid then
         local timer = new_timer(function()
             routes[id] = nil
-            peer:queue
-            {
+            peer:queue{
               id = mid,
-              error = response_timeout(params)
+              error = response_timeout(params),
             }
             peer:flush()
           end,timeout)
@@ -800,12 +790,12 @@ local create_daemon = function(options)
         routes[id] = {
           receiver = peer,
           id = mid,
-          timer = timer
+          timer = timer,
         }
       end
       local req = {
         id = id,-- maybe nil
-        method = path
+        method = path,
       }
       
       local value = params.value
@@ -818,10 +808,9 @@ local create_daemon = function(options)
     else
       local error = invalid_params{notExists=path}
       if message.id then
-        peer:queue
-        {
+        peer:queue{
           id = message.id,
-          error = error
+          error = error,
         }
       end
       log('route failed',jencode(error))
@@ -837,14 +826,13 @@ local create_daemon = function(options)
     local value = params.value-- might be nil for actions / methods
     local element = {
       peer = peer,
-      value = value
+      value = value,
     }
     elements[path] = element
-    publish
-    {
+    publish{
       path = path,
       event = 'add',
-      value = value
+      value = value,
     }
   end
   
@@ -856,11 +844,10 @@ local create_daemon = function(options)
     end
     local element = assert(elements[path])
     elements[path] = nil
-    publish
-    {
+    publish{
       path = path,
       event = 'remove',
-      value = element.value
+      value = element.value,
     }
   end
   
@@ -890,10 +877,9 @@ local create_daemon = function(options)
         -- send any outstanding messages with old encoding
         -- and the response to this config call immediatly
         if message.id then
-          peer:queue
-          {
+          peer:queue{
             id = message.id,
-            result = true
+            result = true,
           }
         end
         peer.flush()
@@ -911,10 +897,9 @@ local create_daemon = function(options)
       local ok,result,dont_auto_reply = pcall(f,peer,message)
       if message.id and not dont_auto_reply then
         if ok then
-          peer:queue
-          {
+          peer:queue{
             id = message.id,
-            result = result or {}
+            result = result or {},
           }
         else
           local error
@@ -924,13 +909,12 @@ local create_daemon = function(options)
             error = {
               code = -32603,
               message = 'Internal error',
-              data = result
+              data = result,
             }
           end
-          peer:queue
-          {
+          peer:queue{
             id = message.id,
-            error = error
+            error = error,
           }
         end
       elseif not ok then
@@ -952,13 +936,12 @@ local create_daemon = function(options)
             error = {
               code = -32603,
               message = 'Internal error',
-              data = err
+              data = err,
             }
           end
-          peer:queue
-          {
+          peer:queue{
             id = message.id,
-            error = err
+            error = err,
           }
         end
       elseif not ok then
@@ -996,7 +979,7 @@ local create_daemon = function(options)
           error = {
             code = -32603,
             message = 'Internal error',
-            data = err
+            data = err,
           }
         end
       end
@@ -1004,13 +987,12 @@ local create_daemon = function(options)
       error = {
         code = -32601,
         message = 'Method not found',
-        data = message.method
+        data = message.method,
       }
     end
-    peer:queue
-    {
+    peer:queue{
       id = message.id,
-      error = error
+      error = error,
     }
   end
   
@@ -1038,13 +1020,12 @@ local create_daemon = function(options)
       return
     end
     log('invalid request:',jencode(message))
-    peer:queue
-    {
+    peer:queue{
       id = message.id,
       error = {
         code = -32600,
         message = 'Invalid Request',
-        data = message
+        data = message,
       }
     }
   end
@@ -1103,11 +1084,10 @@ local create_daemon = function(options)
         peers[peer] = nil
         for path,element in pairs(elements) do
           if element.peer == peer then
-            publish
-            {
+            publish{
               event = 'remove',
               path = path,
-              value = element.value
+              value = element.value,
             }
             elements[path] = nil
           end
@@ -1161,8 +1141,7 @@ local create_daemon = function(options)
       return
     end
     local jsock = jsocket.wrap(sock)
-    local peer = create_peer
-    {
+    local peer = create_peer{
       close = function() jsock:close() end,
       send = function(msg) jsock:send(msg) end,
     }
@@ -1184,8 +1163,7 @@ local create_daemon = function(options)
   
   local accept_websocket = function(ws)
     local peer
-    peer = create_peer
-    {
+    peer = create_peer{
       close = function()
         ws:close()
       end,
@@ -1229,8 +1207,7 @@ local create_daemon = function(options)
       
       if options.ws_port then
         local websocket_ok,err = pcall(function()
-            websocket_server = require'websocket'.server.ev.listen
-            {
+            websocket_server = require'websocket'.server.ev.listen{
               port = options.ws_port,
               protocols = {
                 jet = accept_websocket
@@ -1258,7 +1235,7 @@ local create_daemon = function(options)
 end
 
 return {
-  new = create_daemon
+  new = create_daemon,
 }
 
 
