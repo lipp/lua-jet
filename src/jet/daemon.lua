@@ -874,7 +874,7 @@ local create_daemon = function(options)
       if params.encoding == 'msgpack' then
         local ok,cmsgpack = pcall(require,'cmsgpack')
         if not ok then
-          error('encoding not supported')
+          error(invalid_params({encodingNotSupported='msgpack'}))
         end
         -- send any outstanding messages with old encoding
         -- and the response to this config call immediatly
