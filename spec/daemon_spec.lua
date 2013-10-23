@@ -202,6 +202,198 @@ for _,info in ipairs(addresses_to_test) do
               message_socket:send('this is no json')
             end)
           
+          local req_resp_test = function(desc)
+            local requests = desc.requests
+            local responses = desc.responses
+            it(
+              desc.title,
+              function(done)
+                sock:connect(info.addr,port)
+                local message_socket = jetsocket.wrap(sock)
+                
+                local count = 0
+                message_socket:on_message(
+                  async(
+                    function(_,response)
+                      response = cjson.decode(response)
+                      count = count + 1
+                      assert.is_same(response,responses[count])
+                      if count == #responses then
+                        done()
+                      end
+                  end))
+                message_socket:read_io():start(loop)
+                for _,request in ipairs(requests) do
+                  message_socket:send(cjson.encode(request))
+                end
+              end)
+          end
+          
+          req_resp_test({
+              title = 'adding a state twice fails and "pathAlreadyExists" is reported',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'abc',
+                    value = 123
+                  },
+                  id = 1
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'abc',
+                    value = 123
+                  },
+                  id = 2
+                },
+              },
+              responses = {
+                {
+                  id = 1,
+                  result = true
+                },
+                {
+                  id = 2,
+                  error = {
+                    data = {
+                      pathAlreadyExists = 'abc'
+                    },
+                    code = -32602,
+                    message = 'Invalid params',
+                  }
+                }
+          }})
+          
+          req_resp_test({
+              title = 'adding a state twice fails and "pathAlreadyExists" is reported / variant with less message ids',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'abc',
+                    value = 123
+                  }
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'abc',
+                    value = 123
+                  },
+                  id = 1
+                },
+              },
+              responses = {
+                {
+                  id = 1,
+                  error = {
+                    data = {
+                      pathAlreadyExists = 'abc'
+                    },
+                    code = -32602,
+                    message = 'Invalid params',
+                  }
+                }
+          }})
+          
+          req_resp_test({
+              title = 'add / change / remove',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'abc',
+                    value = 123
+                  },
+                  id = 1
+                },
+                {
+                  method = 'change',
+                  params = {
+                    path = 'abc',
+                    value = 345
+                  },
+                  id = 2
+                },
+                {
+                  method = 'remove',
+                  params = {
+                    path = 'abc',
+                  },
+                  id = 3
+                },
+              },
+              responses = {
+                {
+                  id = 1,
+                  result = true,
+                },
+                {
+                  id = 2,
+                  result = true,
+                },
+                {
+                  id = 3,
+                  result = true,
+                }
+              }
+          })
+          
+          req_resp_test({
+              title = 'removing a not existing path gives error "pathNotExists"',
+              requests = {
+                {
+                  method = 'remove',
+                  params = {
+                    path = 'abc',
+                  },
+                  id = 1
+                }
+              },
+              responses = {
+                {
+                  id = 1,
+                  error = {
+                    data = {
+                      pathNotExists = 'abc'
+                    },
+                    code = -32602,
+                    message = 'Invalid params',
+                  }
+                }
+              }
+          })
+          
+          req_resp_test({
+              title = 'calling add without a path gives an error',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    value = 123,
+                  },
+                  id = 1
+                }
+              },
+              responses = {
+                {
+                  id = 1,
+                  error = {
+                    data = {
+                      missingParam = 'path',
+                      got = {
+                        value = 123
+                      }
+                    },
+                    code = -32602,
+                    message = 'Invalid params',
+                  }
+                }
+              }
+          })
+          
           
         end)
     end)
