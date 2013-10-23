@@ -666,20 +666,26 @@ local create_daemon = function(options)
     local notification = message.params
     local path = checked(notification,'path','string')
     local element = elements[path]
-    if element then
+    local error
+    if element and element.peer == peer then
       element.value = notification.value
       notification.event = 'change'
       publish(notification)
+      return
+    elseif not element then
+      error = invalid_params{pathNotExists=path}
     else
-      local error = invalid_params{invalid_path=path}
-      if message.id then
-        peer:queue{
-          id = message.id,
-          error = error,
-        }
-      else
-        log('post failed',jencode(message))
-      end
+      assert(element.peer ~= peer)
+      error = invalid_params{foreignPath=path}
+    end
+    
+    if message.id then
+      peer:queue{
+        id = message.id,
+        error = error,
+      }
+    else
+      log('post failed',jencode(message))
     end
   end
   
@@ -806,7 +812,7 @@ local create_daemon = function(options)
       end
       element.peer:queue(req)
     else
-      local error = invalid_params{notExists=path}
+      local error = invalid_params{pathNotExists=path}
       if message.id then
         peer:queue{
           id = message.id,
@@ -821,7 +827,7 @@ local create_daemon = function(options)
     local params = message.params
     local path = checked(params,'path','string')
     if elements[path] then
-      error(invalid_params{exists = path})
+      error(invalid_params{pathAlreadyExists = path})
     end
     local value = params.value-- might be nil for actions / methods
     local element = {
@@ -840,7 +846,7 @@ local create_daemon = function(options)
     local params = message.params
     local path = checked(params,'path','string')
     if not elements[path] then
-      error(invalid_params{invalid_path = path})
+      error(invalid_params{pathNotExists = path})
     end
     local element = assert(elements[path])
     elements[path] = nil
