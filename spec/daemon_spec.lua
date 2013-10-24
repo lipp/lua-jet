@@ -587,6 +587,46 @@ for _,info in ipairs(addresses_to_test) do
                 }
           }})
           
+          req_resp_test({
+              title = 'sending non jsonrpc JSON gives error with id',
+              requests = {
+                {
+                  foo = 'bar',
+                  id = 123
+                },
+              },
+              responses = {
+                {
+                  id = 123,
+                  error = {
+                    data = {
+                      foo = 'bar',
+                      id = 123
+                    },
+                    code = -32600,
+                    message = 'Invalid Request'
+                  }
+                }
+          }})
+          
+          req_resp_test({
+              title = 'sending non jsonrpc JSON gives error without id',
+              requests = {
+                {
+                  foo = 'bar',
+                },
+              },
+              responses = {
+                {
+                  error = {
+                    data = {
+                      foo = 'bar',
+                    },
+                    code = -32600,
+                    message = 'Invalid Request'
+                  }
+                }
+          }})
           
         end)
     end)
