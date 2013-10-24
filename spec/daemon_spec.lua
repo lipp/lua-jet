@@ -506,6 +506,67 @@ for _,info in ipairs(addresses_to_test) do
               }
           })
           
+          req_resp_test({
+              title = 'fetch with sort by value works',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'a',
+                    value = 123,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'b',
+                    value = 456,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'c',
+                    value = 789,
+                  },
+                },
+                {
+                  method = 'fetch',
+                  params = {
+                    match = {'.*'},
+                    id = 'testFetch3',
+                    sort = {
+                      byValue = true
+                    }
+                  },
+                }
+              },
+              responses = {
+                {
+                  method = 'testFetch3',
+                  params = {
+                    n = 3,
+                    changes = {
+                      {
+                        value = 123,
+                        path = 'a',
+                        index = 1
+                      },
+                      {
+                        value = 456,
+                        path = 'b',
+                        index = 2
+                      },
+                      {
+                        value = 789,
+                        path = 'c',
+                        index = 3
+                      }
+                    }
+                  }
+                }
+              }
+          })
           
         end)
     end)
