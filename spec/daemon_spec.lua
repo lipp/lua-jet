@@ -441,6 +441,72 @@ for _,info in ipairs(addresses_to_test) do
               }
           })
           
+          req_resp_test({
+              title = 'fetch with where array works',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'num',
+                    value = 123,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'bob',
+                    value = {
+                      age = 10,
+                      weight = 20
+                    },
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'peter',
+                    value = {
+                      age = 10,
+                      weight = 22
+                    },
+                  },
+                },
+                {
+                  method = 'fetch',
+                  params = {
+                    match = {'.*'},
+                    where = {
+                      {
+                        prop = 'age',
+                        value = 30,
+                        op = 'lessThan'
+                      },
+                      {
+                        prop = 'weight',
+                        value = 20,
+                        op = 'greaterThan'
+                      }
+                    },
+                    id = 'testFetch2'
+                  },
+                }
+              },
+              responses = {
+                {
+                  method = 'testFetch2',
+                  params = {
+                    event = 'add',
+                    path = 'peter',
+                    value = {
+                      age = 10,
+                      weight = 22
+                    }
+                  }
+                }
+              }
+          })
+          
+          
         end)
     end)
   
