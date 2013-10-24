@@ -568,6 +568,26 @@ for _,info in ipairs(addresses_to_test) do
               }
           })
           
+          req_resp_test({
+              title = 'calling an invalid service reports error',
+              requests = {
+                {
+                  method = 'foo',
+                  id = 123
+                },
+              },
+              responses = {
+                {
+                  id = 123,
+                  error = {
+                    data = 'foo',
+                    code = -32601,
+                    message = 'Method not found'
+                  }
+                }
+          }})
+          
+          
         end)
     end)
   
