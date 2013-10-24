@@ -394,6 +394,52 @@ for _,info in ipairs(addresses_to_test) do
               }
           })
           
+          req_resp_test({
+              title = 'fetch with unmatch,match,equalsNot,caseInsensitive works',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'a',
+                    value = 123,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'b',
+                    value = 456,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'c',
+                    value = 789,
+                  },
+                },
+                {
+                  method = 'fetch',
+                  params = {
+                    unmatch = {'A'},
+                    equalsNot = {'C'},
+                    caseInsensitive = true,
+                    match = {'B'},
+                    id = 'testFetch'
+                  },
+                }
+              },
+              responses = {
+                {
+                  method = 'testFetch',
+                  params = {
+                    event = 'add',
+                    path = 'b',
+                    value = 456
+                  }
+                }
+              }
+          })
           
         end)
     end)
