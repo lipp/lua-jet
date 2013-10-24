@@ -125,11 +125,11 @@ local create_daemon = function(options)
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
           for path,element in pairs(elements) do
-            fetcher{
-              path = path,
-              value = element.value,
-              event = 'add',
-            }
+            fetcher({
+                path = path,
+                value = element.value,
+                event = 'add',
+            })
           end
         end
       end
@@ -346,11 +346,11 @@ local create_daemon = function(options)
             added[relevant_path] = true
           end
         end
-        notify{
-          path = relevant_path,
-          event = event,
-          value = context.value,
-        }
+        notify({
+            path = relevant_path,
+            event = event,
+            value = context.value,
+        })
       end
     end
     return fetchop,options.caseInsensitive
@@ -387,11 +387,11 @@ local create_daemon = function(options)
         if is_added then
           added[path] = nil
           n = n - 1
-          notify{
-            path = path,
-            event = 'remove',
-            value = value,
-          }
+          notify({
+              path = path,
+              event = 'remove',
+              value = value,
+          })
           if max and n == (max-1) then
             return true
           end
@@ -406,11 +406,11 @@ local create_daemon = function(options)
       else
         event = 'change'
       end
-      notify{
-        path = path,
-        event = event,
-        value = value,
-      }
+      notify({
+          path = path,
+          event = event,
+          value = value,
+      })
     end
     
     return fetchop,options.caseInsensitive
@@ -531,16 +531,16 @@ local create_daemon = function(options)
       -- this may happen due to a refetch :(
       if newindex and lastindex and newindex == lastindex then
         if event == 'change' then
-          notify{
-            n = n,
-            changes = {
-              {
-                path = path,
-                value = value,
-                index = newindex,
+          notify({
+              n = n,
+              changes = {
+                {
+                  path = path,
+                  value = value,
+                  index = newindex,
+                }
               }
-            }
-          }
+          })
         end
         return
       end
@@ -637,13 +637,13 @@ local create_daemon = function(options)
         if type(p) == typename then
           return p
         else
-          error(invalid_params{wrongType=key,got=params})
+          error(invalid_params({wrongType=key,got=params}))
         end
       else
         return p
       end
     else
-      error(invalid_params{missingParam=key,got=params})
+      error(invalid_params({missingParam=key,got=params}))
     end
   end
   
@@ -654,7 +654,7 @@ local create_daemon = function(options)
         if type(p) == typename then
           return p
         else
-          error(invalid_params{wrongType=key,got=params})
+          error(invalid_params({wrongType=key,got=params}))
         end
       else
         return p
@@ -672,10 +672,10 @@ local create_daemon = function(options)
       publish(notification)
       return
     elseif not element then
-      error(invalid_params{pathNotExists=path})
+      error(invalid_params({pathNotExists=path}))
     else
       assert(element.peer ~= peer)
-      error(invalid_params{foreignPath=path})
+      error(invalid_params({foreignPath=path}))
     end
   end
   
@@ -699,7 +699,7 @@ local create_daemon = function(options)
     end
     local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
     if not params_ok then
-      error(invalid_params{fetchParams = params, reason = fetcher})
+      error(invalid_params({fetchParams = params, reason = fetcher}))
     end
     
     peer.fetchers[fetch_id] = fetcher
@@ -711,10 +711,10 @@ local create_daemon = function(options)
     
     if not flush then
       if message.id then
-        peer:queue{
-          id = message.id,
-          result = true,
-        }
+        peer:queue({
+            id = message.id,
+            result = true,
+        })
       end
     end
     
@@ -726,20 +726,20 @@ local create_daemon = function(options)
       })
     end
     for path,element in pairs(elements) do
-      fetcher{
-        path = path,
-        lpath = has_case_insensitives and path:lower(),
-        value = element.value,
-        event = 'add',
-      }
+      fetcher({
+          path = path,
+          lpath = has_case_insensitives and path:lower(),
+          value = element.value,
+          event = 'add',
+      })
     end
     initializing = false
     if flush then
       if message.id then
-        peer:queue{
-          id = message.id,
-          result = true,
-        }
+        peer:queue({
+            id = message.id,
+            result = true,
+        })
       end
       flush()
     end
@@ -755,10 +755,10 @@ local create_daemon = function(options)
     has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
     
     if message.id then
-      peer:queue{
-        id = message.id,
-        result = true,
-      }
+      peer:queue({
+          id = message.id,
+          result = true,
+      })
     end
   end
   
@@ -773,10 +773,10 @@ local create_daemon = function(options)
       if mid then
         local timer = new_timer(function()
             routes[id] = nil
-            peer:queue{
-              id = mid,
-              error = response_timeout(params),
-            }
+            peer:queue({
+                id = mid,
+                error = response_timeout(params),
+            })
             peer:flush()
           end,timeout)
         timer:start(loop)
@@ -802,12 +802,12 @@ local create_daemon = function(options)
       end
       element.peer:queue(req)
     else
-      local error = invalid_params{pathNotExists=path}
+      local error = invalid_params({pathNotExists=path})
       if message.id then
-        peer:queue{
-          id = message.id,
-          error = error,
-        }
+        peer:queue({
+            id = message.id,
+            error = error,
+        })
       end
       log('route failed',jencode(error))
     end
@@ -818,7 +818,7 @@ local create_daemon = function(options)
     local path = checked(params,'path','string')
     local element = elements[path]
     if element then
-      error(invalid_params{pathAlreadyExists = path})
+      error(invalid_params({pathAlreadyExists = path}))
     end
     local value = params.value-- might be nil for actions / methods
     element = {
@@ -826,11 +826,11 @@ local create_daemon = function(options)
       value = value,
     }
     elements[path] = element
-    publish{
-      path = path,
-      event = 'add',
-      value = value,
-    }
+    publish({
+        path = path,
+        event = 'add',
+        value = value,
+    })
   end
   
   local remove = function(peer,message)
@@ -839,17 +839,17 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
-      publish{
-        path = path,
-        event = 'remove',
-        value = element.value,
-      }
+      publish({
+          path = path,
+          event = 'remove',
+          value = element.value,
+      })
       return
     elseif not element then
-      error(invalid_params{pathNotExists=path})
+      error(invalid_params({pathNotExists=path}))
     else
       assert(element.peer ~= peer)
-      error(invalid_params{foreignPath=path})
+      error(invalid_params({foreignPath=path}))
     end
   end
   
@@ -879,10 +879,10 @@ local create_daemon = function(options)
         -- send any outstanding messages with old encoding
         -- and the response to this config call immediatly
         if message.id then
-          peer:queue{
-            id = message.id,
-            result = true,
-          }
+          peer:queue({
+              id = message.id,
+              result = true,
+          })
         end
         peer.flush()
         peer.is_binary = true
@@ -902,10 +902,10 @@ local create_daemon = function(options)
           if type(result) == 'nil' then
             result = true
           end
-          peer:queue{
-            id = message.id,
-            result = result,
-          }
+          peer:queue({
+              id = message.id,
+              result = result,
+          })
         else
           local error
           if type(result) == 'table' and result.code and result.message then
@@ -917,10 +917,10 @@ local create_daemon = function(options)
               data = result,
             }
           end
-          peer:queue{
-            id = message.id,
-            error = error,
-          }
+          peer:queue({
+              id = message.id,
+              error = error,
+          })
         end
       elseif not ok then
         log('sync '..message.method..' failed',jencode(result))
@@ -944,10 +944,10 @@ local create_daemon = function(options)
               data = err,
             }
           end
-          peer:queue{
-            id = message.id,
-            error = err,
-          }
+          peer:queue({
+              id = message.id,
+              error = err,
+          })
         end
       elseif not ok then
         log('async '..message.method..' failed:',jencode(err))
@@ -995,10 +995,10 @@ local create_daemon = function(options)
         data = message.method,
       }
     end
-    peer:queue{
-      id = message.id,
-      error = error,
-    }
+    peer:queue({
+        id = message.id,
+        error = error,
+    })
   end
   
   local dispatch_notification = function(peer,message)
@@ -1025,14 +1025,14 @@ local create_daemon = function(options)
       return
     end
     log('invalid request:',jencode(message))
-    peer:queue{
-      id = message.id,
-      error = {
-        code = -32600,
-        message = 'Invalid Request',
-        data = message,
-      }
-    }
+    peer:queue({
+        id = message.id,
+        error = {
+          code = -32600,
+          message = 'Invalid Request',
+          data = message,
+        }
+    })
   end
   
   local dispatch_message = function(peer,msg)
@@ -1044,14 +1044,13 @@ local create_daemon = function(options)
             debug(peer.name or 'unnamed peer','->',jencode(message))
           end
           if type(message) ~= 'table' then
-            peer:queue
-            {
-              error = {
-                code = -32600,
-                message = 'Invalid Request',
-                data = message,
-              }
-            }
+            peer:queue({
+                error = {
+                  code = -32600,
+                  message = 'Invalid Request',
+                  data = message,
+                }
+            })
           elseif #message > 0 then
             for i,message in ipairs(message) do
               dispatch_single_message(peer,message)
@@ -1061,14 +1060,13 @@ local create_daemon = function(options)
           end
         else
           log('invalid json ('..(peer.name or 'unnamed')..')',msg,message)
-          peer:queue
-          {
-            error = {
-              code  = -32700,
-              message = 'Parse error',
-              data = msg,
-            }
-          }
+          peer:queue({
+              error = {
+                code  = -32700,
+                message = 'Parse error',
+                data = msg,
+              }
+          })
         end
       end)
     if not ok then
@@ -1089,11 +1087,11 @@ local create_daemon = function(options)
         peers[peer] = nil
         for path,element in pairs(elements) do
           if element.peer == peer then
-            publish{
-              event = 'remove',
-              path = path,
-              value = element.value,
-            }
+            publish({
+                event = 'remove',
+                path = path,
+                value = element.value,
+            })
             elements[path] = nil
           end
         end
@@ -1146,10 +1144,10 @@ local create_daemon = function(options)
       return
     end
     local jsock = jsocket.wrap(sock)
-    local peer = create_peer{
-      close = function() jsock:close() end,
-      send = function(msg) jsock:send(msg) end,
-    }
+    local peer = create_peer({
+        close = function() jsock:close() end,
+        send = function(msg) jsock:send(msg) end,
+    })
     
     jsock:on_message(function(_,message_string)
         dispatch_message(peer,message_string)
@@ -1168,20 +1166,20 @@ local create_daemon = function(options)
   
   local accept_websocket = function(ws)
     local peer
-    peer = create_peer{
-      close = function()
-        ws:close()
-      end,
-      send = function(msg)
-        local type
-        if peer.is_binary then
-          type = 2
-        else
-          type = 1
-        end
-        ws:send(msg,type)
-      end,
-    }
+    peer = create_peer({
+        close = function()
+          ws:close()
+        end,
+        send = function(msg)
+          local type
+          if peer.is_binary then
+            type = 2
+          else
+            type = 1
+          end
+          ws:send(msg,type)
+        end,
+    })
     
     ws:on_message(function(_,message_string)
         dispatch_message(peer,message_string)
@@ -1212,12 +1210,12 @@ local create_daemon = function(options)
       
       if options.ws_port then
         local websocket_ok,err = pcall(function()
-            websocket_server = require'websocket'.server.ev.listen{
-              port = options.ws_port,
-              protocols = {
-                jet = accept_websocket
-              }
-            }
+            websocket_server = require'websocket'.server.ev.listen({
+                port = options.ws_port,
+                protocols = {
+                  jet = accept_websocket
+                }
+            })
           end)
         if not websocket_ok then
           print('Could not start websocket server',err)
