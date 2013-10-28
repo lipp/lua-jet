@@ -15,8 +15,6 @@ local pcall = pcall
 local type = type
 local eps = 2^-40
 
-module('jet.socket')
-
 local wrap_sync = function(sock)
   assert(sock)
   local wrapped = {}

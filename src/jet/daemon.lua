@@ -24,8 +24,6 @@ local unpack = unpack
 local mmin = math.min
 local mmax = math.max
 
-module('jet.daemon')
-
 local log = function(...)
   print('jetd',...)
 end

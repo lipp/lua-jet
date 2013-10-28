@@ -18,7 +18,6 @@ local assert = assert
 local log = function(...)
   print('jet.peer',...)
 end
-module('jet.peer')
 
 local error_object = function(err)
   local error
