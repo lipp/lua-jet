@@ -132,82 +132,85 @@ local wrap = function(sock,args)
       end
     end
   end
+  
   wrapped.close = function()
     wrapped.read_io():stop(loop)
     send_io:stop(loop)
     sock:shutdown()
     sock:close()
   end
+  
   wrapped.on_message = function(_,f)
     assert(type(f) == 'function')
     on_message = f
   end
+  
   wrapped.on_close = function(_,f)
     assert(type(f) == 'function')
     on_close = f
   end
+  
   wrapped.on_error = function(_,f)
     assert(type(f) == 'function')
     on_error = f
   end
   
   wrapped.read_io = function()
-    if not read_io then
-      local len
-      local len_bin
-      local message
-      local _
-      
-      local receive_message = function(loop,read_io)
-        while true do
-          if not len_bin or #len_bin < 4 then
-            local err,sub
-            len_bin,err,sub = sock:receive(4,len_bin)
-            if len_bin then
-              _,len = sunpack(len_bin,'>I')
-            elseif err == 'timeout' then
-              len_bin = sub
-              return
-            elseif err == 'closed' then
-              handle_close()
-              return
-            else
-              handle_error('jet.socket receive failed with: '..err)
-              return
-            end
-          end
-          if len then
-            local io_active = read_io:is_active()
-            -- 10 MB is limit
-            if len > 10000000 then
-              handle_error(io_active,'jet.socket message too big: '..len..' bytes')
-              return
-            end
-            message,err,sub = sock:receive(len,message)
-            if message then
-              on_message(wrapped,message)
-              len = nil
-              len_bin = nil
-              message = nil
-            elseif err == 'timeout' then
-              message = sub
-              return
-            elseif err == 'closed' then
-              handle_close(io_active)
-              return
-            else
-              handle_error(io_active,err)
-              return
-            end
-          end
-        end
-      end
-      local fd = sock:getfd()
-      assert(fd > -1)
-      read_io = ev.IO.new(receive_message,fd,ev.READ)
-    end
     return read_io
   end
+  
+  local len
+  local len_bin
+  local message
+  local _
+  
+  local receive_message = function(loop,read_io)
+    local io_active = read_io:is_active()
+    while true do
+      if not len_bin or #len_bin < 4 then
+        local err,sub
+        len_bin,err,sub = sock:receive(4,len_bin)
+        if len_bin then
+          _,len = sunpack(len_bin,'>I')
+        elseif err == 'timeout' then
+          len_bin = sub
+          return
+        elseif err == 'closed' then
+          handle_close(io_active)
+          return
+        else
+          handle_error(io_active,'jet.socket receive failed with: '..err)
+          return
+        end
+      end
+      if len then
+        -- 10 MB is limit
+        if len > 10000000 then
+          handle_error(io_active,'jet.socket message too big: '..len..' bytes')
+          return
+        end
+        message,err,sub = sock:receive(len,message)
+        if message then
+          on_message(wrapped,message)
+          len = nil
+          len_bin = nil
+          message = nil
+        elseif err == 'timeout' then
+          message = sub
+          return
+        elseif err == 'closed' then
+          handle_close(io_active)
+          return
+        else
+          handle_error(io_active,err)
+          return
+        end
+      end
+    end
+  end
+  
+  read_io = ev.IO.new(receive_message,sock:getfd(),ev.READ)
+  
   return wrapped
 end
 
