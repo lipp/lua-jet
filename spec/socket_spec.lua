@@ -302,7 +302,7 @@ describe(
         end
       end)
     
-    it('should fire on_close event when closed while sending',
+    it('should fire on_close event when closed before sending',
       function(done)
         local sock = socket.tcp()
         local wrapped = jetsocket.wrap(sock)
@@ -315,6 +315,7 @@ describe(
               wrapped:close()
               done()
           end))
+        sock:close()
         wrapped:send('hello')
       end)
     
