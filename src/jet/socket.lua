@@ -11,9 +11,9 @@ local assert = assert
 local spack = string.pack
 local sunpack = string.unpack
 local error = error
-local log = print
 local pcall = pcall
 local type = type
+local eps = 2^-40
 
 module('jet.socket')
 
@@ -48,19 +48,65 @@ local wrap = function(sock,args)
   local loop = args.loop or ev.Loop.default
   local send_buffer = ''
   local wrapped = {}
+  local read_io
+  local send_io
+  
+  local detach = function(f)
+    if ev.Idle then
+      ev.Idle.new(function(loop,io)
+          io:stop(loop)
+          f()
+        end):start(loop)
+    else
+      ev.Timer.new(function(loop,io)
+          io:stop(loop)
+          f()
+        end,eps):start(loop)
+    end
+  end
+  
+  local handle_error = function(io_active,err_msg)
+    read_io:stop(loop)
+    read_io:clear_pending(loop)
+    send_io:stop(loop)
+    send_io:clear_pending(loop)
+    sock:close()
+    if io_active then
+      on_error(wrapped,err_msg)
+      on_close(wrapped)
+    else
+      detach(function()
+          on_error(wrapped,err_msg)
+          on_close(wrapped)
+        end)
+    end
+  end
+  
+  local handle_close = function(io_active)
+    read_io:stop(loop)
+    read_io:clear_pending(loop)
+    send_io:stop(loop)
+    send_io:clear_pending(loop)
+    sock:close()
+    if io_active then
+      on_close(wrapped)
+    else
+      detach(function()
+          on_close(wrapped)
+        end)
+    end
+  end
+  
   local send_pos
   local send_message = function(loop,write_io)
     local sent,err,sent_so_far = sock:send(send_buffer,send_pos)
     if not sent and err ~= 'timeout' then
-      write_io:stop(loop)
+      local io_active = write_io:is_active()
       if err == 'closed' then
-        on_close(wrapped)
+        handle_close(io_active)
       else
-        log('sent error',err)
-        on_error(wrapped,err)
+        handle_error(io_active,err)
       end
-      sock:close()
-      send_buffer = ''
     elseif sent then
       send_pos = nil
       send_buffer = ''
@@ -71,7 +117,7 @@ local wrap = function(sock,args)
   end
   local fd = sock:getfd()
   assert(fd > -1)
-  local send_io = ev.IO.new(send_message,fd,ev.WRITE)
+  send_io = ev.IO.new(send_message,fd,ev.WRITE)
   
   -- sends asynchronous the supplied message object
   --
@@ -104,13 +150,14 @@ local wrap = function(sock,args)
     assert(type(f) == 'function')
     on_error = f
   end
-  local read_io
+  
   wrapped.read_io = function()
     if not read_io then
       local len
       local len_bin
       local message
       local _
+      
       local receive_message = function(loop,read_io)
         while true do
           if not len_bin or #len_bin < 4 then
@@ -122,24 +169,18 @@ local wrap = function(sock,args)
               len_bin = sub
               return
             elseif err == 'closed' then
-              read_io:stop(loop)
-              on_close(wrapped)
-              sock:close()
+              handle_close()
               return
             else
-              log('WTF?!',err)
-              read_io:stop(loop)
-              on_error(wrapped,err)
-              sock:close()
+              handle_error('jet.socket receive failed with: '..err)
+              return
             end
           end
           if len then
+            local io_active = read_io:is_active()
+            -- 10 MB is limit
             if len > 10000000 then
-              local err = 'message too big:'..len..'bytes'
-              print('jet.socket error',err)
-              on_error(wrapped,err)
-              read_io:stop(loop)
-              sock:close()
+              handle_error(io_active,'jet.socket message too big: '..len..' bytes')
               return
             end
             message,err,sub = sock:receive(len,message)
@@ -152,14 +193,10 @@ local wrap = function(sock,args)
               message = sub
               return
             elseif err == 'closed' then
-              read_io:stop(loop)
-              on_close(wrapped)
-              sock:close()
+              handle_close(io_active)
               return
             else
-              read_io:stop(loop)
-              on_error(wrapped,err)
-              sock:close()
+              handle_error(io_active,err)
               return
             end
           end
