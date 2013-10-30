@@ -21,7 +21,13 @@ else
   }
 end
 
+local family_done = {}
+
 for _,info in ipairs(addresses_to_test) do
+  if family_done[info.family] then
+    return
+  end
+  family_done[info.family] = true
   
   describe(
     'A daemon with address '..info.addr..' and family '..info.family,
