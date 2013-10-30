@@ -7,16 +7,6 @@ local tremove = table.remove
 local tconcat = table.concat
 local new_timer = ev.Timer.new
 local tsort = table.sort
-local print = print
-local pairs = pairs
-local ipairs = ipairs
-local assert = assert
-local pcall = pcall
-local type = type
-local error = error
-local require = require
-local tostring = tostring
-local tonumber = tonumber
 local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
@@ -24,21 +14,7 @@ local unpack = unpack
 local mmin = math.min
 local mmax = math.max
 
-local log = function(...)
-  print('jetd',...)
-end
-
-local info = function(...)
-  log('info',...)
-end
-
-local crit = function(...)
-  log('err',...)
-end
-
-local debug = function(...)
-  log('debug',...)
-end
+local noop = function() end
 
 local sbind = function(host,port)
   if socket.tcp6 then
@@ -76,8 +52,10 @@ local create_daemon = function(options)
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
-  
-  print = options.print or print
+  local log = options.log or noop
+  local info = options.info or noop
+  local crit = options.crit or noop
+  local debug = options.debug or noop
   
   local peers = {}
   local elements = {}

@@ -26,11 +26,21 @@ for _,opt in ipairs(arg) do
   end
 end
 
-local daemon = require'jet.daemon'.new
-{
+local print_with_level = function(level)
+  return function(...)
+    print('jetd',level,...)
+  end
+end
+
+local daemon = require'jet.daemon'.new{
   ws_port = ws_port,
-  port = port
+  port = port,
+  crit = print_with_level('crit'),
+  log = print_with_level('log'),
+  info = print_with_level('info'),
+  debug = print_with_level('debug'),
 }
+
 daemon:start()
 
 if start_as_daemon then
