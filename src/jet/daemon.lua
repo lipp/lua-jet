@@ -2,6 +2,7 @@ local cjson = require'cjson'
 local ev = require'ev'
 local socket = require'socket'
 local jsocket = require'jet.socket'
+
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
@@ -16,6 +17,8 @@ local mmax = math.max
 
 local noop = function() end
 
+--- creates and binds a listening socket for 
+-- ipv4 and (if available) ipv6.
 local sbind = function(host,port)
   if socket.tcp6 then
     local server = socket.tcp6()
@@ -29,6 +32,8 @@ local sbind = function(host,port)
   end
 end
 
+--- creates and returns an error table conforming to
+-- JSON-RPC Invalid params.
 local invalid_params = function(data)
   local err = {
     code = -32602,
@@ -38,6 +43,8 @@ local invalid_params = function(data)
   return err
 end
 
+--- creates and returns an error table conforming to
+-- JSON-RPC Response Timeout.
 local response_timeout = function(data)
   local err = {
     code = -32001,
@@ -47,8 +54,9 @@ local response_timeout = function(data)
   return err
 end
 
+--- creates and returns a new daemon instance.
+-- options is a table which allows daemon configuration.
 local create_daemon = function(options)
-  
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
