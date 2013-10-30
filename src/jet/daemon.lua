@@ -43,26 +43,10 @@ end
 local sbind = function(host,port)
   if socket.tcp6 then
     local server = socket.tcp6()
-    local _,err = server:setoption('ipv6-v6only',false)
-    if err then
-      server:close()
-      return nil,err
-    end
-    _,err = server:setoption("reuseaddr",true)
-    if err then
-      server:close()
-      return nil,err
-    end
-    _,err = server:bind(host,port)
-    if err then
-      server:close()
-      return nil,err
-    end
-    _,err = server:listen()
-    if err then
-      server:close()
-      return nil,err
-    end
+    assert(server:setoption('ipv6-v6only',false))
+    assert(server:setoption('reuseaddr',true))
+    assert(server:bind(host,port))
+    assert(server:listen())
     return server
   else
     return socket.bind(host,port)
