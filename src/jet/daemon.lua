@@ -17,7 +17,63 @@ local mmax = math.max
 
 local noop = function() end
 
---- creates and binds a listening socket for 
+local radixElements = {}
+-- Recursively Adds a word to a tree.
+local add_to_tree
+add_to_tree = function( a, fullword, part )
+  part = part or fullword;
+  if part:len() < 1 then
+    a[fullword]=true;
+  else
+    local s = part:sub( 1, 1 )
+    if type(a[s])~="table" then
+      a[s] = {};
+    end
+    add_to_tree( a[s], fullword, part:sub(2) )
+  end
+end
+
+-- Recursively Adds a word to a tree.
+local remove_from_tree
+remove_from_tree = function( a, fullword, part )
+  part = part or fullword;
+  if part:len() < 1 then
+    a[fullword]=nil;
+  else
+    local s = part:sub( 1, 1 )
+    if type(a[s])~="table" then
+      a[s] = {};
+    end
+    remove_from_tree( a[s], fullword, part:sub(2) )
+  end
+end
+
+-- Prints all words in the dictionary.
+local radix_traverse
+radix_traverse = function( a )
+  for k, v in pairs(a) do
+    if type(v)=="boolean" then
+      radixElements[k] = true
+    elseif type(v)=="table" then
+      radix_traverse( v );
+    end
+  end
+end
+
+-- Performs a partial lookup on a word.
+local partial_lookup
+partial_lookup = function( a, part )
+  if part:len() < 1 then
+    radix_traverse( a )
+  else
+    local s = part:sub( 1, 1 )
+    if type(a[s])=="table" then
+      partial_lookup( a[s], part:sub(2) )
+    end
+  end
+end
+
+--- creates and binds a listening socket for
 -- ipv4 and (if available) ipv6.
 local sbind = function(host,port)
   if socket.tcp6 then
@@ -68,6 +124,7 @@ local create_daemon = function(options)
   local peers = {}
   local elements = {}
   local routes = {}
+  local radixTree = {}
   
   local has_case_insensitives
   local case_insensitives = {}
@@ -85,21 +142,38 @@ local create_daemon = function(options)
   end
   
   local publish = function(notification)
+    local tempTree = {}
+    add_to_tree( tempTree, notification.path )
     notification.lpath = has_case_insensitives and notification.path:lower()
     for peer in pairs(peers) do
       for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,notification)
-        if not ok then
-          crit('publish failed',fetch_id,refetch)
-        elseif refetch then
-          for path,element in pairs(elements) do
-            fetcher({
-                path = path,
-                value = element.value,
-                event = 'add',
-            })
+        radixElements = {}
+        local callFetcher = false
+        if (peer.fetchLists[fetch_id] ~= nil) then
+          for path,bo in pairs(peer.fetchLists[fetch_id]) do
+            partial_lookup(tempTree, path)
+          end
+          if (next(radixElements) ~= nil) then
+            callFetcher = true
+          end
+        else
+          callFetcher = true
+        end
+        if (callFetcher == true) then
+          local ok,refetch = pcall(fetcher,notification)
+          if not ok then
+            crit('publish failed',fetch_id,refetch)
+          elseif refetch then
+            for path,element in pairs(elements) do
+              fetcher({
+                  path = path,
+                  value = element.value,
+                  event = 'add',
+              })
+            end
           end
         end
+        
       end
     end
   end
@@ -665,6 +739,24 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
+    
+    -- test if radix tree is suitable for fetcher
+    local easyFetcher = false
+    radixElements = {}
+    peer.fetchLists[fetch_id] = {}
+    local match = params.match
+    for i,mat in ipairs(match) do
+      if ((mat:sub(1,1)=='^') and (mat:sub(2):match('[%^%$%(%)%%%.%[%]%*%+%-%?]') == nil)) then
+        easyFetcher = true
+        peer.fetchLists[fetch_id][mat:sub(2)] = true;
+        partial_lookup(radixTree, mat:sub(2))
+      else
+        peer.fetchLists[fetch_id] = nil
+        easyFetcher = false
+        break
+      end
+    end
+    
     local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
@@ -693,13 +785,26 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
-    for path,element in pairs(elements) do
-      fetcher({
+    if (easyFetcher == false) then
+      for path,element in pairs(elements) do
+        fetcher
+        {
           path = path,
           lpath = has_case_insensitives and path:lower(),
           value = element.value,
-          event = 'add',
-      })
+          event = 'add'
+        }
+      end
+    else
+      for path,bo in pairs(radixElements) do
+        fetcher
+        {
+          path = path,
+          lpath = has_case_insensitives and path:lower(),
+          value = elements[path].value,
+          event = 'add'
+        }
+      end
     end
     initializing = false
     if flush then
@@ -794,6 +899,7 @@ local create_daemon = function(options)
       value = value,
     }
     elements[path] = element
+    add_to_tree( radixTree, path )
     publish({
         path = path,
         event = 'add',
@@ -807,6 +913,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
+      remove_from_tree( radixTree, path )
       publish({
           path = path,
           event = 'remove',
@@ -1098,6 +1205,7 @@ local create_daemon = function(options)
       end
     end
     peer.fetchers = {}
+    peer.fetchLists = {}
     peer.encode = cjson.encode
     peer.decode = cjson.decode
     
