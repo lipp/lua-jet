@@ -667,11 +667,9 @@ local create_daemon = function(options)
   local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
-    local queue_notification = function(nparams)
-      assert(false,'fetcher misbehaves: must not be called yet')
-    end
+    local params_ok,fetcher
     local notify = function(nparams)
-      queue_notification(nparams)
+      fetcher.queue(nparams)
     end
     local sorter_ok,sorter,flush = pcall(create_sorter,params,notify)
     local initializing = true
@@ -682,7 +680,7 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
-    local params_ok,fetcher = pcall(create_fetcher,params,notify)
+    params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
@@ -708,10 +706,6 @@ local create_daemon = function(options)
           method = fetch_id,
           params = nparams,
       })
-    end
-    
-    queue_notification = function(nparams)
-      fetcher.queue(nparams)
     end
     
     local fetchop = fetcher.op
