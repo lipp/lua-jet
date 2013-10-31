@@ -703,13 +703,17 @@ local create_daemon = function(options)
       end
     end
     
-    local cq = peer.queue
-    queue_notification = function(nparams)
-      cq(peer,{
+    fetcher.queue = function(nparams)
+      peer:queue({
           method = fetch_id,
           params = nparams,
       })
     end
+    
+    queue_notification = function(nparams)
+      fetcher.queue(nparams)
+    end
+    
     local fetchop = fetcher.op
     for path,element in pairs(elements) do
       fetchop({
