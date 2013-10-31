@@ -98,12 +98,13 @@ local create_daemon = function(options)
     notification.lpath = has_case_insensitives and notification.path:lower()
     for peer in pairs(peers) do
       for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,notification)
+        local fetchop = fetcher.op
+        local ok,refetch = pcall(fetchop,notification)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
           for path,element in pairs(elements) do
-            fetcher({
+            fetchop({
                 path = path,
                 value = element.value,
                 event = 'add',
@@ -331,7 +332,10 @@ local create_daemon = function(options)
         })
       end
     end
-    return fetchop,options.caseInsensitive
+    return {
+      op = fetchop,
+      is_case_insensitive = options.caseInsensitive,
+    }
   end
   
   local create_fetcher_without_deps = function(options,notify)
@@ -391,7 +395,10 @@ local create_daemon = function(options)
       })
     end
     
-    return fetchop,options.caseInsensitive
+    return {
+      op = fetchop,
+      is_case_insensitive = options.caseInsensitive,
+    }
   end
   
   local create_sorter = function(options,notify)
@@ -675,14 +682,14 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
-    local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
+    local params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
     
     peer.fetchers[fetch_id] = fetcher
     
-    if is_case_insensitive then
+    if fetcher.is_case_insensitive then
       case_insensitives[fetcher] = true
       has_case_insensitives = true
     end
@@ -703,8 +710,9 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
+    local fetchop = fetcher.op
     for path,element in pairs(elements) do
-      fetcher({
+      fetchop({
           path = path,
           lpath = has_case_insensitives and path:lower(),
           value = element.value,
