@@ -175,7 +175,9 @@ new = function(config)
         }
       end
     end
+    local received_count = 0
     local dispatch_single_message = function(self,message)
+       received_count = received_count + 1
       if message.method and message.params then
         dispatch_request(self,message)
       elseif message.result or message.error then
