@@ -869,6 +869,7 @@ local create_daemon = function(options)
     if params.persist ~= nil then
       peer.message_history = {}
       peer.persist_id = tostring(peer)
+      peer.persist_time = tonumber(params.persist) or 120
       return peer.persist_id
     end
     
@@ -881,7 +882,7 @@ local create_daemon = function(options)
       local received_count = checked(params.resume,'receivedCount','number')
       local resumer = resumables[persist_id]
       if not resumer then
-        error(invalidParams({invalidPersistId=persist_id}))
+        error(invalid_params({invalidPersistId=persist_id}))
       end
       resumer.release_timer:stop(loop)
       resumer.release_timer:clear_pending(loop)
@@ -889,10 +890,12 @@ local create_daemon = function(options)
       resumables[persist_id] = nil
       local missed_messages_count = resumer.message_count - received_count
       local history = resumer.message_history
-      local start = #history-missed_messages_count
+      local start = #history-missed_messages_count + 1
       if start < 0 then
         error(internal_error(historyNotAvailable))
       end
+      resumer:transfer_fetchers(peer)
+      resumer:transfer_elements(peer)
       if message.id then
         peer:queue({
             id = message.id,
@@ -904,6 +907,7 @@ local create_daemon = function(options)
       end
       peer.message_history = {}
       peer.persist_id = persist_id
+      peer.persist_time = resumer.persist_time
       peer.flush()
       return nil,true -- set dont_auto_reply true
     end
@@ -1129,13 +1133,29 @@ local create_daemon = function(options)
       ops.close()
       peer = nil
     end
+    peer.transfer_fetchers = function(_,new_peer)
+      for fetch_id,fetcher in pairs(peer.fetchers) do
+        fetcher.queue = function(nparams)
+          new_peer:queue({
+              method = fetch_id,
+              params = nparams
+          })
+        end
+      end
+    end
+    peer.transfer_elements = function(_,new_peer)
+      for _,element in pairs(elements) do
+        element.peer = new_peer
+      end
+    end
     peer.release = function(_)
       if peer then
         if peer.message_history then
+          resumables[peer.persist_id] = peer
           peer.release_timer = ev.Timer.new(function()
               peer.release_timer = nil
               release()
-            end,120)
+            end,peer.persist_time or 1)
           peer.release_timer:start(loop)
         else
           release()
@@ -1158,7 +1178,6 @@ local create_daemon = function(options)
       peer.message_count = peer.message_count + num
       local history = peer.message_history
       if history then
-        print('hity')
         for _,message in ipairs(messages) do
           tinsert(history,message)
         end
@@ -1269,7 +1288,7 @@ local create_daemon = function(options)
             })
           end)
         if not websocket_ok then
-          print('Could not start websocket server',err)
+          crit('Could not start websocket server',err)
         end
       end
     end,

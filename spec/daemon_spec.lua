@@ -39,7 +39,6 @@ for _,info in ipairs(addresses_to_test) do
           {
             port = port,
             interface = info.addr,
-            print = function() end
           }
         end)
       
@@ -84,12 +83,16 @@ for _,info in ipairs(addresses_to_test) do
           
           local sock
           
+          local new_sock = function()
+            if info.family == 'inet6' then
+              return socket.tcp6()
+            else
+              return socket.tcp()
+            end
+          end
+          
           before_each(function()
-              if info.family == 'inet6' then
-                sock = socket.tcp6()
-              else
-                sock = socket.tcp()
-              end
+              sock = new_sock()
             end)
           
           after_each(function()
@@ -206,6 +209,51 @@ for _,info in ipairs(addresses_to_test) do
                 end))
               message_socket:read_io():start(loop)
               message_socket:send('this is no json')
+            end)
+          
+          it('a peer can configure persist and resume',function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    assert.is_same(response.id,1)
+                    assert.is_string(response.result)
+                    local resume_id = response.result
+                    sock:close()
+                    sock = new_sock()
+                    sock:connect(info.addr,port)
+                    local message_socket = jetsocket.wrap(sock)
+                    message_socket:on_message(
+                      async(
+                        function(_,response)
+                          response = cjson.decode(response)
+                          assert.is_same(response.id,2)
+                          assert.is_same(response.result,1)
+                          done()
+                      end))
+                    message_socket:read_io():start(loop)
+                    message_socket:send(cjson.encode({
+                          method = 'config',
+                          params = {
+                            resume = {
+                              id = resume_id,
+                              receivedCount = 1
+                            }
+                          },
+                          id = 2,
+                    }))
+                    
+                end))
+              message_socket:read_io():start(loop)
+              message_socket:send(cjson.encode({
+                    method = 'config',
+                    params = {
+                      persist = 0.001
+                    },
+                    id = 1,
+              }))
             end)
           
           local req_resp_test = function(desc)
