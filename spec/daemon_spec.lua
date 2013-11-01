@@ -256,6 +256,109 @@ for _,info in ipairs(addresses_to_test) do
               }))
             end)
           
+          it('a peer can configure persist and resume and missed messages are resend by daemon',function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    if #response > 0 then
+                      response = response[1]
+                    end
+                    assert.is_string(response.result)
+                    local resume_id = response.result
+                    sock:close()
+                    sock = new_sock()
+                    sock:connect(info.addr,port)
+                    local message_socket = jetsocket.wrap(sock)
+                    message_socket:on_message(
+                      async(
+                        function(_,response)
+                          response = cjson.decode(response)
+                          assert.is_same(response,{
+                              {
+                                result = 1, -- resume was success
+                                id = 5, -- five messages received by daemon yet
+                              },
+                              {
+                                result = true, -- fetch set up successfully
+                                id = 3,
+                              },
+                              {
+                                method = 'fetchy', -- resumed fetched data
+                                params = {
+                                  path = 'dummy',
+                                  value = 123,
+                                  event = 'add',
+                                }
+                              },
+                              {
+                                method = 'fetchy', -- resumed fetched data
+                                params = {
+                                  path = 'dummy',
+                                  value = 234,
+                                  event = 'change',
+                                }
+                              },
+                              {
+                                result = true, -- change notification was success
+                                id = 4
+                              }
+                          })
+                          done()
+                      end))
+                    message_socket:read_io():start(loop)
+                    message_socket:send(cjson.encode({
+                          method = 'config',
+                          params = {
+                            resume = {
+                              id = resume_id,
+                              -- pretend only config and add responses have been receveived
+                              receivedCount = 2
+                            }
+                          },
+                          id = 5,
+                    }))
+                    
+                end))
+              message_socket:read_io():start(loop)
+              message_socket:send(cjson.encode({
+                    {
+                      method = 'config',
+                      params = {
+                        persist = 0.001
+                      },
+                      id = 1,
+                    },
+                    {
+                      method = 'add',
+                      params = {
+                        path = 'dummy',
+                        value = 123
+                      },
+                      id = 2,
+                    },
+                    {
+                      method = 'fetch',
+                      params = {
+                        id = 'fetchy',
+                        matches = {'.*'}
+                      },
+                      id = 3,
+                    },
+                    {
+                      method = 'change',
+                      params = {
+                        path = 'dummy',
+                        value = 234
+                      },
+                      id = 4,
+                    },
+              }))
+            end)
+          
+          
           local req_resp_test = function(desc)
             local requests = desc.requests
             local responses = desc.responses
