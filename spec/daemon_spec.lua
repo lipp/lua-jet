@@ -230,7 +230,9 @@ for _,info in ipairs(addresses_to_test) do
                         function(_,response)
                           response = cjson.decode(response)
                           assert.is_same(response.id,2)
-                          assert.is_same(response.result,1)
+                          -- the server has received two messages associated with this persist session so far
+                          -- (config.persist and config.resume)
+                          assert.is_same(response.result,2)
                           done()
                       end))
                     message_socket:read_io():start(loop)
@@ -256,6 +258,79 @@ for _,info in ipairs(addresses_to_test) do
               }))
             end)
           
+          it('a peer can configure persist and resume (twice)',function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    assert.is_same(response.id,1)
+                    assert.is_string(response.result)
+                    local resume_id = response.result
+                    sock:close()
+                    sock = new_sock()
+                    sock:connect(info.addr,port)
+                    local message_socket = jetsocket.wrap(sock)
+                    message_socket:on_message(
+                      async(
+                        function(_,response)
+                          response = cjson.decode(response)
+                          assert.is_same(response.id,2)
+                          -- the server has received two messages associated with this persist session so far
+                          -- (config.persist and config.resume)
+                          assert.is_same(response.result,2)
+                          sock:close()
+                          sock = new_sock()
+                          sock:connect(info.addr,port)
+                          local message_socket = jetsocket.wrap(sock)
+                          message_socket:on_message(
+                            async(
+                              function(_,response)
+                                response = cjson.decode(response)
+                                assert.is_same(response.id,3)
+                                -- the server has received three messages associated with this persist session so far
+                                -- (config.persist and config.resume and config.resume)
+                                assert.is_same(response.result,3)
+                                done()
+                            end))
+                          message_socket:read_io():start(loop)
+                          message_socket:send(cjson.encode({
+                                method = 'config',
+                                params = {
+                                  resume = {
+                                    id = resume_id,
+                                    receivedCount = 2
+                                  }
+                                },
+                                id = 3,
+                          }))
+                          
+                      end))
+                    message_socket:read_io():start(loop)
+                    message_socket:send(cjson.encode({
+                          method = 'config',
+                          params = {
+                            resume = {
+                              id = resume_id,
+                              receivedCount = 1
+                            }
+                          },
+                          id = 2,
+                    }))
+                    
+                end))
+              message_socket:read_io():start(loop)
+              message_socket:send(cjson.encode({
+                    method = 'config',
+                    params = {
+                      persist = 0.001
+                    },
+                    id = 1,
+              }))
+            end)
+          
+          
           it('a peer can configure persist and resume and missed messages are resend by daemon',function(done)
               sock:connect(info.addr,port)
               local message_socket = jetsocket.wrap(sock)
@@ -278,8 +353,8 @@ for _,info in ipairs(addresses_to_test) do
                           response = cjson.decode(response)
                           assert.is_same(response,{
                               {
-                                result = 1, -- resume was success
-                                id = 5, -- five messages received by daemon yet
+                                result = 5, -- five messages received by daemon yet (assoc. to the persist id)
+                                id = 5, -- config.resume id
                               },
                               {
                                 result = true, -- fetch set up successfully

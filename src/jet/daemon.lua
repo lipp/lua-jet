@@ -896,6 +896,7 @@ local create_daemon = function(options)
       end
       resumer:transfer_fetchers(peer)
       resumer:transfer_elements(peer)
+      peer.receive_count = peer.receive_count + resumer.receive_count
       if message.id then
         peer:queue({
             id = message.id,

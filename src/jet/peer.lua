@@ -177,7 +177,6 @@ new = function(config)
     end
     local received_count = 0
     local dispatch_single_message = function(self,message)
-       received_count = received_count + 1
       if message.method and message.params then
         dispatch_request(self,message)
       elseif message.result or message.error then
@@ -194,11 +193,16 @@ new = function(config)
       end
       will_flush = true
       if message then
-        if #message > 0 then
+        local num = #message
+        if num > 0 then
+          -- The received count MUST be incremented here for arrays!
+          -- This is relevant for resuming...
+          received_count = received_count + num
           for i,message in ipairs(message) do
             dispatch_single_message(self,message)
           end
         else
+          received_count = received_count + 1
           dispatch_single_message(self,message)
         end
       else
