@@ -2,6 +2,8 @@ local jsocket = require'jet.socket'
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
+local step = require'step'
+
 local require = require
 local pcall = pcall
 local pairs = pairs
@@ -633,29 +635,47 @@ new = function(config)
       if connected or err == 'already connected' then
         j.read_io = wsock:read_io()
         j.read_io:start(loop)
-        if config.name or config.encoding then
-          j:config({
-              name = config.name,
-              encoding = config.encoding
-              },{
-              success = function()
-                flush('config')
-                if config.encoding then
-                  encode = cmsgpack.pack
-                  decode = cmsgpack.unpack
-                end
-                if config.on_connect then
-                  config.on_connect(j)
-                end
-              end,
-              error = function(err)
-                j:close()
-              end
-          })
-        elseif config.on_connect then
-          config.on_connect(j)
+        
+        local try = {}
+        
+        if config.name then
+          table.insert(try,function(step)
+              j:config({name=config.name},step)
+            end)
         end
-        flush('on_connect')
+        
+        if config.encoding then
+          table.insert(try,function(step)
+              j:config({encoding=config.encoding},{
+                  success = function()
+                    flush('config')
+                    if config.encoding then
+                      encode = cmsgpack.pack
+                      decode = cmsgpack.unpack
+                    end
+                    step.success()
+                  end,
+                  error = function(err)
+                    step.error(err)
+                  end
+              })
+            end)
+        end
+        
+        local connect_sequence = step.new({
+            try = try,
+            catch = function(err)
+              j:close()
+            end,
+            finally = function()
+              if config.on_connect then
+                config.on_connect(j)
+              end
+              flush('on_connect')
+            end
+        })
+        connect_sequence()
+        flush('config')
       end
     end
     
