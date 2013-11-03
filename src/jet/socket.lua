@@ -2,17 +2,10 @@ local ev = require'ev'
 local socket = require'socket'
 require'pack'-- blends pack/unpack into string table
 
-local print = print
-local pairs = pairs
 local tinsert = table.insert
 local tconcat = table.concat
-local ipairs = ipairs
-local assert = assert
 local spack = string.pack
 local sunpack = string.unpack
-local error = error
-local pcall = pcall
-local type = type
 local eps = 2^-40
 
 local wrap_sync = function(sock)
@@ -31,11 +24,10 @@ local wrap_sync = function(sock)
   return wrapped
 end
 
---local async = function(
-
 local wrap = function(sock,args)
   assert(sock)
   args = args or {}
+  
   -- set non blocking
   sock:settimeout(0)
   -- send message asap
@@ -43,6 +35,7 @@ local wrap = function(sock,args)
   -- enable keep alive for detecting broken connections
   sock:setoption('keepalive',true)
   local on_message = args.on_message or function() end
+  local on_connect = args.on_connect or function() end
   local on_close = args.on_close or function() end
   local on_error = args.on_error or function() end
   local loop = args.loop or ev.Loop.default
@@ -133,16 +126,45 @@ local wrap = function(sock,args)
     end
   end
   
+  local connect_io
+  
   wrapped.close = function()
+    if connect_io then
+      connect_io:stop(loop)
+    end
     read_io:stop(loop)
     send_io:stop(loop)
     sock:shutdown()
     sock:close()
   end
   
+  wrapped.connect = function()
+    local connected,err = sock:connect(args.ip,args.port)
+    if connected or err == 'already connected' then
+      detach(function()
+          on_connect(wrapped)
+        end)
+    elseif err == 'timeout' then
+      connect_io = ev.IO.new(
+        function(loop,io)
+          io:stop(loop)
+          connect_io = nil
+          on_connect(wrapped)
+        end,sock:getfd(),ev.WRITE)
+      connect_io:start(loop)
+    else
+      error('jet.socket:connect() failed: '..err)
+    end
+  end
+  
   wrapped.on_message = function(_,f)
     assert(type(f) == 'function')
     on_message = f
+  end
+  
+  wrapped.on_connect = function(_,f)
+    assert(type(f) == 'function')
+    on_connect = f
   end
   
   wrapped.on_close = function(_,f)
@@ -211,8 +233,33 @@ local wrap = function(sock,args)
   return wrapped
 end
 
+local new = function(args)
+  assert(args.ip,'ip required')
+  local sock
+  if socket.dns and socket.dns.getaddrinfo then
+    local addrinfo,err = socket.dns.getaddrinfo(args.ip)
+    if addrinfo then
+      assert(#addrinfo > 0)
+      if addrinfo[1].family == 'inet6' then
+        sock = socket.tcp6()
+      else
+        sock = socket.tcp()
+      end
+    else
+      assert(err,'error message expected')
+      error(err)
+    end
+  else
+    sock = socket.tcp()
+  end
+  return wrap(sock,args)
+end
+
+
+
 local mod = {
   wrap = wrap,
+  new = new,
   wrap_sync = wrap_sync
 }
 
