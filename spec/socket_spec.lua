@@ -22,7 +22,6 @@ describe(
             function(wrapped,message)
               wrapped:send(message)
             end)
-          current:read_io():start(loop)
           accepted[#accepted+1] = current
         end
         echo_listener:settimeout(0)
@@ -53,7 +52,6 @@ describe(
               wrapped:close()
               done()
           end))
-        wrapped:read_io():start(loop)
         wrapped:send(message)
       end
       return f
@@ -73,7 +71,6 @@ describe(
                 done()
               end
           end))
-        wrapped:read_io():start(loop)
         for _,message in ipairs(messages) do
           wrapped:send(message)
         end
@@ -114,8 +111,6 @@ describe(
                 done()
               end
           end))
-        
-        wrapped:read_io():start(loop)
         
         for _,message in ipairs(messages) do
           wrapped:send(message)
@@ -178,7 +173,6 @@ describe(
                     wrapped:close()
                     done()
                 end))
-              wrapped:read_io():start(loop)
           end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         on_accept = function()
           server_sock:shutdown()
@@ -189,7 +183,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-              wrapped:read_io():stop(loop)
+	       wrapped:close()
             end
           end)
       end)
@@ -212,14 +206,13 @@ describe(
                     wrapped:close()
                     done()
                 end))
-              wrapped:read_io():start(loop)
           end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         sock:connect('127.0.0.1',port)
         finally(function()
             sock:shutdown()
             sock:close()
             if wrapped then
-              wrapped:read_io():stop(loop)
+	       wrapped:close()
             end
           end)
         on_accept = function()
@@ -249,7 +242,6 @@ describe(
                     wrapped:close()
                     done()
                 end))
-              wrapped:read_io():start(loop)
           end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         sock:connect('127.0.0.1',port)
         local server_sock_wrapped
@@ -257,7 +249,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-              wrapped:read_io():stop(loop)
+	       wrapped:close()
             end
             server_sock_wrapped:close()
           end)
@@ -285,7 +277,6 @@ describe(
                     wrapped:close()
                     done()
                 end))
-              wrapped:read_io():start(loop)
               wrapped:send(string.rep('foobar',1000000))
           end),sock:getfd(),ev.WRITE):start(loop)-- connect io
         sock:connect('127.0.0.1',port)
@@ -293,7 +284,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-              wrapped:read_io():stop(loop)
+	       wrapped:close()
             end
           end)
         on_accept = function()

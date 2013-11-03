@@ -164,7 +164,6 @@ for _,info in ipairs(addresses_to_test) do
                       assert.is_nil('unexpected message id:'..response.id)
                     end
                 end))
-              message_socket:read_io():start(loop)
             end)
           
           it(
@@ -185,7 +184,6 @@ for _,info in ipairs(addresses_to_test) do
                     })
                     done()
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send('123')
             end)
           
@@ -207,7 +205,6 @@ for _,info in ipairs(addresses_to_test) do
                     })
                     done()
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send('this is no json')
             end)
           
@@ -235,7 +232,6 @@ for _,info in ipairs(addresses_to_test) do
                           assert.is_same(response.result,2)
                           done()
                       end))
-                    message_socket:read_io():start(loop)
                     message_socket:send(cjson.encode({
                           method = 'config',
                           params = {
@@ -248,7 +244,6 @@ for _,info in ipairs(addresses_to_test) do
                     }))
                     
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send(cjson.encode({
                     method = 'config',
                     params = {
@@ -294,7 +289,6 @@ for _,info in ipairs(addresses_to_test) do
                                 assert.is_same(response.result,3)
                                 done()
                             end))
-                          message_socket:read_io():start(loop)
                           message_socket:send(cjson.encode({
                                 method = 'config',
                                 params = {
@@ -307,7 +301,6 @@ for _,info in ipairs(addresses_to_test) do
                           }))
                           
                       end))
-                    message_socket:read_io():start(loop)
                     message_socket:send(cjson.encode({
                           method = 'config',
                           params = {
@@ -320,7 +313,6 @@ for _,info in ipairs(addresses_to_test) do
                     }))
                     
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send(cjson.encode({
                     method = 'config',
                     params = {
@@ -383,7 +375,6 @@ for _,info in ipairs(addresses_to_test) do
                           })
                           done()
                       end))
-                    message_socket:read_io():start(loop)
                     message_socket:send(cjson.encode({
                           method = 'config',
                           params = {
@@ -397,7 +388,6 @@ for _,info in ipairs(addresses_to_test) do
                     }))
                     
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send(cjson.encode({
                     {
                       method = 'config',
@@ -454,7 +444,6 @@ for _,info in ipairs(addresses_to_test) do
                         done()
                       end
                   end))
-                message_socket:read_io():start(loop)
                 for _,request in ipairs(requests) do
                   message_socket:send(cjson.encode(request))
                 end
