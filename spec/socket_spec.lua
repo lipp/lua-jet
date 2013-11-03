@@ -183,7 +183,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-	       wrapped:close()
+              wrapped:close()
             end
           end)
       end)
@@ -212,7 +212,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-	       wrapped:close()
+              wrapped:close()
             end
           end)
         on_accept = function()
@@ -249,7 +249,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-	       wrapped:close()
+              wrapped:close()
             end
             server_sock_wrapped:close()
           end)
@@ -284,7 +284,7 @@ describe(
             sock:shutdown()
             sock:close()
             if wrapped then
-	       wrapped:close()
+              wrapped:close()
             end
           end)
         on_accept = function()
