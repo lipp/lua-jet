@@ -1155,6 +1155,7 @@ local create_daemon = function(options)
           resumables[peer.persist_id] = peer
           peer.release_timer = ev.Timer.new(function()
               peer.release_timer = nil
+              resumables[peer.persist_id] = nil
               release()
             end,peer.persist_time or 1)
           peer.release_timer:start(loop)

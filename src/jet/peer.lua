@@ -7,9 +7,6 @@ local step = require'step'
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
-local log = function(...)
-  print('jet.peer',...)
-end
 
 local error_object = function(err)
   local error
@@ -24,6 +21,24 @@ local error_object = function(err)
   end
   return error
 end
+
+local eps = 2^-40
+
+local detach = function(f,loop)
+  if ev.Idle then
+    ev.Idle.new(function(loop,io)
+        io:stop(loop)
+        f()
+      end):start(loop)
+  else
+    ev.Timer.new(function(loop,io)
+        io:stop(loop)
+        f()
+      end,eps):start(loop)
+  end
+end
+
+local noop = function() end
 
 new = function(config)
   config = config or {}
@@ -191,8 +206,32 @@ new = function(config)
       flush('dispatch_message')
     end
     wsock:on_message(dispatch_message)
-    wsock:on_error(log)
-    wsock:on_close(config.on_close or function() end)
+    wsock:on_error(config.on_error or noop)
+    local resume_id
+    local closing
+    local connect_sequence
+    local on_close
+    on_close = function()
+      if not closing and config.persist then
+        encode = cjson.encode
+        decode = cjson.decode
+        wsock = jsocket.new({ip = ip, port = port, loop = loop})
+        wsock:on_message(dispatch_message)
+        wsock:on_error(log)
+        wsock:on_close(on_close)
+        wsock:on_connect(function()
+            connect_sequence()
+            flush('resume')
+          end)
+        wsock:connect()
+        
+      end
+      if config.on_close then
+        config.on_close()
+      end
+    end
+    
+    wsock:on_close(on_close)
     local j = {}
     
     j.loop = function()
@@ -203,9 +242,30 @@ new = function(config)
       on_no_dispatcher = f
     end
     
-    j.close = function(self)
+    j.on_error = function(_,f)
+      wsock:on_error(f)
+    end
+    
+    j.close = function(self,done,debug_resume)
       flush('close')
       wsock:close()
+      if debug_resume then
+        return
+      end
+      closing = true
+      if done then
+        if config.persist then
+          -- the daemon keeps states for config.persist seconds.
+          -- during this time, the states / paths are still blocked
+          -- by this peer. wait some seconds more and asume
+          -- all peer related resources are freed by the daemon.
+          ev.Timer.new(function()
+              done()
+            end,config.persist + 2):start(loop)
+        else
+          detach(done,loop)
+        end
+      end
     end
     
     local id = 0
@@ -592,45 +652,64 @@ new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    wsock:on_connect(function()
-        local try = {}
-        
-        if config.name then
-          table.insert(try,function(step)
-              j:config({name=config.name},step)
-            end)
-        end
-        
-        if config.encoding then
-          table.insert(try,function(step)
-              j:config({encoding=config.encoding},{
-                  success = function()
-                    flush('config')
-                    if config.encoding then
-                      encode = cmsgpack.pack
-                      decode = cmsgpack.unpack
-                    end
-                    step.success()
-                  end,
-                  error = function(err)
-                    step.error(err)
-                  end
-              })
-            end)
-        end
-        
-        local connect_sequence = step.new({
-            try = try,
-            catch = function(err)
-              j:close()
-            end,
-            finally = function()
-              if config.on_connect then
-                config.on_connect(j)
+    local try = {}
+    
+    if config.name then
+      table.insert(try,function(step)
+          j:config({name=config.name},step)
+        end)
+    end
+    
+    if config.encoding then
+      table.insert(try,function(step)
+          j:config({encoding=config.encoding},{
+              success = function()
+                flush('config')
+                if config.encoding then
+                  encode = cmsgpack.pack
+                  decode = cmsgpack.unpack
+                end
+                step.success()
+              end,
+              error = function(err)
+                step.error(err)
               end
-              flush('on_connect')
-            end
-        })
+          })
+        end)
+    end
+    
+    if config.persist and not resume_id then
+      table.insert(try,function(step)
+          j:config({persist=config.persist},{
+              success = function(persist_id)
+                step.success()
+              end,
+              error = function(err)
+                step.error(err)
+              end
+          })
+        end)
+    end
+    
+    
+    connect_sequence = step.new({
+        try = try,
+        catch = function(err)
+          if not config.persist then
+            j:close()
+          end
+        end,
+        finally = function()
+          if config.on_connect then
+            config.on_connect(j)
+            config.on_connect = nil
+          end
+          flush('on_connect')
+        end
+    })
+    
+    
+    wsock:on_connect(function()
         connect_sequence()
         flush('config')
       end)

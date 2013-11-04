@@ -134,27 +134,31 @@ local wrap = function(sock,args)
     end
     read_io:stop(loop)
     send_io:stop(loop)
-    sock:shutdown()
+    if connected then
+      sock:shutdown()
+    end
     sock:close()
   end
   
   wrapped.connect = function()
-    local connected,err = sock:connect(args.ip,args.port)
-    if connected or err == 'already connected' then
-      detach(function()
+    detach(function()
+        local connected,err = sock:connect(args.ip,args.port)
+        if connected or err == 'already connected' then
+          connected = true
           on_connect(wrapped)
-        end)
-    elseif err == 'timeout' then
-      connect_io = ev.IO.new(
-        function(loop,io)
-          io:stop(loop)
-          connect_io = nil
-          on_connect(wrapped)
-        end,sock:getfd(),ev.WRITE)
-      connect_io:start(loop)
-    else
-      error('jet.socket:connect() failed: '..err)
-    end
+        elseif err == 'timeout' then
+          connect_io = ev.IO.new(
+            function(loop,io)
+              io:stop(loop)
+              connected = true
+              connect_io = nil
+              on_connect(wrapped)
+            end,sock:getfd(),ev.WRITE)
+          connect_io:start(loop)
+        else
+          on_error('jet.socket:connect() failed: '..err)
+        end
+      end)
   end
   
   wrapped.on_message = function(_,f)

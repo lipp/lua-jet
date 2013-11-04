@@ -17,7 +17,6 @@ describe(
     setup(function()
         daemon = jetdaemon.new{
           port = port,
-          print = function() end
         }
         daemon:start()
       end)
@@ -26,7 +25,7 @@ describe(
         daemon:stop()
       end)
     
-    it('provides the correct interface',function()
+    it('provides the correct interface',function(done)
         local peer = jetpeer.new{port = port}
         assert.is_true(type(peer) == 'table')
         assert.is_true(type(peer.state) == 'function')
@@ -36,6 +35,10 @@ describe(
         assert.is_true(type(peer.fetch) == 'function')
         assert.is_true(type(peer.batch) == 'function')
         assert.is_true(type(peer.loop) == 'function')
+        peer:on_error(async(function(err)
+              assert.is_truthy(err:match('closed'))
+              done()
+          end))
         peer:close()
       end)
     
@@ -149,7 +152,7 @@ describe(
           end)
         
         after_each(function(done)
-            peer:close()
+            peer:close(async(done))
           end)
         
         it(
@@ -678,8 +681,8 @@ describe(
             }
           end)
         
-        after_each(function()
-            peer:close()
+        after_each(function(done)
+            peer:close(async(function() done() end))
           end)
         
         it('set gets timeout error',function(done)
@@ -1300,7 +1303,6 @@ if ipv6_localhost_addr then
           daemon = jetdaemon.new{
             port = port,
             interface = ipv6_localhost_addr,
-            print = function() end
           }
           daemon:start()
         end)
