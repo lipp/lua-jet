@@ -43,6 +43,7 @@ local wrap = function(sock,args)
   local wrapped = {}
   local read_io
   local send_io
+  local connect_io
   
   local detach = function(f)
     if ev.Idle then
@@ -59,6 +60,10 @@ local wrap = function(sock,args)
   end
   
   local handle_error = function(io_active,err_msg)
+    if connect_io then
+      connect_io:stop(loop)
+      connect_io:clear_pending(loop)
+    end
     read_io:stop(loop)
     read_io:clear_pending(loop)
     send_io:stop(loop)
@@ -76,6 +81,10 @@ local wrap = function(sock,args)
   end
   
   local handle_close = function(io_active)
+    if connect_io then
+      connect_io:stop(loop)
+      connect_io:clear_pending(loop)
+    end
     read_io:stop(loop)
     read_io:clear_pending(loop)
     send_io:stop(loop)
@@ -125,8 +134,6 @@ local wrap = function(sock,args)
       end
     end
   end
-  
-  local connect_io
   
   wrapped.close = function()
     if connect_io then
