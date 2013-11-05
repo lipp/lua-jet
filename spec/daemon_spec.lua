@@ -227,9 +227,10 @@ for _,info in ipairs(addresses_to_test) do
                         function(_,response)
                           response = cjson.decode(response)
                           assert.is_same(response.id,2)
-                          -- the server has received two messages associated with this persist session so far
-                          -- (config.persist and config.resume)
-                          assert.is_same(response.result,2)
+                          -- the server has received two messages associated with this persist session
+                          -- before processing config.resume
+                          -- (config.persist)
+                          assert.is_same(response.result,1)
                           done()
                       end))
                     message_socket:send(cjson.encode({
@@ -272,9 +273,10 @@ for _,info in ipairs(addresses_to_test) do
                         function(_,response)
                           response = cjson.decode(response)
                           assert.is_same(response.id,2)
-                          -- the server has received two messages associated with this persist session so far
-                          -- (config.persist and config.resume)
-                          assert.is_same(response.result,2)
+                          -- the server has received two messages associated with this persist session
+                          -- before processing config.resume
+                          -- (config.persist)
+                          assert.is_same(response.result,1)
                           sock:close()
                           sock = new_sock()
                           sock:connect(info.addr,port)
@@ -284,9 +286,10 @@ for _,info in ipairs(addresses_to_test) do
                               function(_,response)
                                 response = cjson.decode(response)
                                 assert.is_same(response.id,3)
-                                -- the server has received three messages associated with this persist session so far
-                                -- (config.persist and config.resume and config.resume)
-                                assert.is_same(response.result,3)
+                                -- the server has received two messages associated with this persist session
+                                -- before processing config.resume
+                                -- (config.persist)
+                                assert.is_same(response.result,1)
                                 done()
                             end))
                           message_socket:send(cjson.encode({
@@ -345,7 +348,7 @@ for _,info in ipairs(addresses_to_test) do
                           response = cjson.decode(response)
                           assert.is_same(response,{
                               {
-                                result = 5, -- five messages received by daemon yet (assoc. to the persist id)
+                                result = 4, -- five messages received by daemon yet (assoc. to the persist id)
                                 id = 5, -- config.resume id
                               },
                               {

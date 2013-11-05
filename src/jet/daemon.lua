@@ -868,9 +868,11 @@ local create_daemon = function(options)
     -- must be used to resume the peer.
     if params.persist ~= nil then
       peer.message_history = {}
-      peer.persist_id = tostring(peer)
+      local persist_id = tostring(peer)
+      peer.persist_id = persist_id
       peer.persist_time = tonumber(params.persist) or 120
-      return peer.persist_id
+      resumables[persist_id] = peer
+      return persist_id
     end
     
     -- if valid resume parameters are passed in,
@@ -884,10 +886,15 @@ local create_daemon = function(options)
       if not resumer then
         error(invalid_params({invalidPersistId=persist_id}))
       end
-      resumer.release_timer:stop(loop)
-      resumer.release_timer:clear_pending(loop)
-      resumer.release_timer = nil
-      resumables[persist_id] = nil
+      resumer.mediated = true
+      -- check if the daemon has already noticed, that the resumer died
+      if resumer.release_timer then
+        resumer.release_timer:stop(loop)
+        resumer.release_timer:clear_pending(loop)
+        resumer.release_timer = nil
+      else
+        resumer:close()
+      end
       local missed_messages_count = resumer.message_count - received_count
       local history = resumer.message_history
       local start = #history-missed_messages_count + 1
@@ -896,7 +903,7 @@ local create_daemon = function(options)
       end
       resumer:transfer_fetchers(peer)
       resumer:transfer_elements(peer)
-      peer.receive_count = peer.receive_count + resumer.receive_count
+      peer.receive_count = resumer.receive_count
       if message.id then
         peer:queue({
             id = message.id,
@@ -907,6 +914,7 @@ local create_daemon = function(options)
         peer:queue(history[i])
       end
       peer.message_history = {}
+      resumables[persist_id] = peer
       peer.persist_id = persist_id
       peer.persist_time = resumer.persist_time
       peer.flush()
@@ -1155,8 +1163,10 @@ local create_daemon = function(options)
           resumables[peer.persist_id] = peer
           peer.release_timer = ev.Timer.new(function()
               peer.release_timer = nil
-              resumables[peer.persist_id] = nil
-              release()
+              if not peer.mediated then                
+                resumables[peer.persist_id] = nil
+                release()
+              end
             end,peer.persist_time or 1)
           peer.release_timer:start(loop)
         else
