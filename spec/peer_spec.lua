@@ -9,8 +9,10 @@ local dt = 0.05
 
 setloop('ev')
 
+
+
 describe(
-  'A peer basic tests',
+  'When a daemon is running',
   function()
     local daemon
     local peer
@@ -51,8 +53,94 @@ describe(
               done()
             end)
         }
-        --        finally(function() peer:close() end)
       end)
+    
+    describe(
+      'when using persist option',
+      function()
+        it('on_connect gets called when using persist option and close callback comes after > 2secs',function(done)
+            settimeout(3) -- closing takes > 2 secs
+            local ppeer
+            ppeer = jetpeer.new
+            {
+              port = port,
+              persist = 0.3,
+              on_connect = async(function(p)
+                  assert.is_equal(ppeer,p)
+                  ppeer:close(async(function()
+                        done()
+                    end))
+                end)
+            }
+          end)
+        
+        it('daemon can start after peer',function(done)
+            settimeout(30) -- closing takes > 2 secs
+            local d2 = jetdaemon.new{
+              port = port + 10
+            }
+            local ppeer
+            ppeer = jetpeer.new
+            {
+              port = port + 10,
+              persist = 0.3,
+              on_connect = async(function(p)
+                  assert.is_equal(ppeer,p)
+                  ppeer:close(async(function()
+                        done()
+                    end))
+                end)
+            }
+            ev.Timer.new(function()
+                d2:start()
+              end,0.2):start(loop)
+            finally(function()
+                d2:stop()
+              end)
+          end)
+        
+        
+        it('on_connect gets called when using persist option and close callback comes after > 2secs',function(done)
+            settimeout(4) -- closing takes > 2 secs
+            local ppeer
+            ppeer = jetpeer.new
+            {
+              port = port,
+              persist = 1,
+              on_connect = async(function(p)
+                  assert.is_equal(ppeer,p)
+                  ppeer:close(nil,true) -- just underlying socket, but dont quit resume loop
+                  ev.Timer.new(async(function()
+                        local some_state
+                        some_state = ppeer:state({
+                            path = 'popopo',
+                            value = 873
+                            },{
+                            error = async(function(err)
+                                assert.is_nil(err or 'should not happen')
+                              end),
+                            success = async(function()
+                                some_state:remove({
+                                    error = async(function(err)
+                                        assert.is_nil(err or 'should not happen')
+                                      end),
+                                    success = async(function()
+                                        done()
+                                        ppeer:close()
+                                        
+                                      end)
+                                })
+                              end)
+                        })
+                        
+                    end),1):start(loop)
+                end)
+            }
+          end)
+        
+        
+      end)
+    
     
     it('can add a state',function(done)
         peer:state(
@@ -290,7 +378,7 @@ describe(
               async(function(fpath,fevent,fdata,fetcher)
                   timer:stop(loop)
                   fetcher:unfetch()
-                  assert.is_falsy('should not happen'..fpath)
+                  assert.is_falsy('should not happen '..fpath)
                   done()
               end))
             timer = ev.Timer.new(async(function()

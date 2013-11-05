@@ -46,6 +46,7 @@ new = function(config)
   local port = config.port or 11122
   local encode = cjson.encode
   local decode = cjson.decode
+  local log = config.log or noop
   if config.sync then
     local sock = socket.connect(ip,port)
     if not sock then
@@ -100,22 +101,58 @@ new = function(config)
     local queue = function(message)
       tinsert(messages,message)
     end
+    local message_count = 0
+    local message_history = {}
+    local pending
     local will_flush = true
-    local flush = function(reason)
-      local n = #messages
-      if n == 1 then
-        wsock:send(encode(messages[1]))
-      elseif n > 1 then
-        wsock:send(encode(messages))
+    local flush
+    
+    if not config.persist then
+      flush = function(reason)
+        local n = #messages
+        if n == 1 then
+          wsock:send(encode(messages[1]))
+        elseif n > 1 then
+          wsock:send(encode(messages))
+        end
+        messages = {}
+        will_flush = false
       end
-      messages = {}
-      will_flush = false
+    else
+      
+      flush = function(reason)
+        local num = #messages
+        message_count = message_count + num
+        local history = message_history
+        if history then
+          for _,message in ipairs(messages) do
+            tinsert(history,message)
+          end
+          local history_num = #history
+          -- limit history num to 100
+          for i=1,(history_num-100) do
+            tremove(history,1)
+          end
+          assert(#history <= 100)
+        end
+        if not pending then
+          if num == 1 then
+            wsock:send(encode(messages[1]))
+          elseif num > 1 then
+            wsock:send(encode(messages))
+          end
+        end
+        messages = {}
+        will_flush = false
+      end
     end
+    
     local request_dispatchers = {}
     local response_dispatchers = {}
     local dispatch_response = function(self,message)
       local mid = message.id
       local callbacks = response_dispatchers[mid]
+      assert(mid,cjson.encode(message))
       response_dispatchers[mid] = nil
       if callbacks then
         if message.result then
@@ -207,32 +244,56 @@ new = function(config)
     end
     wsock:on_message(dispatch_message)
     wsock:on_error(config.on_error or noop)
-    local resume_id
+    local persist_id
     local closing
     local connect_sequence
     local on_close
+    local try = {}
+    local j = {}
     on_close = function()
-      if not closing and config.persist then
+      if not closing and config.persist and not pending then
+        messages = {}
+        pending = true
         encode = cjson.encode
         decode = cjson.decode
         wsock = jsocket.new({ip = ip, port = port, loop = loop})
         wsock:on_message(dispatch_message)
-        wsock:on_error(log)
+        wsock:on_error(config.on_error or noop)
         wsock:on_close(on_close)
         wsock:on_connect(function()
+            connect_sequence = step.new({
+                try = try,
+                catch = function(err)
+                  j:close()
+                end,
+                finally = function()
+                  if config.on_connect then
+                    config.on_connect(j)
+                    config.on_connect = nil
+                  end
+                  flush('on_connect')
+                end
+            })
+            
             connect_sequence()
             flush('resume')
           end)
-        wsock:connect()
         
+        ev.Timer.new(function(loop,io)
+            if pending and not closing then
+              wsock:connect()
+            else
+              io:stop(loop)
+            end
+          end,0.5,0.5):start(loop)
       end
+      
       if config.on_close then
         config.on_close()
       end
     end
     
     wsock:on_close(on_close)
-    local j = {}
     
     j.loop = function()
       loop:loop()
@@ -652,8 +713,6 @@ new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    local try = {}
-    
     if config.name then
       table.insert(try,function(step)
           j:config({name=config.name},step)
@@ -678,17 +737,49 @@ new = function(config)
         end)
     end
     
-    if config.persist and not resume_id then
+    if config.persist then
       table.insert(try,function(step)
-          j:config({persist=config.persist},{
-              success = function(persist_id)
-                step.success()
-              end,
-              error = function(err)
-                step.error(err)
-              end
-          })
+          if not persist_id then
+            j:config({persist=config.persist},{
+                success = function(pid)
+                  persist_id = pid
+                  step.success()
+                end,
+                error = function(err)
+                  step.error(err)
+                end
+            })
+          else
+            j:config({resume={
+                  id = persist_id,
+                  receivedCount = received_count
+                }},{
+                success = function(received_by_daemon_count)
+                  flush('resume')
+                  pending = false
+                  local missed_messages_count = message_count - received_by_daemon_count
+                  local history = message_history
+                  local start = #history-missed_messages_count
+                  if start < 0 then
+                    step.error(internal_error(historyNotAvailable))
+                  end
+                  local missed = {}
+                  for i=start,#history do
+                    tinsert(missed,history[i])
+                  end
+                  
+                  if #missed > 0 then
+                    wsock:send(encode(missed))
+                  end
+                  step.success()
+                end,
+                error = function(err)
+                  step.error(err)
+                end
+            })
+          end
         end)
+      
     end
     
     
