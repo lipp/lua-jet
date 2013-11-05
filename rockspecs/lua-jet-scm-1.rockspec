@@ -17,7 +17,8 @@ dependencies = {
   'lua-websockets',
   'luasocket',
   'lua-ev',
-  'lpack'
+  'lpack',
+  'lua-step'
 }
 
 build = {

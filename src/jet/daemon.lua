@@ -17,7 +17,7 @@ local mmax = math.max
 
 local noop = function() end
 
---- creates and binds a listening socket for 
+--- creates and binds a listening socket for
 -- ipv4 and (if available) ipv6.
 local sbind = function(host,port)
   if socket.tcp6 then
@@ -54,6 +54,15 @@ local response_timeout = function(data)
   return err
 end
 
+local internal_error = function(data)
+  local err = {
+    code = -32603,
+    message = 'Internal error',
+    data = data,
+  }
+  return err
+end
+
 --- creates and returns a new daemon instance.
 -- options is a table which allows daemon configuration.
 local create_daemon = function(options)
@@ -68,6 +77,7 @@ local create_daemon = function(options)
   local peers = {}
   local elements = {}
   local routes = {}
+  local resumables = {}
   
   local has_case_insensitives
   local case_insensitives = {}
@@ -88,12 +98,13 @@ local create_daemon = function(options)
     notification.lpath = has_case_insensitives and notification.path:lower()
     for peer in pairs(peers) do
       for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,notification)
+        local fetchop = fetcher.op
+        local ok,refetch = pcall(fetchop,notification)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
           for path,element in pairs(elements) do
-            fetcher({
+            fetchop({
                 path = path,
                 value = element.value,
                 event = 'add',
@@ -321,7 +332,10 @@ local create_daemon = function(options)
         })
       end
     end
-    return fetchop,options.caseInsensitive
+    return {
+      op = fetchop,
+      is_case_insensitive = options.caseInsensitive,
+    }
   end
   
   local create_fetcher_without_deps = function(options,notify)
@@ -381,7 +395,10 @@ local create_daemon = function(options)
       })
     end
     
-    return fetchop,options.caseInsensitive
+    return {
+      op = fetchop,
+      is_case_insensitive = options.caseInsensitive,
+    }
   end
   
   local create_sorter = function(options,notify)
@@ -650,11 +667,9 @@ local create_daemon = function(options)
   local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
-    local queue_notification = function(nparams)
-      assert(false,'fetcher misbehaves: must not be called yet')
-    end
+    local params_ok,fetcher
     local notify = function(nparams)
-      queue_notification(nparams)
+      fetcher.queue(nparams)
     end
     local sorter_ok,sorter,flush = pcall(create_sorter,params,notify)
     local initializing = true
@@ -665,14 +680,14 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
-    local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
+    params_ok,fetcher = pcall(create_fetcher,params,notify)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
     
     peer.fetchers[fetch_id] = fetcher
     
-    if is_case_insensitive then
+    if fetcher.is_case_insensitive then
       case_insensitives[fetcher] = true
       has_case_insensitives = true
     end
@@ -686,15 +701,16 @@ local create_daemon = function(options)
       end
     end
     
-    local cq = peer.queue
-    queue_notification = function(nparams)
-      cq(peer,{
+    fetcher.queue = function(nparams)
+      peer:queue({
           method = fetch_id,
           params = nparams,
       })
     end
+    
+    local fetchop = fetcher.op
     for path,element in pairs(elements) do
-      fetcher({
+      fetchop({
           path = path,
           lpath = has_case_insensitives and path:lower(),
           value = element.value,
@@ -823,21 +839,88 @@ local create_daemon = function(options)
   
   local config = function(peer,message)
     local params = message.params
-    if params.peer then
-      peer = nil
-      for peer_ in pairs(peers) do
-        if peer_.name == params.peer then
-          peer = peer_
-          break
+    
+    if params.debug ~= nil then
+      if params.peer then
+        peer = nil
+        for peer_ in pairs(peers) do
+          if peer_.name == params.peer then
+            peer = peer_
+            break
+          end
+        end
+        if not peer then
+          error('unknown peer')
         end
       end
-      if not peer then
-        error('unknown peer')
-      end
+      peer.debug = params.debug
+      return
     end
+    
     if params.name then
       peer.name = params.name
+      return
     end
+    
+    -- enables message history and makes this peer
+    -- resumable in case of close/error event
+    -- returns the unique persist id, which
+    -- must be used to resume the peer.
+    if params.persist ~= nil then
+      peer.message_history = {}
+      local persist_id = tostring(peer)
+      peer.persist_id = persist_id
+      peer.persist_time = tonumber(params.persist) or 120
+      resumables[persist_id] = peer
+      return persist_id
+    end
+    
+    -- if valid resume parameters are passed in,
+    -- returns the last received message number (not id)
+    -- and resends all missed messages from history.
+    -- the peer must have been configured as persistant before.
+    if params.resume then
+      local persist_id = checked(params.resume,'id','string')
+      local received_count = checked(params.resume,'receivedCount','number')
+      local resumer = resumables[persist_id]
+      if not resumer then
+        error(invalid_params({invalidPersistId=persist_id}))
+      end
+      resumer.mediated = true
+      -- check if the daemon has already noticed, that the resumer died
+      if resumer.release_timer then
+        resumer.release_timer:stop(loop)
+        resumer.release_timer:clear_pending(loop)
+        resumer.release_timer = nil
+      else
+        resumer:close()
+      end
+      local missed_messages_count = resumer.message_count - received_count
+      local history = resumer.message_history
+      local start = #history-missed_messages_count + 1
+      if start < 0 then
+        error(internal_error(historyNotAvailable))
+      end
+      resumer:transfer_fetchers(peer)
+      resumer:transfer_elements(peer)
+      peer.receive_count = resumer.receive_count
+      if message.id then
+        peer:queue({
+            id = message.id,
+            result = peer.receive_count,
+        })
+      end
+      for i=start,#history do
+        peer:queue(history[i])
+      end
+      peer.message_history = {}
+      resumables[persist_id] = peer
+      peer.persist_id = persist_id
+      peer.persist_time = resumer.persist_time
+      peer.flush()
+      return nil,true -- set dont_auto_reply true
+    end
+    
     if params.encoding then
       if params.encoding == 'msgpack' then
         local ok,cmsgpack = pcall(require,'cmsgpack')
@@ -857,9 +940,11 @@ local create_daemon = function(options)
         peer.encode = cmsgpack.pack
         peer.decode = cmsgpack.unpack
         return nil,true -- set dont_auto_reply true
+      else
+        error(invalid_params({encodingNotSupported=params.encoding}))
       end
     end
-    peer.debug = params.debug
+    
   end
   
   local sync = function(f)
@@ -879,11 +964,7 @@ local create_daemon = function(options)
           if type(result) == 'table' and result.code and result.message then
             error = result
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = result,
-            }
+            error = internal_error(result)
           end
           peer:queue({
               id = message.id,
@@ -906,11 +987,7 @@ local create_daemon = function(options)
           if type(err) == 'table' and err.code and err.message then
             error = err
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = err,
-            }
+            error = internal_error(err)
           end
           peer:queue({
               id = message.id,
@@ -949,11 +1026,7 @@ local create_daemon = function(options)
         if type(err) == 'table' and err.code and err.message then
           error = err
         else
-          error = {
-            code = -32603,
-            message = 'Internal error',
-            data = err,
-          }
+          error = internal_error(err)
         end
       end
     else
@@ -1020,10 +1093,12 @@ local create_daemon = function(options)
                 }
             })
           elseif #message > 0 then
+            peer.receive_count = peer.receive_count + #message
             for i,message in ipairs(message) do
               dispatch_single_message(peer,message)
             end
           else
+            peer.receive_count = peer.receive_count + 1
             dispatch_single_message(peer,message)
           end
         else
@@ -1045,57 +1120,96 @@ local create_daemon = function(options)
   
   local create_peer = function(ops)
     local peer = {}
+    peer.receive_count = 0
+    local release = function()
+      for _,fetcher in pairs(peer.fetchers) do
+        case_insensitives[fetcher] = nil
+      end
+      has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+      peer.fetchers = {}
+      peers[peer] = nil
+      for path,element in pairs(elements) do
+        if element.peer == peer then
+          publish({
+              event = 'remove',
+              path = path,
+              value = element.value,
+          })
+          elements[path] = nil
+        end
+      end
+      flush_peers()
+      ops.close()
+      peer = nil
+    end
+    peer.transfer_fetchers = function(_,new_peer)
+      for fetch_id,fetcher in pairs(peer.fetchers) do
+        fetcher.queue = function(nparams)
+          new_peer:queue({
+              method = fetch_id,
+              params = nparams
+          })
+        end
+      end
+    end
+    peer.transfer_elements = function(_,new_peer)
+      for _,element in pairs(elements) do
+        element.peer = new_peer
+      end
+    end
     peer.release = function(_)
       if peer then
-        for _,fetcher in pairs(peer.fetchers) do
-          case_insensitives[fetcher] = nil
+        if peer.message_history then
+          resumables[peer.persist_id] = peer
+          peer.release_timer = ev.Timer.new(function()
+              peer.release_timer = nil
+              if not peer.mediated then                
+                resumables[peer.persist_id] = nil
+                release()
+              end
+            end,peer.persist_time or 1)
+          peer.release_timer:start(loop)
+        else
+          release()
         end
-        has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
-        peer.fetchers = {}
-        peers[peer] = nil
-        for path,element in pairs(elements) do
-          if element.peer == peer then
-            publish({
-                event = 'remove',
-                path = path,
-                value = element.value,
-            })
-            elements[path] = nil
-          end
-        end
-        flush_peers()
-        ops.close()
-        peer = nil
       end
     end
     peer.close = function(_)
       peer:flush()
       ops.close()
     end
+    peer.messages = {}
     peer.queue = function(_,message)
-      if not peer.messages then
-        peer.messages = {}
-      end
       tinsert(peer.messages,message)
     end
     local send = ops.send
+    peer.message_count = 0
     peer.flush = function(_)
-      if peer.messages then
-        local num = #peer.messages
-        local message
+      local messages = peer.messages
+      local num = #messages
+      peer.message_count = peer.message_count + num
+      local history = peer.message_history
+      if history then
+        for _,message in ipairs(messages) do
+          tinsert(history,message)
+        end
+        local history_num = #history
+        -- limit history num to 100
+        for i=1,(history_num-100) do
+          tremove(history,1)
+        end
+        assert(#history <= 100)
+      end
+      if num > 0 and not peer.release_timer then
         if num == 1 then
-          message = peer.messages[1]
-        elseif num > 1 then
-          message = peer.messages
-        else
-          assert(false,'messages must contain at least one element if not nil')
+          messages = messages[1]
         end
         if peer.debug then
-          debug(peer.name or 'unnamed peer','<-',jencode(message))
+          debug(peer.name or 'unnamed peer','<-',jencode(messages))
         end
-        send(peer.encode(message))
-        peer.messages = nil
+        send(peer.encode(messages))
       end
+      peer.messages = {}
     end
     peer.fetchers = {}
     peer.encode = cjson.encode
@@ -1111,7 +1225,7 @@ local create_daemon = function(options)
       log('accepting peer failed')
       return
     end
-    local jsock = jsocket.wrap(sock)
+    local jsock = jsocket.wrap(sock,{loop=loop})
     local peer = create_peer({
         close = function() jsock:close() end,
         send = function(msg) jsock:send(msg) end,
@@ -1128,7 +1242,6 @@ local create_daemon = function(options)
         crit('peer socket error ('..(peer.name or '')..')',...)
         peer:release()
       end)
-    jsock:read_io():start(loop)
     peers[peer] = peer
   end
   
@@ -1186,7 +1299,7 @@ local create_daemon = function(options)
             })
           end)
         if not websocket_ok then
-          print('Could not start websocket server',err)
+          crit('Could not start websocket server',err)
         end
       end
     end,
