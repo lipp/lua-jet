@@ -2,7 +2,7 @@ local cjson = require'cjson'
 local ev = require'ev'
 local socket = require'socket'
 local jsocket = require'jet.socket'
-
+local print = print
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
@@ -742,18 +742,20 @@ local create_daemon = function(options)
     
     -- test if radix tree is suitable for fetcher
     local easy_fetcher = false
-    radix_elements = {}
-    peer.fetchLists[fetch_id] = {}
     local match = params.match
-    for i,mat in ipairs(match) do
-      if ((mat:sub(1,1)=='^') and (mat:sub(2):match('[%^%$%(%)%%%.%[%]%*%+%-%?]') == nil)) then
-        easy_fetcher = true
-        peer.fetchLists[fetch_id][mat:sub(2)] = true;
-        partial_lookup(radix_tree, mat:sub(2))
-      else
-        peer.fetchLists[fetch_id] = nil
-        easy_fetcher = false
-        break
+    if (params.match) then
+      radix_elements = {}
+      peer.fetchLists[fetch_id] = {}
+      for i,mat in ipairs(match) do
+        if ((mat:sub(1,1)=='^') and (mat:sub(2):match('[%^%$%(%)%%%.%[%]%*%+%-%?]') == nil)) then
+          easy_fetcher = true
+          peer.fetchLists[fetch_id][mat:sub(2)] = true;
+          partial_lookup(radix_tree, mat:sub(2))
+        else
+          peer.fetchLists[fetch_id] = nil
+          easy_fetcher = false
+          break
+        end
       end
     end
     
