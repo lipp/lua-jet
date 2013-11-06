@@ -85,6 +85,9 @@ new = function(config)
     j_sync.config = function(_,params,as_notification)
       return service('config',params,as_notification)
     end
+    j_sync.state = function(_,params,as_notification)
+      return service('add',params,as_notification)
+    end
     return j_sync
   else
     local sock
