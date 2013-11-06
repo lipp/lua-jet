@@ -17,7 +17,7 @@ local mmax = math.max
 
 local noop = function() end
 
-local radixElements = {}
+local radix_elements = {}
 -- Recursively Adds a word to a tree.
 local add_to_tree
 add_to_tree = function( a, fullword, part )
@@ -53,7 +53,7 @@ local radix_traverse
 radix_traverse = function( a )
   for k, v in pairs(a) do
     if type(v)=="boolean" then
-      radixElements[k] = true
+      radix_elements[k] = true
     elseif type(v)=="table" then
       radix_traverse( v );
     end
@@ -124,7 +124,7 @@ local create_daemon = function(options)
   local peers = {}
   local elements = {}
   local routes = {}
-  local radixTree = {}
+  local radix_tree = {}
   
   local has_case_insensitives
   local case_insensitives = {}
@@ -147,13 +147,13 @@ local create_daemon = function(options)
     notification.lpath = has_case_insensitives and notification.path:lower()
     for peer in pairs(peers) do
       for fetch_id,fetcher in pairs(peer.fetchers) do
-        radixElements = {}
+        radix_elements = {}
         local callFetcher = false
         if (peer.fetchLists[fetch_id] ~= nil) then
           for path,bo in pairs(peer.fetchLists[fetch_id]) do
             partial_lookup(tempTree, path)
           end
-          if (next(radixElements) ~= nil) then
+          if (next(radix_elements) ~= nil) then
             callFetcher = true
           end
         else
@@ -741,18 +741,18 @@ local create_daemon = function(options)
     end
     
     -- test if radix tree is suitable for fetcher
-    local easyFetcher = false
-    radixElements = {}
+    local easy_fetcher = false
+    radix_elements = {}
     peer.fetchLists[fetch_id] = {}
     local match = params.match
     for i,mat in ipairs(match) do
       if ((mat:sub(1,1)=='^') and (mat:sub(2):match('[%^%$%(%)%%%.%[%]%*%+%-%?]') == nil)) then
-        easyFetcher = true
+        easy_fetcher = true
         peer.fetchLists[fetch_id][mat:sub(2)] = true;
-        partial_lookup(radixTree, mat:sub(2))
+        partial_lookup(radix_tree, mat:sub(2))
       else
         peer.fetchLists[fetch_id] = nil
-        easyFetcher = false
+        easy_fetcher = false
         break
       end
     end
@@ -785,7 +785,7 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
-    if (easyFetcher == false) then
+    if (easy_fetcher == false) then
       for path,element in pairs(elements) do
         fetcher
         {
@@ -796,7 +796,7 @@ local create_daemon = function(options)
         }
       end
     else
-      for path,bo in pairs(radixElements) do
+      for path,bo in pairs(radix_elements) do
         fetcher
         {
           path = path,
@@ -899,7 +899,7 @@ local create_daemon = function(options)
       value = value,
     }
     elements[path] = element
-    add_to_tree( radixTree, path )
+    add_to_tree( radix_tree, path )
     publish({
         path = path,
         event = 'add',
@@ -913,7 +913,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
-      remove_from_tree( radixTree, path )
+      remove_from_tree( radix_tree, path )
       publish({
           path = path,
           event = 'remove',
