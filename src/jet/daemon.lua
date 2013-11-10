@@ -17,7 +17,7 @@ local mmax = math.max
 
 local noop = function() end
 
---- creates and binds a listening socket for 
+--- creates and binds a listening socket for
 -- ipv4 and (if available) ipv6.
 local sbind = function(host,port)
   if socket.tcp6 then
@@ -49,6 +49,15 @@ local response_timeout = function(data)
   local err = {
     code = -32001,
     message = 'Response Timeout',
+    data = data,
+  }
+  return err
+end
+
+local internal_error = function(data)
+  local err = {
+    code = -32003,
+    message = 'Internal error',
     data = data,
   }
   return err
@@ -879,11 +888,7 @@ local create_daemon = function(options)
           if type(result) == 'table' and result.code and result.message then
             error = result
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = result,
-            }
+            error = internal_error(result)
           end
           peer:queue({
               id = message.id,
@@ -906,11 +911,7 @@ local create_daemon = function(options)
           if type(err) == 'table' and err.code and err.message then
             error = err
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = err,
-            }
+            error = internal_error(err)
           end
           peer:queue({
               id = message.id,
@@ -949,11 +950,7 @@ local create_daemon = function(options)
         if type(err) == 'table' and err.code and err.message then
           error = err
         else
-          error = {
-            code = -32603,
-            message = 'Internal error',
-            data = err,
-          }
+          error = internal_error(err)
         end
       end
     else
