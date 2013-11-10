@@ -239,101 +239,7 @@ local create_daemon = function(options)
     return nil
   end
   
-  local create_fetcher_with_deps = function(options,notify)
-    local path_matcher = create_path_matcher(options)
-    local value_matcher = create_value_matcher(options)
-    local added = {}
-    local contexts = {}
-    local deps = {}
-    local ok = {}
-    local fetchop = function(notification)
-      local lpath = notification.lpath
-      local path = notification.path
-      local value = notification.value
-      local match,backrefs = path_matcher(path,lpath)
-      local context = contexts[path]
-      if match and #backrefs > 0 then
-        if not context then
-          context = {}
-          context.path = path
-          context.value_ok = (value_matcher and value_matcher(value)) or true
-          context.deps_ok = {}
-          for i,dep in ipairs(options.deps) do
-            local dep_path = dep.path:gsub('\\(%d)',function(index)
-                index = tonumber(index)
-                return assert(backrefs[index])
-              end)
-            if not deps[dep_path] then
-              deps[dep_path] = {
-                value_matcher = create_value_matcher(dep),
-                context = context,
-              }
-              context.deps_ok[dep_path] = false
-              if elements[dep_path] then
-                context.deps_ok[dep_path] = deps[dep_path].value_matcher(elements[dep_path].value)
-              end
-            end
-          end
-          contexts[path] = context
-        else
-          context.value_ok = (value_matcher and value_matcher(value)) or true
-        end
-        context.value = value
-      elseif deps[path] then
-        local dep = deps[path]
-        context = dep.context
-        local last = context.deps_ok[path]
-        local new = false
-        if dep.value_matcher then
-          new = dep.value_matcher(value)
-        end
-        if last ~= new then
-          context.deps_ok[path] = new
-        else
-          return
-        end
-      end
-      
-      if context then
-        local all_ok = false
-        if context.value_ok then
-          all_ok = true
-          for _,dep_ok in pairs(context.deps_ok) do
-            if not dep_ok then
-              all_ok = false
-              break
-            end
-          end
-        end
-        local relevant_path = context.path
-        local is_added = added[relevant_path]
-        local event
-        if not all_ok then
-          if is_added then
-            event = 'remove'
-            added[relevant_path] = nil
-          else
-            return
-          end
-        elseif all_ok then
-          if is_added then
-            event = 'change'
-          else
-            event = 'add'
-            added[relevant_path] = true
-          end
-        end
-        notify({
-            path = relevant_path,
-            event = event,
-            value = context.value,
-        })
-      end
-    end
-    return fetchop,options.caseInsensitive
-  end
-  
-  local create_fetcher_without_deps = function(options,notify)
+  local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local max = options.max
@@ -595,16 +501,7 @@ local create_daemon = function(options)
       })
     end
     
-    
     return sorter,flush
-  end
-  
-  local create_fetcher = function(options,notify)
-    if options.deps and #options.deps > 0 then
-      return create_fetcher_with_deps(options,notify)
-    else
-      return create_fetcher_without_deps(options,notify)
-    end
   end
   
   local checked = function(params,key,typename)
