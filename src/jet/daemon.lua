@@ -54,6 +54,8 @@ local response_timeout = function(data)
   return err
 end
 
+--- creates and returns an error table conforming to
+-- JSON-RPC Internal Error.
 local internal_error = function(data)
   local err = {
     code = -32003,
@@ -61,6 +63,10 @@ local internal_error = function(data)
     data = data,
   }
   return err
+end
+
+local is_empty_table = function(t)
+  return pairs(t)(t) == nil
 end
 
 --- creates and returns a new daemon instance.
@@ -626,7 +632,7 @@ local create_daemon = function(options)
     peer.fetchers[fetch_id] = nil
     
     case_insensitives[fetcher] = nil
-    has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+    has_case_insensitives = not is_empty_table(case_insensitives)
     
     if message.id then
       peer:queue({
@@ -944,7 +950,7 @@ local create_daemon = function(options)
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
         end
-        has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+        has_case_insensitives = not is_empty_table(case_insensitives)
         peer.fetchers = {}
         peers[peer] = nil
         for path,element in pairs(elements) do
