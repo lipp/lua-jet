@@ -14,6 +14,7 @@ local jnull = cjson.null
 local unpack = unpack
 local mmin = math.min
 local mmax = math.max
+local smatch = string.match
 
 local noop = function() end
 
@@ -125,16 +126,33 @@ local create_daemon = function(options)
     end
   end
   
+  local lower_path_smatch = function(path,lpath)
+    return smatch(lpath)
+  end
+  
   local create_path_matcher = function(options)
     if not options.match and not options.unmatch and not options.equalsNot then
       return function()
         return true
       end
     end
+    local ci = options.caseInsensitive
+    if #options.match == 1 and not options.unmatch and not options.equalsNot then
+      local match = options.match[1]
+      if ci then
+        match = match:lower()
+        return function(path,lpath)
+          return smatch(lpath,match)
+        end
+      else
+        return function(path,lpath)
+          return smatch(path,match)
+        end
+      end
+    end
     local unmatch = options.unmatch or {}
     local match = options.match or {}
     local equalsNot = options.equalsNot or {}
-    local ci = options.caseInsensitive
     if ci then
       for i,unmat in ipairs(unmatch) do
         unmatch[i] = unmat:lower()
@@ -151,7 +169,7 @@ local create_daemon = function(options)
         path = lpath
       end
       for _,unmatch in ipairs(unmatch) do
-        if path:match(unmatch) then
+        if smatch(path,unmatch) then
           return false
         end
       end
@@ -161,9 +179,8 @@ local create_daemon = function(options)
         end
       end
       for _,match in ipairs(match) do
-        local res = {path:match(match)}
-        if #res > 0 then
-          return true,res
+        if smatch(path,match) then
+          return true
         end
       end
       return false
