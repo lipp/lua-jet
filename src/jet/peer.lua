@@ -106,6 +106,7 @@ new = function(config)
     local pending
     local will_flush = true
     local flush
+    local is_persistant
     
     if not config.persist then
       flush = function(reason)
@@ -122,7 +123,9 @@ new = function(config)
       
       flush = function(reason)
         local num = #messages
-        message_count = message_count + num
+        if not is_persistant then
+          message_count = message_count + num
+        end
         local history = message_history
         if history then
           for _,message in ipairs(messages) do
@@ -261,6 +264,7 @@ new = function(config)
         wsock:on_error(config.on_error or noop)
         wsock:on_close(on_close)
         wsock:on_connect(function()
+            is_persistant = false
             connect_sequence = step.new({
                 try = try,
                 catch = function(err)
@@ -743,6 +747,7 @@ new = function(config)
             j:config({persist=config.persist},{
                 success = function(pid)
                   persist_id = pid
+                  is_persistant = true
                   step.success()
                 end,
                 error = function(err)
@@ -757,6 +762,7 @@ new = function(config)
                 success = function(received_by_daemon_count)
                   flush('resume')
                   pending = false
+                  is_persistant = true
                   local missed_messages_count = message_count - received_by_daemon_count
                   local history = message_history
                   local start = #history-missed_messages_count

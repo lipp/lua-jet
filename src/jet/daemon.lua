@@ -899,7 +899,7 @@ local create_daemon = function(options)
       local history = resumer.message_history
       local start = #history-missed_messages_count + 1
       if start < 0 then
-        error(internal_error(historyNotAvailable))
+        error(internal_error({historyNotAvailable=missed_messages_count}))
       end
       resumer:transfer_fetchers(peer)
       resumer:transfer_elements(peer)
@@ -1163,7 +1163,7 @@ local create_daemon = function(options)
           resumables[peer.persist_id] = peer
           peer.release_timer = ev.Timer.new(function()
               peer.release_timer = nil
-              if not peer.mediated then                
+              if not peer.mediated then
                 resumables[peer.persist_id] = nil
                 release()
               end
