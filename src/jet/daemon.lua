@@ -1064,7 +1064,7 @@ local create_daemon = function(options)
     start = function()
       server = jsocket.listener({
           port = port,
-          log = err,
+          log = log,
           loop = loop,
           on_connect = accept_tcp
       })
@@ -1079,7 +1079,7 @@ local create_daemon = function(options)
             })
           end)
         if not websocket_ok then
-          print('Could not start websocket server',err)
+          crit('Could not start websocket server',err)
         end
       end
     end,
