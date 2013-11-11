@@ -132,7 +132,7 @@ local wrap = function(sock,args)
   end
   
   wrapped.close = function()
-    wrapped.read_io():stop(loop)
+    read_io:stop(loop)
     send_io:stop(loop)
     sock:shutdown()
     sock:close()
@@ -151,10 +151,6 @@ local wrap = function(sock,args)
   wrapped.on_error = function(_,f)
     assert(type(f) == 'function')
     on_error = f
-  end
-  
-  wrapped.read_io = function()
-    return read_io
   end
   
   local len
@@ -208,6 +204,7 @@ local wrap = function(sock,args)
   end
   
   read_io = ev.IO.new(receive_message,sock:getfd(),ev.READ)
+  read_io:start(loop)
   
   return wrapped
 end

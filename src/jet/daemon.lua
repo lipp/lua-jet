@@ -1028,7 +1028,7 @@ local create_daemon = function(options)
       log('accepting peer failed')
       return
     end
-    local jsock = jsocket.wrap(sock)
+    local jsock = jsocket.wrap(sock,{loop = loop})
     local peer = create_peer({
         close = function() jsock:close() end,
         send = function(msg) jsock:send(msg) end,
@@ -1045,7 +1045,6 @@ local create_daemon = function(options)
         crit('peer socket error ('..(peer.name or '')..')',...)
         peer:release()
       end)
-    jsock:read_io():start(loop)
     peers[peer] = peer
   end
   

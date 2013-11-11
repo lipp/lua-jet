@@ -232,12 +232,6 @@ new = function(config)
         self.connect_io:stop(loop)
       end
       flush('close')
-      if self.read_io then
-        self.read_io:stop(loop)
-        if options.clear_pending then
-          self.read_io:clear_pending(loop)
-        end
-      end
       wsock:close()
     end
     
@@ -628,8 +622,6 @@ new = function(config)
     local on_connect = function()
       local connected,err = sock:connect(ip,port)
       if connected or err == 'already connected' then
-        j.read_io = wsock:read_io()
-        j.read_io:start(loop)
         if config.name or config.encoding then
           j:config({
               name = config.name,
