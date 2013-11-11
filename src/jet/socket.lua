@@ -2,17 +2,10 @@ local ev = require'ev'
 local socket = require'socket'
 require'pack'-- blends pack/unpack into string table
 
-local print = print
-local pairs = pairs
 local tinsert = table.insert
 local tconcat = table.concat
-local ipairs = ipairs
-local assert = assert
 local spack = string.pack
 local sunpack = string.unpack
-local error = error
-local pcall = pcall
-local type = type
 local eps = 2^-40
 
 local wrap_sync = function(sock)

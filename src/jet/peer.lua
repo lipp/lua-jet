@@ -2,19 +2,10 @@ local jsocket = require'jet.socket'
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
-local require = require
-local pcall = pcall
-local pairs = pairs
-local ipairs = ipairs
-local setmetatable = setmetatable
-local type = type
-local error = error
-local print = print
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
-local unpack = unpack
-local assert = assert
+
 local log = function(...)
   print('jet.peer',...)
 end
