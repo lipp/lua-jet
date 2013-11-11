@@ -149,7 +149,7 @@ local wrap = function(sock,args)
         if connected or err == 'already connected' then
           connected = true
           on_connect(wrapped)
-        elseif err == 'timeout' then
+        elseif err == 'timeout' or err == 'Operation already in progress' then
           connect_io = ev.IO.new(
             function(loop,io)
               io:stop(loop)
