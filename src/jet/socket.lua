@@ -34,6 +34,7 @@ local wrap = function(sock,args)
   -- enable keep alive for detecting broken connections
   sock:setoption('keepalive',true)
   local on_message = args.on_message or function() end
+  local on_connect = args.on_connect or function() end
   local on_close = args.on_close or function() end
   local on_error = args.on_error or function() end
   local loop = args.loop or ev.Loop.default
@@ -41,6 +42,18 @@ local wrap = function(sock,args)
   local wrapped = {}
   local read_io
   local send_io
+  local connect_io
+  
+  local stop_ios = function()
+    if connect_io then
+      connect_io:stop(loop)
+      connect_io:clear_pending(loop)
+    end
+    read_io:stop(loop)
+    read_io:clear_pending(loop)
+    send_io:stop(loop)
+    send_io:clear_pending(loop)
+  end
   
   local detach = function(f)
     if ev.Idle then
@@ -57,10 +70,7 @@ local wrap = function(sock,args)
   end
   
   local handle_error = function(io_active,err_msg)
-    read_io:stop(loop)
-    read_io:clear_pending(loop)
-    send_io:stop(loop)
-    send_io:clear_pending(loop)
+    stop_ios()
     sock:close()
     if io_active then
       on_error(wrapped,err_msg)
@@ -74,10 +84,7 @@ local wrap = function(sock,args)
   end
   
   local handle_close = function(io_active)
-    read_io:stop(loop)
-    read_io:clear_pending(loop)
-    send_io:stop(loop)
-    send_io:clear_pending(loop)
+    stop_ios()
     sock:close()
     if io_active then
       on_close(wrapped)
@@ -125,15 +132,46 @@ local wrap = function(sock,args)
   end
   
   wrapped.close = function()
+    if connect_io then
+      connect_io:stop(loop)
+    end
     read_io:stop(loop)
     send_io:stop(loop)
-    sock:shutdown()
+    if connected then
+      sock:shutdown()
+    end
     sock:close()
+  end
+  
+  wrapped.connect = function()
+    detach(function()
+        local connected,err = sock:connect(args.ip,args.port)
+        if connected or err == 'already connected' then
+          connected = true
+          on_connect(wrapped)
+        elseif err == 'timeout' then
+          connect_io = ev.IO.new(
+            function(loop,io)
+              io:stop(loop)
+              connected = true
+              connect_io = nil
+              on_connect(wrapped)
+            end,sock:getfd(),ev.WRITE)
+          connect_io:start(loop)
+        else
+          on_error('jet.socket:connect() failed: '..err)
+        end
+      end)
   end
   
   wrapped.on_message = function(_,f)
     assert(type(f) == 'function')
     on_message = f
+  end
+  
+  wrapped.on_connect = function(_,f)
+    assert(type(f) == 'function')
+    on_connect = f
   end
   
   wrapped.on_close = function(_,f)
@@ -202,8 +240,33 @@ local wrap = function(sock,args)
   return wrapped
 end
 
+local new = function(args)
+  assert(args.ip,'ip required')
+  local sock
+  if socket.dns and socket.dns.getaddrinfo then
+    local addrinfo,err = socket.dns.getaddrinfo(args.ip)
+    if addrinfo then
+      assert(#addrinfo > 0)
+      if addrinfo[1].family == 'inet6' then
+        sock = socket.tcp6()
+      else
+        sock = socket.tcp()
+      end
+    else
+      assert(err,'error message expected')
+      error(err)
+    end
+  else
+    sock = socket.tcp()
+  end
+  return wrap(sock,args)
+end
+
+
+
 local mod = {
   wrap = wrap,
+  new = new,
   wrap_sync = wrap_sync
 }
 

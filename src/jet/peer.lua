@@ -5,10 +5,7 @@ local cjson = require'cjson'
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
-
-local log = function(...)
-  print('jet.peer',...)
-end
+local noop = function() end
 
 local error_object = function(err)
   local error
@@ -26,6 +23,7 @@ end
 
 new = function(config)
   config = config or {}
+  local log = config.log or noop
   local ip = config.ip or '127.0.0.1' -- localhost'
   local port = config.port or 11122
   local encode = cjson.encode
@@ -81,26 +79,8 @@ new = function(config)
     end
     return j_sync
   else
-    local sock
-    if socket.dns and socket.dns.getaddrinfo then
-      local addrinfo,err = socket.dns.getaddrinfo(ip)
-      if addrinfo then
-        assert(#addrinfo > 0)
-        if addrinfo[1].family == 'inet6' then
-          sock = socket.tcp6()
-        else
-          sock = socket.tcp()
-        end
-      else
-        assert(err,'error message expected')
-        error(err)
-      end
-    else
-      sock = socket.tcp()
-    end
-    sock:settimeout(0)
     local loop = config.loop or ev.Loop.default
-    local wsock = jsocket.wrap(sock,{loop = loop})
+    local wsock = jsocket.new({ip = ip, port = port, loop = loop})
     local messages = {}
     local queue = function(message)
       tinsert(messages,message)
@@ -218,10 +198,6 @@ new = function(config)
     end
     
     j.close = function(self,options)
-      options = options or {}
-      if self.connect_io then
-        self.connect_io:stop(loop)
-      end
       flush('close')
       wsock:close()
     end
@@ -610,9 +586,7 @@ new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    local on_connect = function()
-      local connected,err = sock:connect(ip,port)
-      if connected or err == 'already connected' then
+    wsock:on_connect(function()
         if config.name or config.encoding then
           j:config({
               name = config.name,
@@ -636,23 +610,10 @@ new = function(config)
           config.on_connect(j)
         end
         flush('on_connect')
-      end
-    end
+      end)
     
-    local connected,err = sock:connect(ip,port)
-    if connected then
-      on_connect()
-    elseif err == 'timeout' then
-      j.connect_io = ev.IO.new(
-        function(loop,io)
-          io:stop(loop)
-          j.connect_io = nil
-          on_connect()
-        end,sock:getfd(),ev.WRITE)
-      j.connect_io:start(loop)
-    else
-      error('jet.peer.new failed: '..err)
-    end
+    wsock:connect()
+    
     return j
   end
 end
