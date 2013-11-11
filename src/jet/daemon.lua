@@ -14,10 +14,11 @@ local jnull = cjson.null
 local unpack = unpack
 local mmin = math.min
 local mmax = math.max
+local smatch = string.match
 
 local noop = function() end
 
---- creates and binds a listening socket for 
+--- creates and binds a listening socket for
 -- ipv4 and (if available) ipv6.
 local sbind = function(host,port)
   if socket.tcp6 then
@@ -52,6 +53,21 @@ local response_timeout = function(data)
     data = data,
   }
   return err
+end
+
+--- creates and returns an error table conforming to
+-- JSON-RPC Internal Error.
+local internal_error = function(data)
+  local err = {
+    code = -32003,
+    message = 'Internal error',
+    data = data,
+  }
+  return err
+end
+
+local is_empty_table = function(t)
+  return pairs(t)(t) == nil
 end
 
 --- creates and returns a new daemon instance.
@@ -110,16 +126,33 @@ local create_daemon = function(options)
     end
   end
   
+  local lower_path_smatch = function(path,lpath)
+    return smatch(lpath)
+  end
+  
   local create_path_matcher = function(options)
     if not options.match and not options.unmatch and not options.equalsNot then
       return function()
         return true
       end
     end
+    local ci = options.caseInsensitive
+    if #options.match == 1 and not options.unmatch and not options.equalsNot then
+      local match = options.match[1]
+      if ci then
+        match = match:lower()
+        return function(path,lpath)
+          return smatch(lpath,match)
+        end
+      else
+        return function(path,lpath)
+          return smatch(path,match)
+        end
+      end
+    end
     local unmatch = options.unmatch or {}
     local match = options.match or {}
     local equalsNot = options.equalsNot or {}
-    local ci = options.caseInsensitive
     if ci then
       for i,unmat in ipairs(unmatch) do
         unmatch[i] = unmat:lower()
@@ -136,7 +169,7 @@ local create_daemon = function(options)
         path = lpath
       end
       for _,unmatch in ipairs(unmatch) do
-        if path:match(unmatch) then
+        if smatch(path,unmatch) then
           return false
         end
       end
@@ -146,9 +179,8 @@ local create_daemon = function(options)
         end
       end
       for _,match in ipairs(match) do
-        local res = {path:match(match)}
-        if #res > 0 then
-          return true,res
+        if smatch(path,match) then
+          return true
         end
       end
       return false
@@ -230,101 +262,7 @@ local create_daemon = function(options)
     return nil
   end
   
-  local create_fetcher_with_deps = function(options,notify)
-    local path_matcher = create_path_matcher(options)
-    local value_matcher = create_value_matcher(options)
-    local added = {}
-    local contexts = {}
-    local deps = {}
-    local ok = {}
-    local fetchop = function(notification)
-      local lpath = notification.lpath
-      local path = notification.path
-      local value = notification.value
-      local match,backrefs = path_matcher(path,lpath)
-      local context = contexts[path]
-      if match and #backrefs > 0 then
-        if not context then
-          context = {}
-          context.path = path
-          context.value_ok = (value_matcher and value_matcher(value)) or true
-          context.deps_ok = {}
-          for i,dep in ipairs(options.deps) do
-            local dep_path = dep.path:gsub('\\(%d)',function(index)
-                index = tonumber(index)
-                return assert(backrefs[index])
-              end)
-            if not deps[dep_path] then
-              deps[dep_path] = {
-                value_matcher = create_value_matcher(dep),
-                context = context,
-              }
-              context.deps_ok[dep_path] = false
-              if elements[dep_path] then
-                context.deps_ok[dep_path] = deps[dep_path].value_matcher(elements[dep_path].value)
-              end
-            end
-          end
-          contexts[path] = context
-        else
-          context.value_ok = (value_matcher and value_matcher(value)) or true
-        end
-        context.value = value
-      elseif deps[path] then
-        local dep = deps[path]
-        context = dep.context
-        local last = context.deps_ok[path]
-        local new = false
-        if dep.value_matcher then
-          new = dep.value_matcher(value)
-        end
-        if last ~= new then
-          context.deps_ok[path] = new
-        else
-          return
-        end
-      end
-      
-      if context then
-        local all_ok = false
-        if context.value_ok then
-          all_ok = true
-          for _,dep_ok in pairs(context.deps_ok) do
-            if not dep_ok then
-              all_ok = false
-              break
-            end
-          end
-        end
-        local relevant_path = context.path
-        local is_added = added[relevant_path]
-        local event
-        if not all_ok then
-          if is_added then
-            event = 'remove'
-            added[relevant_path] = nil
-          else
-            return
-          end
-        elseif all_ok then
-          if is_added then
-            event = 'change'
-          else
-            event = 'add'
-            added[relevant_path] = true
-          end
-        end
-        notify({
-            path = relevant_path,
-            event = event,
-            value = context.value,
-        })
-      end
-    end
-    return fetchop,options.caseInsensitive
-  end
-  
-  local create_fetcher_without_deps = function(options,notify)
+  local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local max = options.max
@@ -586,16 +524,7 @@ local create_daemon = function(options)
       })
     end
     
-    
     return sorter,flush
-  end
-  
-  local create_fetcher = function(options,notify)
-    if options.deps and #options.deps > 0 then
-      return create_fetcher_with_deps(options,notify)
-    else
-      return create_fetcher_without_deps(options,notify)
-    end
   end
   
   local checked = function(params,key,typename)
@@ -720,7 +649,7 @@ local create_daemon = function(options)
     peer.fetchers[fetch_id] = nil
     
     case_insensitives[fetcher] = nil
-    has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+    has_case_insensitives = not is_empty_table(case_insensitives)
     
     if message.id then
       peer:queue({
@@ -879,11 +808,7 @@ local create_daemon = function(options)
           if type(result) == 'table' and result.code and result.message then
             error = result
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = result,
-            }
+            error = internal_error(result)
           end
           peer:queue({
               id = message.id,
@@ -906,11 +831,7 @@ local create_daemon = function(options)
           if type(err) == 'table' and err.code and err.message then
             error = err
           else
-            error = {
-              code = -32603,
-              message = 'Internal error',
-              data = err,
-            }
+            error = internal_error(err)
           end
           peer:queue({
               id = message.id,
@@ -949,11 +870,7 @@ local create_daemon = function(options)
         if type(err) == 'table' and err.code and err.message then
           error = err
         else
-          error = {
-            code = -32603,
-            message = 'Internal error',
-            data = err,
-          }
+          error = internal_error(err)
         end
       end
     else
@@ -1050,7 +967,7 @@ local create_daemon = function(options)
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
         end
-        has_case_insensitives = pairs(case_insensitives)(case_insensitives) ~= nil
+        has_case_insensitives = not is_empty_table(case_insensitives)
         peer.fetchers = {}
         peers[peer] = nil
         for path,element in pairs(elements) do
