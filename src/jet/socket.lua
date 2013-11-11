@@ -262,12 +262,57 @@ local new = function(args)
   return wrap(sock,args)
 end
 
+--- creates and binds a listening socket for
+-- ipv4 and (if available) ipv6.
+local sbind = function(host,port)
+  if socket.tcp6 then
+    local server = socket.tcp6()
+    assert(server:setoption('ipv6-v6only',false))
+    assert(server:setoption('reuseaddr',true))
+    assert(server:bind(host,port))
+    assert(server:listen())
+    return server
+  else
+    return socket.bind(host,port)
+  end
+end
 
+local listener = function(config)
+  local loop = config.loop or ev.Loop.default
+  local log = config.log or function() end
+  local lsock,err = sbind('*',config.port)
+  if not lsock then
+    error(err)
+  end
+  local accept = function()
+    local sock = lsock:accept()
+    if not sock then
+      log('accepting peer failed')
+      return
+    end
+    local jsock = wrap(sock,{loop = config.loop})
+    config.on_connect(jsock)
+  end
+  lsock:settimeout(0)
+  local listen_io = ev.IO.new(
+    accept,
+    lsock:getfd(),
+  ev.READ)
+  listen_io:start(loop)
+  
+  local l = {}
+  l.close = function()
+    listen_io:stop(loop)
+    lsock:close()
+  end
+  return l
+end
 
 local mod = {
   wrap = wrap,
   new = new,
-  wrap_sync = wrap_sync
+  wrap_sync = wrap_sync,
+  listener = listener,
 }
 
 return mod

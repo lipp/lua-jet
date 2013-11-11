@@ -18,21 +18,6 @@ local smatch = string.match
 
 local noop = function() end
 
---- creates and binds a listening socket for
--- ipv4 and (if available) ipv6.
-local sbind = function(host,port)
-  if socket.tcp6 then
-    local server = socket.tcp6()
-    assert(server:setoption('ipv6-v6only',false))
-    assert(server:setoption('reuseaddr',true))
-    assert(server:bind(host,port))
-    assert(server:listen())
-    return server
-  else
-    return socket.bind(host,port)
-  end
-end
-
 --- creates and returns an error table conforming to
 -- JSON-RPC Invalid params.
 local invalid_params = function(data)
@@ -1021,14 +1006,7 @@ local create_daemon = function(options)
     return peer
   end
   
-  local listener
-  local accept_tcp = function(loop,accept_io)
-    local sock = listener:accept()
-    if not sock then
-      log('accepting peer failed')
-      return
-    end
-    local jsock = jsocket.wrap(sock,{loop = loop})
+  local accept_tcp = function(jsock)
     local peer = create_peer({
         close = function() jsock:close() end,
         send = function(msg) jsock:send(msg) end,
@@ -1079,18 +1057,17 @@ local create_daemon = function(options)
     peers[peer] = peer
   end
   
-  local listen_io
   local websocket_server
+  local server
   
   local daemon = {
     start = function()
-      listener = assert(sbind('*',port))
-      listener:settimeout(0)
-      listen_io = ev.IO.new(
-        accept_tcp,
-        listener:getfd(),
-      ev.READ)
-      listen_io:start(loop)
+      server = jsocket.listener({
+          port = port,
+          log = err,
+          loop = loop,
+          on_connect = accept_tcp
+      })
       
       if options.ws_port then
         local websocket_ok,err = pcall(function()
@@ -1107,8 +1084,7 @@ local create_daemon = function(options)
       end
     end,
     stop = function()
-      listen_io:stop(loop)
-      listener:close()
+      server:close()
       for _,peer in pairs(peers) do
         peer:close()
       end
