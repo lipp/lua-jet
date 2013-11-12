@@ -114,7 +114,7 @@ local create_daemon = function(options)
   local lower_path_smatch = function(path,lpath)
     return smatch(lpath)
   end
-  
+
   local create_path_matcher = function(options)
     if not options.match and not options.unmatch and not options.equalsNot then
       return function()
@@ -250,42 +250,28 @@ local create_daemon = function(options)
   local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
-    local max = options.max
     local added = {}
-    local n = 0
     
     local fetchop = function(notification)
       local path = notification.path
-      local is_added = added[path]
-      if not is_added and max and n == max then
-        return
-      end
       local lpath = notification.lpath
-      local path_matching = true
       if path_matcher and not path_matcher(path,lpath) then
-        path_matching = false
+        return false
       end
-      local value_matching = true
+      local is_matching = true
       local value = notification.value
       if value_matcher and not value_matcher(value) then
-        value_matching = false
+        is_matching = false
       end
-      local is_matching = false
-      if path_matching and value_matching then
-        is_matching = true
-      end
+      local is_added = added[path]
       if not is_matching or notification.event == 'remove' then
         if is_added then
           added[path] = nil
-          n = n - 1
           notify({
               path = path,
               event = 'remove',
               value = value,
           })
-          if max and n == (max-1) then
-            return true
-          end
         end
         return
       end
@@ -293,7 +279,6 @@ local create_daemon = function(options)
       if not is_added then
         event = 'add'
         added[path] = true
-        n = n + 1
       else
         event = 'change'
       end
