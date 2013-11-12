@@ -429,7 +429,7 @@ describe(
             local count = 0
             local fetcher = peer:fetch(
               {
-                match = {'persons/.*'},
+                match = {'persons/*'},
                 where = {
                   prop = 'age',
                   op = 'lessThan',

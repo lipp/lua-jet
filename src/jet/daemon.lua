@@ -114,58 +114,134 @@ local create_daemon = function(options)
   local lower_path_smatch = function(path,lpath)
     return smatch(lpath)
   end
-
+  
+  local is_exact = function(matcher)
+    return matcher:match('^%^([^*]+)%$$')
+  end
+  
+  local is_partial = function(matcher)
+    return matcher:match('^%^?%*?([^*]+)%*?%$?$')
+  end
+  
+  local sfind = string.find
+  
+  local sfind_plain = function(a,b)
+    return sfind(a,b,1,true)
+  end
+  
   local create_path_matcher = function(options)
     if not options.match and not options.unmatch and not options.equalsNot then
-      return function()
-        return true
-      end
+      return nil
     end
     local ci = options.caseInsensitive
-    if #options.match == 1 and not options.unmatch and not options.equalsNot then
-      local match = options.match[1]
-      if ci then
-        match = match:lower()
-        return function(path,lpath)
-          return smatch(lpath,match)
+    local unmatch = {}
+    local match = {}
+    local equals_not = {}
+    local equals = {}
+    for i,matcher in ipairs(options.match or {}) do
+      local exact = is_exact(matcher)
+      local partial = is_partial(matcher)
+      if exact then
+        if ci then
+          equals[exact:lower()] = true
+        else
+          equals[exact] = true
+        end
+      elseif partial then
+        if ci then
+          match[partial:lower()] = sfind_plain
+        else
+          match[partial] = sfind_plain
         end
       else
-        return function(path,lpath)
-          return smatch(path,match)
+        if ci then
+          match[matcher:lower()] = smatch
+        else
+          match[matcher] = smatch
         end
       end
     end
-    local unmatch = options.unmatch or {}
-    local match = options.match or {}
-    local equalsNot = options.equalsNot or {}
-    if ci then
-      for i,unmat in ipairs(unmatch) do
-        unmatch[i] = unmat:lower()
-      end
-      for i,mat in ipairs(match) do
-        match[i] = mat:lower()
-      end
-      for i,eqnot in ipairs(equalsNot) do
-        equalsNot[i] = eqnot:lower()
+    
+    for i,unmatcher in ipairs(options.unmatch or {}) do
+      local exact = is_exact(unmatcher)
+      local partial = is_partial(unmatcher)
+      if exact then
+        if ci then
+          equals_not[exact:lower()] = true
+        else
+          equals_not[exact] = true
+        end
+      elseif partial then
+        if ci then
+          unmatch[partial:lower()] = sfind_plain
+        else
+          unmatch[partial] = sfind_plain
+        end
+      else
+        if ci then
+          unmatch[unmatcher:lower()] = smatch
+        else
+          unmatch[unmatcher] = smatch
+        end
       end
     end
+    
+    for i,eqnot in ipairs(options.equalsNot or {}) do
+      if ci then
+        equals_not[eqnot:lower()] = true
+      else
+        equals_not[eqnot] = true
+      end
+    end
+    
+    if is_empty_table(equals_not) then
+      equals_not = nil
+    end
+    
+    if is_empty_table(equals) then
+      equals = nil
+    end
+    
+    if is_empty_table(match) then
+      match = nil
+    end
+    
+    if is_empty_table(unmatch) then
+      unmatch = nil
+    end
+    
+    local pairs = pairs
+    
     return function(path,lpath)
       if ci then
         path = lpath
       end
-      for _,unmatch in ipairs(unmatch) do
-        if smatch(path,unmatch) then
-          return false
+      if equals then
+        for eq in pairs(equals) do
+          if path == eq then
+            return true
+          end
         end
       end
-      for _,eqnot in ipairs(equalsNot) do
-        if eqnot == path then
-          return false
+      if unmatch then
+        for unmatch,f in pairs(unmatch) do
+          if f(path,unmatch) then
+            return false
+          end
         end
       end
-      for _,match in ipairs(match) do
-        if smatch(path,match) then
-          return true
+      if equals_not then
+        for eqnot in pairs(equals_not) do
+          if eqnot == path then
+            return false
+          end
+        end
+      end
+      if match then
+        for match,f in pairs(match) do
+          if f(path,match) then
+            return true
+          end
         end
       end
       return false

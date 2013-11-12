@@ -39,7 +39,6 @@ for _,info in ipairs(addresses_to_test) do
           {
             port = port,
             interface = info.addr,
-            print = function() end
           }
         end)
       
@@ -476,7 +475,6 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    match = {'.*'},
                     where = {
                       {
                         prop = 'age',
@@ -491,7 +489,7 @@ for _,info in ipairs(addresses_to_test) do
                     },
                     id = 'testFetch2'
                   },
-                }
+                },
               },
               responses = {
                 {
@@ -535,7 +533,6 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    match = {'.*'},
                     id = 'testFetch3',
                     sort = {
                       byValue = true
