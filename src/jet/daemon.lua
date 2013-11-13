@@ -85,11 +85,17 @@ local create_daemon = function(options)
     end
   end
   
+  local pcall = pcall
+  local pairs = pairs
+  
   local publish = function(notification)
-    notification.lpath = has_case_insensitives and notification.path:lower()
+    local path = notification.path
+    local lpath = has_case_insensitives and path:lower()
+    local event = notification.event
+    local value = notification.value
     for peer in pairs(peers) do
       for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,notification)
+        local ok,refetch = pcall(fetcher,path,lpath,event,value)
         if not ok then
           crit('publish failed',fetch_id,refetch)
         elseif refetch then
@@ -328,19 +334,16 @@ local create_daemon = function(options)
     local value_matcher = create_value_matcher(options)
     local added = {}
     
-    local fetchop = function(notification)
-      local path = notification.path
-      local lpath = notification.lpath
+    local fetchop = function(path,lpath,event,value)
       if path_matcher and not path_matcher(path,lpath) then
         return false
       end
       local is_matching = true
-      local value = notification.value
       if value_matcher and not value_matcher(value) then
         is_matching = false
       end
       local is_added = added[path]
-      if not is_matching or notification.event == 'remove' then
+      if not is_matching or event == 'remove' then
         if is_added then
           added[path] = nil
           notify({
@@ -669,12 +672,7 @@ local create_daemon = function(options)
       })
     end
     for path,element in pairs(elements) do
-      fetcher({
-          path = path,
-          lpath = has_case_insensitives and path:lower(),
-          value = element.value,
-          event = 'add',
-      })
+      fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
     end
     initializing = false
     if flush then
