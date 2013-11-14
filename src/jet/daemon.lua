@@ -88,25 +88,12 @@ local create_daemon = function(options)
   local pcall = pcall
   local pairs = pairs
   
-  local publish = function(notification)
-    local path = notification.path
+  local publish = function(path,event,value,element)
     local lpath = has_case_insensitives and path:lower()
-    local event = notification.event
-    local value = notification.value
-    for peer in pairs(peers) do
-      for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,path,lpath,event,value)
-        if not ok then
-          crit('publish failed',fetch_id,refetch)
-        elseif refetch then
-          for path,element in pairs(elements) do
-            fetcher({
-                path = path,
-                value = element.value,
-                event = 'add',
-            })
-          end
-        end
+    for fetcher in pairs(element.gready_fetchers) do
+      local ok,err = pcall(fetcher,path,lpath,event,value)
+      if not ok then
+        crit('publish failed',err,path,event)
       end
     end
   end
@@ -337,7 +324,7 @@ local create_daemon = function(options)
     local is_dynamic = value_matcher ~= nil
     
     if path_matcher and not value_matcher then
-      fetchop = function(path,lpath,event,value)
+      fetchop = function(path,lpath,event,value,element)
         if not path_matcher(path,lpath) then
           return
         end
@@ -346,11 +333,12 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+        return true
       end
       
     elseif not path_matcher and value_matcher then
       local added = {}
-      fetchop = function(path,lpath,event,value)
+      fetchop = function(path,lpath,event,value,element)
         local is_added = added[path]
         if event == 'remove' or not value_matcher(value) then
           if is_added then
@@ -375,15 +363,12 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+        return true
       end
     elseif path_matcher and value_matcher then
       local added = {}
-      local path_mismatch = {}
-      fetchop = function(path,lpath,event,value)
-        if path_mismatch[path] then
-          return
-        elseif not path_matcher(path,lpath) then
-          path_mismatch[path] = true
+      fetchop = function(path,lpath,event,value,element)
+        if not path_matcher(path,lpath) then
           return
         end
         local is_added = added[path]
@@ -396,7 +381,7 @@ local create_daemon = function(options)
                 value = value,
             })
           end
-          return
+          return true
         end
         local event
         if not is_added then
@@ -410,6 +395,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+        return true
       end
     else
       fetchop = function(path,lpath,event,value)
@@ -418,6 +404,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+        return true
       end
       options.caseInsensitive = false
     end
@@ -668,8 +655,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       element.value = notification.value
-      notification.event = 'change'
-      publish(notification)
+      publish(path,'change',element.value,element)
       return
     elseif not element then
       error(invalid_params({pathNotExists=path}))
@@ -725,9 +711,14 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
+    
     for path,element in pairs(elements) do
-      fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
+      local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
+      if may_have_interest then
+        element.gready_fetchers[fetcher] = true
+      end
     end
+    
     initializing = false
     if flush then
       if message.id then
@@ -748,6 +739,10 @@ local create_daemon = function(options)
     
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
+    
+    for _,element in pairs(elements) do
+      element.gready_fetchers[fetcher] = nil
+    end
     
     if message.id then
       peer:queue({
@@ -819,13 +814,23 @@ local create_daemon = function(options)
     element = {
       peer = peer,
       value = value,
+      gready_fetchers = {},
     }
     elements[path] = element
-    publish({
-        path = path,
-        event = 'add',
-        value = value,
-    })
+    
+    local lpath = has_case_insensitives and path:lower()
+    for peer in pairs(peers) do
+      for _,fetcher in pairs(peer.fetchers) do
+        local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
+        if ok then
+          if may_have_interest then
+            element.gready_fetchers[fetcher] = true
+          end
+        else
+          crit('publish failed',may_have_interest,path,'add')
+        end
+      end
+    end
   end
   
   local remove = function(peer,message)
@@ -834,11 +839,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
-      publish({
-          path = path,
-          event = 'remove',
-          value = element.value,
-      })
+      publish(path,'remove',element.value,element)
       return
     elseif not element then
       error(invalid_params({pathNotExists=path}))
@@ -1070,11 +1071,7 @@ local create_daemon = function(options)
         peers[peer] = nil
         for path,element in pairs(elements) do
           if element.peer == peer then
-            publish({
-                event = 'remove',
-                path = path,
-                value = element.value,
-            })
+            publish(path,'remove',element.value,element)
             elements[path] = nil
           end
         end
