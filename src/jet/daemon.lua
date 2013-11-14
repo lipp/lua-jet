@@ -333,10 +333,16 @@ local create_daemon = function(options)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     local added = {}
+    local path_mismatch = {}
     
     local fetchop = function(path,lpath,event,value)
-      if path_matcher and not path_matcher(path,lpath) then
-        return false
+      if path_matcher then
+        if path_mismatch[path] then
+          return
+        elseif not path_matcher(path,lpath) then
+          path_mismatch[path] = true
+          return
+        end
       end
       local is_matching = true
       if value_matcher and not value_matcher(value) then
