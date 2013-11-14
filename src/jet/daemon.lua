@@ -332,49 +332,97 @@ local create_daemon = function(options)
   local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
-    local added = {}
-    local path_mismatch = {}
     
-    local fetchop = function(path,lpath,event,value)
-      if path_matcher then
+    local fetchop
+    local is_dynamic = value_matcher ~= nil
+    
+    if path_matcher and not value_matcher then
+      fetchop = function(path,lpath,event,value)
+        if not path_matcher(path,lpath) then
+          return
+        end
+        notify({
+            path = path,
+            event = event,
+            value = value,
+        })
+      end
+      
+    elseif not path_matcher and value_matcher then
+      local added = {}
+      fetchop = function(path,lpath,event,value)
+        local is_added = added[path]
+        if event == 'remove' or not value_matcher(value) then
+          if is_added then
+            added[path] = nil
+            notify({
+                path = path,
+                event = 'remove',
+                value = value,
+            })
+          end
+          return
+        end
+        local event
+        if not is_added then
+          event = 'add'
+          added[path] = true
+        else
+          event = 'change'
+        end
+        notify({
+            path = path,
+            event = event,
+            value = value,
+        })
+      end
+    elseif path_matcher and value_matcher then
+      local added = {}
+      local path_mismatch = {}
+      fetchop = function(path,lpath,event,value)
         if path_mismatch[path] then
           return
         elseif not path_matcher(path,lpath) then
           path_mismatch[path] = true
           return
         end
-      end
-      local is_matching = true
-      if value_matcher and not value_matcher(value) then
-        is_matching = false
-      end
-      local is_added = added[path]
-      if not is_matching or event == 'remove' then
-        if is_added then
-          added[path] = nil
-          notify({
-              path = path,
-              event = 'remove',
-              value = value,
-          })
+        local is_added = added[path]
+        if event == 'remove' or not value_matcher(value) then
+          if is_added then
+            added[path] = nil
+            notify({
+                path = path,
+                event = 'remove',
+                value = value,
+            })
+          end
+          return
         end
-        return
+        local event
+        if not is_added then
+          event = 'add'
+          added[path] = true
+        else
+          event = 'change'
+        end
+        notify({
+            path = path,
+            event = event,
+            value = value,
+        })
       end
-      local event
-      if not is_added then
-        event = 'add'
-        added[path] = true
-      else
-        event = 'change'
+    else
+      fetchop = function(path,lpath,event,value)
+        notify({
+            path = path,
+            event = event,
+            value = value,
+        })
       end
-      notify({
-          path = path,
-          event = event,
-          value = value,
-      })
+      options.caseInsensitive = false
     end
     
-    return fetchop,options.caseInsensitive
+    return fetchop,options.caseInsensitive,is_dynamic
   end
   
   local create_sorter = function(options,notify)
