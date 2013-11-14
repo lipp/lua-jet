@@ -3,7 +3,7 @@
 -- number of fetchers (which dont match).
 -- The time is measured for adding and removing <count> states.
 -- Afterwards, the number of fetchers is incremented by 20 and the test is repeated.
--- This (unrealistic) setup can not benefit from message batches.
+-- Note that the add/remove peer stuff benefits from batching messages!
 --local profiler = require'profiler'
 local jet = require'jet'
 local ev = require'ev'
@@ -44,11 +44,9 @@ local add_remove = function(done)
             if event == 'add' then
               assert(not added)
               added = true
-              state_peer:batch(function()
-                  for i,state in ipairs(states) do
-                    state:remove()
-                  end
-                end)
+              for i,state in ipairs(states) do
+                state:remove()
+              end
             elseif event == 'remove' then
               fetcher:unfetch({
                   success = function()
@@ -66,14 +64,12 @@ local add_remove = function(done)
         
         t_start = socket.gettime()
         
-        state_peer:batch(function()
-            for i=1,count do
-              states[i] = state_peer:state({
-                  path = long_path_prefix..i,
-                  value = 123
-              })
-            end
-          end)
+        for i=1,count do
+          states[i] = state_peer:state({
+              path = long_path_prefix..i,
+              value = 123
+          })
+        end
       end
   })
 end
