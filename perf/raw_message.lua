@@ -17,7 +17,7 @@ local client = require'jet.socket'.new({
 })
 
 client:on_message(function(client,msg)
-    count = count + 1    
+    count = count + 1
     client:send(msg)
   end)
 
