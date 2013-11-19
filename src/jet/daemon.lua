@@ -90,7 +90,7 @@ local create_daemon = function(options)
   
   local publish = function(path,event,value,element)
     local lpath = has_case_insensitives and path:lower()
-    for fetcher in pairs(element.gready_fetchers) do
+    for fetcher in pairs(element.fetchers) do
       local ok,err = pcall(fetcher,path,lpath,event,value)
       if not ok then
         crit('publish failed',err,path,event)
@@ -715,7 +715,7 @@ local create_daemon = function(options)
     for path,element in pairs(elements) do
       local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
       if may_have_interest then
-        element.gready_fetchers[fetcher] = true
+        element.fetchers[fetcher] = true
       end
     end
     
@@ -741,7 +741,7 @@ local create_daemon = function(options)
     has_case_insensitives = not is_empty_table(case_insensitives)
     
     for _,element in pairs(elements) do
-      element.gready_fetchers[fetcher] = nil
+      element.fetchers[fetcher] = nil
     end
     
     if message.id then
@@ -814,17 +814,21 @@ local create_daemon = function(options)
     element = {
       peer = peer,
       value = value,
-      gready_fetchers = {},
+      fetchers = {},
     }
     elements[path] = element
     
     local lpath = has_case_insensitives and path:lower()
+    
+    -- filter out fetchers, which will never ever
+    -- match / have interest in this element (fetchers, which
+    -- don't depend on the value of the element).
     for peer in pairs(peers) do
       for _,fetcher in pairs(peer.fetchers) do
         local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
         if ok then
           if may_have_interest then
-            element.gready_fetchers[fetcher] = true
+            element.fetchers[fetcher] = true
           end
         else
           crit('publish failed',may_have_interest,path,'add')
@@ -1066,7 +1070,7 @@ local create_daemon = function(options)
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
           for _,element in pairs(elements) do
-            element.gready_fetchers[fetcher] = nil
+            element.fetchers[fetcher] = nil
           end
         end
         has_case_insensitives = not is_empty_table(case_insensitives)
