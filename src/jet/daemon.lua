@@ -1065,6 +1065,9 @@ local create_daemon = function(options)
       if peer then
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
+          for _,element in pairs(elements) do
+            element.gready_fetchers[fetcher] = nil
+          end
         end
         has_case_insensitives = not is_empty_table(case_insensitives)
         peer.fetchers = {}
