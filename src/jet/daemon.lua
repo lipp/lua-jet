@@ -2,6 +2,9 @@ local cjson = require'cjson'
 local ev = require'ev'
 local socket = require'socket'
 local jsocket = require'jet.socket'
+local jpath_matcher = require'jet.daemon.path_matcher'
+local jvalue_matcher = require'jet.daemon.value_matcher'
+local jutils = require'jet.utils'
 
 local tinsert = table.insert
 local tremove = table.remove
@@ -16,7 +19,7 @@ local mmin = math.min
 local mmax = math.max
 local smatch = string.match
 
-local noop = function() end
+local noop = jutils.noop
 
 --- creates and returns an error table conforming to
 -- JSON-RPC Invalid params.
@@ -51,9 +54,7 @@ local internal_error = function(data)
   return err
 end
 
-local is_empty_table = function(t)
-  return pairs(t)(t) == nil
-end
+local is_empty_table = jutils.is_empty_table
 
 --- creates and returns a new daemon instance.
 -- options is a table which allows daemon configuration.
@@ -125,241 +126,20 @@ local create_daemon = function(options)
     end
   end
   
-  -- helper for lower case (complex) path matching
-  local lower_path_smatch = function(path,lpath)
-    return smatch(lpath)
-  end
-  
-  -- determines if the path matcher expression matches exactly one path
-  local is_exact = function(matcher)
-    return matcher:match('^%^([^*]+)%$$')
-  end
-  
-  -- determines if the matcher has at least one * wildcard in between other stuff
-  local is_partial = function(matcher)
-    return matcher:match('^%^?%*?([^*]+)%*?%$?$')
-  end
-  
-  local sfind = string.find
-  
-  -- performs a simple (sub) string find (no magics)
-  local sfind_plain = function(a,b)
-    return sfind(a,b,1,true)
-  end
-  
-  -- given the fetcher options table, creates a function which performs the path
-  -- matching stuff.
-  -- returns nil if no path matching is required.
-  local create_path_matcher = function(options)
-    if not options.match and not options.unmatch and not options.equalsNot then
-      return nil
-    end
-    local ci = options.caseInsensitive
-    local unmatch = {}
-    local match = {}
-    local equals_not = {}
-    local equals = {}
-    for i,matcher in ipairs(options.match or {}) do
-      local exact = is_exact(matcher)
-      local partial = is_partial(matcher)
-      if exact then
-        if ci then
-          equals[exact:lower()] = true
-        else
-          equals[exact] = true
-        end
-      elseif partial then
-        if ci then
-          match[partial:lower()] = sfind_plain
-        else
-          match[partial] = sfind_plain
-        end
-      else
-        if ci then
-          match[matcher:lower()] = smatch
-        else
-          match[matcher] = smatch
-        end
-      end
-    end
-    
-    for i,unmatcher in ipairs(options.unmatch or {}) do
-      local exact = is_exact(unmatcher)
-      local partial = is_partial(unmatcher)
-      if exact then
-        if ci then
-          equals_not[exact:lower()] = true
-        else
-          equals_not[exact] = true
-        end
-      elseif partial then
-        if ci then
-          unmatch[partial:lower()] = sfind_plain
-        else
-          unmatch[partial] = sfind_plain
-        end
-      else
-        if ci then
-          unmatch[unmatcher:lower()] = smatch
-        else
-          unmatch[unmatcher] = smatch
-        end
-      end
-    end
-    
-    for i,eqnot in ipairs(options.equalsNot or {}) do
-      if ci then
-        equals_not[eqnot:lower()] = true
-      else
-        equals_not[eqnot] = true
-      end
-    end
-    
-    if is_empty_table(equals_not) then
-      equals_not = nil
-    end
-    
-    if is_empty_table(equals) then
-      equals = nil
-    end
-    
-    if is_empty_table(match) then
-      match = nil
-    end
-    
-    if is_empty_table(unmatch) then
-      unmatch = nil
-    end
-    
-    local pairs = pairs
-    
-    return function(path,lpath)
-      if ci then
-        path = lpath
-      end
-      if equals then
-        for eq in pairs(equals) do
-          if path == eq then
-            return true
-          end
-        end
-      end
-      if unmatch then
-        for unmatch,f in pairs(unmatch) do
-          if f(path,unmatch) then
-            return false
-          end
-        end
-      end
-      if equals_not then
-        for eqnot in pairs(equals_not) do
-          if eqnot == path then
-            return false
-          end
-        end
-      end
-      if match then
-        for match,f in pairs(match) do
-          if f(path,match) then
-            return true
-          end
-        end
-      end
-      return false
-    end
-  end
-  
-  -- given the fetcher options table, creates a function which matches an element (state) value
-  -- against some defined rule.
-  local create_value_matcher = function(options)
-    local ops = {
-      lessThan = function(a,b)
-        return a < b
-      end,
-      greaterThan = function(a,b)
-        return a > b
-      end,
-      equals = function(a,b)
-        return a == b
-      end,
-      equalsNot = function(a,b)
-        return a ~= b
-      end
-    }
-    if options.where ~= nil then
-      if #options.where > 1 then
-        return function(value)
-          local is_table = type(value) == 'table'
-          for _,where in ipairs(options.where) do
-            local need_table = where.prop and where.prop ~= '' and where.prop ~= jnull
-            if need_table and not is_table then
-              return false
-            end
-            local op = ops[where.op]
-            local comp
-            if need_table then
-              comp = value[where.prop]
-            else
-              comp = value
-            end
-            local ok,comp_ok = pcall(op,comp,where.value)
-            if not ok or not comp_ok then
-              return false
-            end
-          end
-          return true
-        end
-      elseif options.where then
-        if #options.where == 1 then
-          options.where = options.where[1]
-        end
-        local where = options.where
-        local op = ops[where.op]
-        local ref = where.value
-        if not where.prop or where.prop == '' or where.prop == jnull then
-          return function(value)
-            local is_table = type(value) == 'table'
-            if is_table then
-              return false
-            end
-            local ok,comp_ok = pcall(op,value,ref)
-            if not ok or not comp_ok then
-              return false
-            end
-            return true
-          end
-        else
-          return function(value)
-            local is_table = type(value) == 'table'
-            if not is_table then
-              return false
-            end
-            local ok,comp_ok = pcall(op,value[where.prop],ref)
-            if not ok or not comp_ok then
-              return false
-            end
-            return true
-          end
-        end
-      end
-    end
-    return nil
-  end
-  
   -- creates a fetcher function, eventually combining path and/or value
   -- matchers.
   -- additionally returns, if the resulting fetcher is case insensitive and thus
   -- requires paths to be available as lowercase.
   local create_fetcher = function(options,notify)
-    local path_matcher = create_path_matcher(options)
-    local value_matcher = create_value_matcher(options)
+    local path_matcher = jpath_matcher.new(options)
+    local value_matcher = jvalue_matcher.new(options)
     
     local fetchop
     
     if path_matcher and not value_matcher then
       fetchop = function(path,lpath,event,value,element)
         if not path_matcher(path,lpath) then
-	   -- return false to indicate NO further interest
+          -- return false to indicate NO further interest
           return false
         end
         notify({
@@ -367,7 +147,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
-	-- return true to indicate further interest
+        -- return true to indicate further interest
         return true
       end
       
@@ -384,7 +164,7 @@ local create_daemon = function(options)
                 value = value,
             })
           end
-	  -- return false to indicate NO further interest
+          -- return false to indicate NO further interest
           return false
         end
         local event
@@ -399,14 +179,14 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
-	-- return true to indicate further interest
+        -- return true to indicate further interest
         return true
       end
     elseif path_matcher and value_matcher then
       local added = {}
       fetchop = function(path,lpath,event,value,element)
         if not path_matcher(path,lpath) then
-	   -- return false to indicate NO further interest
+          -- return false to indicate NO further interest
           return false
         end
         local is_added = added[path]
@@ -419,7 +199,7 @@ local create_daemon = function(options)
                 value = value,
             })
           end
-	-- return true to indicate further interest
+          -- return true to indicate further interest
           return true
         end
         local event
@@ -434,7 +214,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
-	-- return true to indicate further interest
+        -- return true to indicate further interest
         return true
       end
     else
@@ -444,7 +224,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
-	-- return true to indicate further interest
+        -- return true to indicate further interest
         return true
       end
       options.caseInsensitive = false
@@ -678,9 +458,9 @@ local create_daemon = function(options)
       error(invalid_params({missingParam=key,got=params}))
     end
   end
-
+  
   -- checks if the "params" table has the key "key" with type "typename".
-  -- if tyoe mismatches throws invalid params error, else returns the 
+  -- if tyoe mismatches throws invalid params error, else returns the
   -- value or nil if not present.
   local optional = function(params,key,typename)
     local p = params[key]
@@ -718,7 +498,7 @@ local create_daemon = function(options)
   
   -- dispatches the "fetch" jet call.
   -- creates a fetch operation and optionally a sorter.
-  -- all elements are inputed as "fake" add events. The fetchop 
+  -- all elements are inputed as "fake" add events. The fetchop
   -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
     local params = message.params
