@@ -61,19 +61,37 @@ local create_daemon = function(options)
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
+  
+  -- logging functions
   local log = options.log or noop
   local info = options.info or noop
   local crit = options.crit or noop
   local debug = options.debug or noop
   
+  -- all connected peers (clients)
+  -- key and value are peer itself (table)
   local peers = {}
+  
+  -- all elements which have been added
+  -- key is (unique) path, value is element (table)
   local elements = {}
+  
+  -- holds info about all pending request
+  -- key is (daemon generated) unique id, value is table
+  -- with original id and receiver (peer) and request
+  -- timeout timer.
   local routes = {}
   
+  -- global for tracking the neccassity of lower casing
+  -- paths on publish
   local has_case_insensitives
+  -- holds all case insensitive fetchers
+  -- key is fetcher (table), value is true
   local case_insensitives = {}
   
-  local route_message = function(peer,message)
+  -- routes an incoming response to the requestor (peer)
+  -- stops the request timeout eventually
+  local route_response = function(peer,message)
     local route = routes[message.id]
     if route then
       route.timer:stop(loop)
@@ -85,9 +103,11 @@ local create_daemon = function(options)
     end
   end
   
+  -- make often refered globals local to speed up lookup
   local pcall = pcall
   local pairs = pairs
   
+  -- publishes a notification
   local publish = function(path,event,value,element)
     local lpath = has_case_insensitives and path:lower()
     for fetcher in pairs(element.fetchers) do
@@ -98,30 +118,38 @@ local create_daemon = function(options)
     end
   end
   
+  -- flush all outstanding / queued messages to the peer socket
   local flush_peers = function()
     for peer in pairs(peers) do
       peer:flush()
     end
   end
   
+  -- helper for lower case (complex) path matching
   local lower_path_smatch = function(path,lpath)
     return smatch(lpath)
   end
   
+  -- determines if the path matcher expression matches exactly one path
   local is_exact = function(matcher)
     return matcher:match('^%^([^*]+)%$$')
   end
   
+  -- determines if the matcher has at least one * wildcard in between other stuff
   local is_partial = function(matcher)
     return matcher:match('^%^?%*?([^*]+)%*?%$?$')
   end
   
   local sfind = string.find
   
+  -- performs a simple (sub) string find (no magics)
   local sfind_plain = function(a,b)
     return sfind(a,b,1,true)
   end
   
+  -- given the fetcher options table, creates a function which performs the path
+  -- matching stuff.
+  -- returns nil if no path matching is required.
   local create_path_matcher = function(options)
     if not options.match and not options.unmatch and not options.equalsNot then
       return nil
@@ -241,6 +269,8 @@ local create_daemon = function(options)
     end
   end
   
+  -- given the fetcher options table, creates a function which matches an element (state) value
+  -- against some defined rule.
   local create_value_matcher = function(options)
     local ops = {
       lessThan = function(a,b)
@@ -316,23 +346,28 @@ local create_daemon = function(options)
     return nil
   end
   
+  -- creates a fetcher function, eventually combining path and/or value
+  -- matchers.
+  -- additionally returns, if the resulting fetcher is case insensitive and thus
+  -- requires paths to be available as lowercase.
   local create_fetcher = function(options,notify)
     local path_matcher = create_path_matcher(options)
     local value_matcher = create_value_matcher(options)
     
     local fetchop
-    local is_dynamic = value_matcher ~= nil
     
     if path_matcher and not value_matcher then
       fetchop = function(path,lpath,event,value,element)
         if not path_matcher(path,lpath) then
-          return
+	   -- return false to indicate NO further interest
+          return false
         end
         notify({
             path = path,
             event = event,
             value = value,
         })
+	-- return true to indicate further interest
         return true
       end
       
@@ -349,7 +384,8 @@ local create_daemon = function(options)
                 value = value,
             })
           end
-          return
+	  -- return false to indicate NO further interest
+          return false
         end
         local event
         if not is_added then
@@ -363,13 +399,15 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+	-- return true to indicate further interest
         return true
       end
     elseif path_matcher and value_matcher then
       local added = {}
       fetchop = function(path,lpath,event,value,element)
         if not path_matcher(path,lpath) then
-          return
+	   -- return false to indicate NO further interest
+          return false
         end
         local is_added = added[path]
         if event == 'remove' or not value_matcher(value) then
@@ -381,6 +419,7 @@ local create_daemon = function(options)
                 value = value,
             })
           end
+	-- return true to indicate further interest
           return true
         end
         local event
@@ -395,6 +434,7 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+	-- return true to indicate further interest
         return true
       end
     else
@@ -404,14 +444,17 @@ local create_daemon = function(options)
             event = event,
             value = value,
         })
+	-- return true to indicate further interest
         return true
       end
       options.caseInsensitive = false
     end
     
-    return fetchop,options.caseInsensitive,is_dynamic
+    return fetchop,options.caseInsensitive
   end
   
+  -- may create and return a sorter function.
+  -- the sort function is based on the options.sort entries.
   local create_sorter = function(options,notify)
     if not options.sort then
       return nil
@@ -617,6 +660,8 @@ local create_daemon = function(options)
     return sorter,flush
   end
   
+  -- checks if the "params" table has the key "key" with type "typename".
+  -- if so, returns the value, else throws invalid params error.
   local checked = function(params,key,typename)
     local p = params[key]
     if p ~= nil then
@@ -633,7 +678,10 @@ local create_daemon = function(options)
       error(invalid_params({missingParam=key,got=params}))
     end
   end
-  
+
+  -- checks if the "params" table has the key "key" with type "typename".
+  -- if tyoe mismatches throws invalid params error, else returns the 
+  -- value or nil if not present.
   local optional = function(params,key,typename)
     local p = params[key]
     if p ~= nil then
@@ -649,6 +697,9 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "change" jet call.
+  -- updates the internal cache (elements table)
+  -- and publishes a change event.
   local change = function(peer,message)
     local notification = message.params
     local path = checked(notification,'path','string')
@@ -665,6 +716,10 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "fetch" jet call.
+  -- creates a fetch operation and optionally a sorter.
+  -- all elements are inputed as "fake" add events. The fetchop 
+  -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
@@ -731,6 +786,8 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "unfetch" jet call.
+  -- removes all ressources associsted wth the fetcher.
   local unfetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
@@ -752,6 +809,10 @@ local create_daemon = function(options)
     end
   end
   
+  -- routes / forwards a request ("call","set") to the corresponding peer.
+  -- creates an entry in the "route" table and sets up a timer
+  -- which will respond a response timeout error to the requestor if
+  -- no corresponding response is received.
   local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
@@ -1005,7 +1066,7 @@ local create_daemon = function(options)
         dispatch_request(peer,message)
         return
       elseif message.result or message.error then
-        route_message(peer,message)
+        route_response(peer,message)
         return
       end
     elseif message.method then
