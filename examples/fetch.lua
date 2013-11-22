@@ -9,7 +9,14 @@ local port = arg[3]
 local cjson = require'cjson'
 local peer = require'jet.peer'.new{ip=ip,port=port}
 
-peer:fetch({},function(path,event,data)
+local is_json,exp_json = pcall(cjson.decode,exp)
+if is_json then
+   exp = exp_json
+end
+
+print(exp)
+
+peer:fetch(exp,function(path,event,data)
     print(path,event,cjson.encode(data))
   end)
 
