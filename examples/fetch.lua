@@ -11,7 +11,7 @@ local peer = require'jet.peer'.new{ip=ip,port=port}
 
 local is_json,exp_json = pcall(cjson.decode,exp)
 if is_json then
-   exp = exp_json
+  exp = exp_json
 end
 
 print(exp)
