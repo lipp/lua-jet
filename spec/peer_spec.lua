@@ -572,7 +572,7 @@ describe(
                   end),
                 error = async(function(err)
                     assert.is_same(err.message,'Internal error')
-                    assert.is_same(err.code,-32602)
+                    assert.is_same(err.code,-32603)
                     assert.is_truthy(err.data:match('terror'))
                     done()
                   end)
