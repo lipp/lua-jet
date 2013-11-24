@@ -2,21 +2,23 @@ local jsocket = require'jet.socket'
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
+local jutils = require'jet.utils'
+
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
-local noop = function() end
+
+local noop = jutils.noop
+local invalid_params = jutils.invalid_params
+local internal_error = jutils.internal_error
+local method_not_found = jutils.method_not_found
 
 local error_object = function(err)
   local error
   if type(err) == 'table' and err.code and err.message then
     error = err
   else
-    error = {
-      code = -32602,
-      message = 'Internal error',
-      data = err,
-    }
+    error = internal_error(err)
   end
   return error
 end
@@ -132,10 +134,7 @@ new = function(config)
           error = error_object(err)
         end
       else
-        error = {
-          code = -32601,
-          message = 'Method not found'
-        }
+        error = method_not_found(message.method)
         if on_no_dispatcher then
           pcall(on_no_dispatcher,message)
         end
@@ -547,11 +546,7 @@ new = function(config)
             queue
             {
               id = mid,
-              error = error_object
-              {
-                code = -32602,
-                message = 'Invalid params',
-              }
+              error = invalid_params()
             }
           end
         end

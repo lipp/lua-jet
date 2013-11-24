@@ -22,39 +22,12 @@ local mmax = math.max
 local smatch = string.match
 
 local noop = jutils.noop
-
---- creates and returns an error table conforming to
--- JSON-RPC Invalid params.
-local invalid_params = function(data)
-  local err = {
-    code = -32602,
-    message = 'Invalid params',
-    data = data,
-  }
-  return err
-end
-
---- creates and returns an error table conforming to
--- JSON-RPC Response Timeout.
-local response_timeout = function(data)
-  local err = {
-    code = -32001,
-    message = 'Response Timeout',
-    data = data,
-  }
-  return err
-end
-
---- creates and returns an error table conforming to
--- JSON-RPC Internal Error.
-local internal_error = function(data)
-  local err = {
-    code = -32003,
-    message = 'Internal error',
-    data = data,
-  }
-  return err
-end
+local invalid_params = jutils.invalid_params
+local invalid_request = jutils.invalid_request
+local response_timeout = jutils.response_timeout
+local internal_error = jutils.internal_error
+local parse_error = jutils.parse_error
+local method_not_found = jutils.method_not_found
 
 local is_empty_table = jutils.is_empty_table
 
@@ -506,11 +479,7 @@ local create_daemon = function(options)
         end
       end
     else
-      error = {
-        code = -32601,
-        message = 'Method not found',
-        data = message.method,
-      }
+      error = method_not_found(message.method)
     end
     peer:queue({
         id = message.id,
@@ -544,11 +513,7 @@ local create_daemon = function(options)
     log('invalid request:',jencode(message))
     peer:queue({
         id = message.id,
-        error = {
-          code = -32600,
-          message = 'Invalid Request',
-          data = message,
-        }
+        error = invalid_request(message)
     })
   end
   
@@ -562,11 +527,7 @@ local create_daemon = function(options)
           end
           if type(message) ~= 'table' then
             peer:queue({
-                error = {
-                  code = -32600,
-                  message = 'Invalid Request',
-                  data = message,
-                }
+                error = invalid_request(message)
             })
           elseif #message > 0 then
             for i,message in ipairs(message) do
@@ -577,13 +538,7 @@ local create_daemon = function(options)
           end
         else
           log('invalid json ('..(peer.name or 'unnamed')..')',msg,message)
-          peer:queue({
-              error = {
-                code  = -32700,
-                message = 'Parse error',
-                data = msg,
-              }
-          })
+          peer:queue({error = parse_error(msg)})
         end
       end)
     if not ok then
