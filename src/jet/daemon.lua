@@ -2,6 +2,11 @@ local cjson = require'cjson'
 local ev = require'ev'
 local socket = require'socket'
 local jsocket = require'jet.socket'
+local jpath_matcher = require'jet.daemon.path_matcher'
+local jvalue_matcher = require'jet.daemon.value_matcher'
+local jsorter = require'jet.daemon.sorter'
+local jfetcher = require'jet.daemon.fetcher'
+local jutils = require'jet.utils'
 
 local tinsert = table.insert
 local tremove = table.remove
@@ -16,59 +21,15 @@ local mmin = math.min
 local mmax = math.max
 local smatch = string.match
 
-local noop = function() end
+local noop = jutils.noop
+local invalid_params = jutils.invalid_params
+local invalid_request = jutils.invalid_request
+local response_timeout = jutils.response_timeout
+local internal_error = jutils.internal_error
+local parse_error = jutils.parse_error
+local method_not_found = jutils.method_not_found
 
---- creates and binds a listening socket for
--- ipv4 and (if available) ipv6.
-local sbind = function(host,port)
-  if socket.tcp6 then
-    local server = socket.tcp6()
-    assert(server:setoption('ipv6-v6only',false))
-    assert(server:setoption('reuseaddr',true))
-    assert(server:bind(host,port))
-    assert(server:listen())
-    return server
-  else
-    return socket.bind(host,port)
-  end
-end
-
---- creates and returns an error table conforming to
--- JSON-RPC Invalid params.
-local invalid_params = function(data)
-  local err = {
-    code = -32602,
-    message = 'Invalid params',
-    data = data,
-  }
-  return err
-end
-
---- creates and returns an error table conforming to
--- JSON-RPC Response Timeout.
-local response_timeout = function(data)
-  local err = {
-    code = -32001,
-    message = 'Response Timeout',
-    data = data,
-  }
-  return err
-end
-
---- creates and returns an error table conforming to
--- JSON-RPC Internal Error.
-local internal_error = function(data)
-  local err = {
-    code = -32003,
-    message = 'Internal error',
-    data = data,
-  }
-  return err
-end
-
-local is_empty_table = function(t)
-  return pairs(t)(t) == nil
-end
+local is_empty_table = jutils.is_empty_table
 
 --- creates and returns a new daemon instance.
 -- options is a table which allows daemon configuration.
@@ -76,19 +37,37 @@ local create_daemon = function(options)
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
+  
+  -- logging functions
   local log = options.log or noop
   local info = options.info or noop
   local crit = options.crit or noop
   local debug = options.debug or noop
   
+  -- all connected peers (clients)
+  -- key and value are peer itself (table)
   local peers = {}
+  
+  -- all elements which have been added
+  -- key is (unique) path, value is element (table)
   local elements = {}
+  
+  -- holds info about all pending request
+  -- key is (daemon generated) unique id, value is table
+  -- with original id and receiver (peer) and request
+  -- timeout timer.
   local routes = {}
   
+  -- global for tracking the neccassity of lower casing
+  -- paths on publish
   local has_case_insensitives
+  -- holds all case insensitive fetchers
+  -- key is fetcher (table), value is true
   local case_insensitives = {}
   
-  local route_message = function(peer,message)
+  -- routes an incoming response to the requestor (peer)
+  -- stops the request timeout eventually
+  local route_response = function(peer,message)
     local route = routes[message.id]
     if route then
       route.timer:stop(loop)
@@ -100,433 +79,30 @@ local create_daemon = function(options)
     end
   end
   
-  local publish = function(notification)
-    notification.lpath = has_case_insensitives and notification.path:lower()
-    for peer in pairs(peers) do
-      for fetch_id,fetcher in pairs(peer.fetchers) do
-        local ok,refetch = pcall(fetcher,notification)
-        if not ok then
-          crit('publish failed',fetch_id,refetch)
-        elseif refetch then
-          for path,element in pairs(elements) do
-            fetcher({
-                path = path,
-                value = element.value,
-                event = 'add',
-            })
-          end
-        end
+  -- make often refered globals local to speed up lookup
+  local pcall = pcall
+  local pairs = pairs
+  
+  -- publishes a notification
+  local publish = function(path,event,value,element)
+    local lpath = has_case_insensitives and path:lower()
+    for fetcher in pairs(element.fetchers) do
+      local ok,err = pcall(fetcher,path,lpath,event,value)
+      if not ok then
+        crit('publish failed',err,path,event)
       end
     end
   end
   
+  -- flush all outstanding / queued messages to the peer socket
   local flush_peers = function()
     for peer in pairs(peers) do
       peer:flush()
     end
   end
   
-  local lower_path_smatch = function(path,lpath)
-    return smatch(lpath)
-  end
-  
-  local create_path_matcher = function(options)
-    if not options.match and not options.unmatch and not options.equalsNot then
-      return function()
-        return true
-      end
-    end
-    local ci = options.caseInsensitive
-    if #options.match == 1 and not options.unmatch and not options.equalsNot then
-      local match = options.match[1]
-      if ci then
-        match = match:lower()
-        return function(path,lpath)
-          return smatch(lpath,match)
-        end
-      else
-        return function(path,lpath)
-          return smatch(path,match)
-        end
-      end
-    end
-    local unmatch = options.unmatch or {}
-    local match = options.match or {}
-    local equalsNot = options.equalsNot or {}
-    if ci then
-      for i,unmat in ipairs(unmatch) do
-        unmatch[i] = unmat:lower()
-      end
-      for i,mat in ipairs(match) do
-        match[i] = mat:lower()
-      end
-      for i,eqnot in ipairs(equalsNot) do
-        equalsNot[i] = eqnot:lower()
-      end
-    end
-    return function(path,lpath)
-      if ci then
-        path = lpath
-      end
-      for _,unmatch in ipairs(unmatch) do
-        if smatch(path,unmatch) then
-          return false
-        end
-      end
-      for _,eqnot in ipairs(equalsNot) do
-        if eqnot == path then
-          return false
-        end
-      end
-      for _,match in ipairs(match) do
-        if smatch(path,match) then
-          return true
-        end
-      end
-      return false
-    end
-  end
-  
-  local create_value_matcher = function(options)
-    local ops = {
-      lessThan = function(a,b)
-        return a < b
-      end,
-      greaterThan = function(a,b)
-        return a > b
-      end,
-      equals = function(a,b)
-        return a == b
-      end,
-      equalsNot = function(a,b)
-        return a ~= b
-      end
-    }
-    if options.where ~= nil then
-      if #options.where > 1 then
-        return function(value)
-          local is_table = type(value) == 'table'
-          for _,where in ipairs(options.where) do
-            local need_table = where.prop and where.prop ~= '' and where.prop ~= jnull
-            if need_table and not is_table then
-              return false
-            end
-            local op = ops[where.op]
-            local comp
-            if need_table then
-              comp = value[where.prop]
-            else
-              comp = value
-            end
-            local ok,comp_ok = pcall(op,comp,where.value)
-            if not ok or not comp_ok then
-              return false
-            end
-          end
-          return true
-        end
-      elseif options.where then
-        if #options.where == 1 then
-          options.where = options.where[1]
-        end
-        local where = options.where
-        local op = ops[where.op]
-        local ref = where.value
-        if not where.prop or where.prop == '' or where.prop == jnull then
-          return function(value)
-            local is_table = type(value) == 'table'
-            if is_table then
-              return false
-            end
-            local ok,comp_ok = pcall(op,value,ref)
-            if not ok or not comp_ok then
-              return false
-            end
-            return true
-          end
-        else
-          return function(value)
-            local is_table = type(value) == 'table'
-            if not is_table then
-              return false
-            end
-            local ok,comp_ok = pcall(op,value[where.prop],ref)
-            if not ok or not comp_ok then
-              return false
-            end
-            return true
-          end
-        end
-      end
-    end
-    return nil
-  end
-  
-  local create_fetcher = function(options,notify)
-    local path_matcher = create_path_matcher(options)
-    local value_matcher = create_value_matcher(options)
-    local max = options.max
-    local added = {}
-    local n = 0
-    
-    local fetchop = function(notification)
-      local path = notification.path
-      local is_added = added[path]
-      if not is_added and max and n == max then
-        return
-      end
-      local lpath = notification.lpath
-      local path_matching = true
-      if path_matcher and not path_matcher(path,lpath) then
-        path_matching = false
-      end
-      local value_matching = true
-      local value = notification.value
-      if value_matcher and not value_matcher(value) then
-        value_matching = false
-      end
-      local is_matching = false
-      if path_matching and value_matching then
-        is_matching = true
-      end
-      if not is_matching or notification.event == 'remove' then
-        if is_added then
-          added[path] = nil
-          n = n - 1
-          notify({
-              path = path,
-              event = 'remove',
-              value = value,
-          })
-          if max and n == (max-1) then
-            return true
-          end
-        end
-        return
-      end
-      local event
-      if not is_added then
-        event = 'add'
-        added[path] = true
-        n = n + 1
-      else
-        event = 'change'
-      end
-      notify({
-          path = path,
-          event = event,
-          value = value,
-      })
-    end
-    
-    return fetchop,options.caseInsensitive
-  end
-  
-  local create_sorter = function(options,notify)
-    if not options.sort then
-      return nil
-    end
-    
-    local sort
-    if not options.sort.byValue or options.sort.byPath then
-      if options.sort.descending then
-        sort = function(a,b)
-          return a.path > b.path
-        end
-      else
-        sort = function(a,b)
-          return a.path < b.path
-        end
-      end
-    elseif options.sort.byValue then
-      local lt
-      local gt
-      if options.sort.prop then
-        local prop = options.sort.prop
-        lt = function(a,b)
-          return a[prop] < b[prop]
-        end
-        gt = function(a,b)
-          return a[prop] > b[prop]
-        end
-      else
-        lt = function(a,b)
-          return a < b
-        end
-        gt = function(a,b)
-          return a > b
-        end
-      end
-      -- protected sort
-      local psort = function(s,a,b)
-        local ok,res = pcall(s,a,b)
-        if not ok or not res then
-          return false
-        else
-          return true
-        end
-      end
-      
-      if options.sort.descending then
-        sort = function(a,b)
-          return psort(gt,a.value,b.value)
-        end
-      else
-        sort = function(a,b)
-          return psort(lt,a.value,b.value)
-        end
-      end
-    end
-    
-    local from = options.sort.from or 1
-    local to = options.sort.to or 10
-    local sorted = {}
-    local matches = {}
-    local index = {}
-    local n
-    
-    local is_in_range = function(i)
-      return i and i >= from and i <= to
-    end
-    
-    local sorter = function(notification,initializing)
-      local event = notification.event
-      local path = notification.path
-      local value = notification.value
-      if initializing then
-        if index[path] then
-          return
-        end
-        tinsert(matches,{
-            path = path,
-            value = value,
-        })
-        index[path] = #matches
-        return
-      end
-      local last_matches_len = #matches
-      local lastindex = index[path]
-      if event == 'remove' then
-        if lastindex then
-          tremove(matches,lastindex)
-          index[path] = nil
-        else
-          return
-        end
-      elseif lastindex then
-        matches[lastindex].value = value
-      else
-        tinsert(matches,{
-            path = path,
-            value = value,
-        })
-      end
-      
-      tsort(matches,sort)
-      
-      for i,m in ipairs(matches) do
-        index[m.path] = i
-      end
-      
-      if last_matches_len < from and #matches < from then
-        return
-      end
-      
-      local newindex = index[path]
-      
-      -- this may happen due to a refetch :(
-      if newindex and lastindex and newindex == lastindex then
-        if event == 'change' then
-          notify({
-              n = n,
-              changes = {
-                {
-                  path = path,
-                  value = value,
-                  index = newindex,
-                }
-              }
-          })
-        end
-        return
-      end
-      
-      local start
-      local stop
-      local is_in = is_in_range(newindex)
-      local was_in = is_in_range(lastindex)
-      
-      if is_in and was_in then
-        start = mmin(lastindex,newindex)
-        stop = mmax(lastindex,newindex)
-      elseif is_in and not was_in then
-        start = newindex
-        stop = mmin(to,#matches)
-      elseif not is_in and was_in then
-        start = lastindex
-        stop = mmin(to,#matches)
-      else
-        start = from
-        stop = mmin(to,#matches)
-      end
-      
-      local changes = {}
-      for i=start,stop do
-        local new = matches[i]
-        local old = sorted[i]
-        if new and new ~= old then
-          tinsert(changes,{
-              path = new.path,
-              value = new.value,
-              index = i,
-          })
-        end
-        sorted[i] = new
-        if not new then
-          break
-        end
-      end
-      
-      local new_n = mmin(to,#matches) - from + 1
-      
-      if new_n ~= n or #changes > 0 then
-        n = new_n
-        notify({
-            changes = changes,
-            n = n,
-        })
-      end
-    end
-    
-    local flush = function()
-      tsort(matches,sort)
-      
-      for i,m in ipairs(matches) do
-        index[m.path] = i
-      end
-      
-      n = 0
-      
-      local changes = {}
-      for i=from,to do
-        local new = matches[i]
-        if new then
-          new.index = i
-          n = i - from + 1
-          sorted[i] = new
-          tinsert(changes,new)
-        end
-      end
-      
-      notify({
-          changes = changes,
-          n = n,
-      })
-    end
-    
-    return sorter,flush
-  end
-  
+  -- checks if the "params" table has the key "key" with type "typename".
+  -- if so, returns the value, else throws invalid params error.
   local checked = function(params,key,typename)
     local p = params[key]
     if p ~= nil then
@@ -544,6 +120,9 @@ local create_daemon = function(options)
     end
   end
   
+  -- checks if the "params" table has the key "key" with type "typename".
+  -- if tyoe mismatches throws invalid params error, else returns the
+  -- value or nil if not present.
   local optional = function(params,key,typename)
     local p = params[key]
     if p ~= nil then
@@ -559,14 +138,16 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "change" jet call.
+  -- updates the internal cache (elements table)
+  -- and publishes a change event.
   local change = function(peer,message)
     local notification = message.params
     local path = checked(notification,'path','string')
     local element = elements[path]
     if element and element.peer == peer then
       element.value = notification.value
-      notification.event = 'change'
-      publish(notification)
+      publish(path,'change',element.value,element)
       return
     elseif not element then
       error(invalid_params({pathNotExists=path}))
@@ -576,6 +157,10 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "fetch" jet call.
+  -- creates a fetch operation and optionally a sorter.
+  -- all elements are inputed as "fake" add events. The fetchop
+  -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
@@ -585,7 +170,7 @@ local create_daemon = function(options)
     local notify = function(nparams)
       queue_notification(nparams)
     end
-    local sorter_ok,sorter,flush = pcall(create_sorter,params,notify)
+    local sorter_ok,sorter,flush = pcall(jsorter.new,params,notify)
     local initializing = true
     if sorter_ok and sorter then
       notify = function(nparams)
@@ -594,7 +179,7 @@ local create_daemon = function(options)
         sorter(nparams,initializing)
       end
     end
-    local params_ok,fetcher,is_case_insensitive = pcall(create_fetcher,params,notify)
+    local params_ok,fetcher,is_case_insensitive = pcall(jfetcher.new,params,notify)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
@@ -622,14 +207,14 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
+    
     for path,element in pairs(elements) do
-      fetcher({
-          path = path,
-          lpath = has_case_insensitives and path:lower(),
-          value = element.value,
-          event = 'add',
-      })
+      local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
+      if may_have_interest then
+        element.fetchers[fetcher] = true
+      end
     end
+    
     initializing = false
     if flush then
       if message.id then
@@ -642,6 +227,8 @@ local create_daemon = function(options)
     end
   end
   
+  -- dispatches the "unfetch" jet call.
+  -- removes all ressources associsted wth the fetcher.
   local unfetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
@@ -651,6 +238,10 @@ local create_daemon = function(options)
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
     
+    for _,element in pairs(elements) do
+      element.fetchers[fetcher] = nil
+    end
+    
     if message.id then
       peer:queue({
           id = message.id,
@@ -659,6 +250,10 @@ local create_daemon = function(options)
     end
   end
   
+  -- routes / forwards a request ("call","set") to the corresponding peer.
+  -- creates an entry in the "route" table and sets up a timer
+  -- which will respond a response timeout error to the requestor if
+  -- no corresponding response is received.
   local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
@@ -717,17 +312,34 @@ local create_daemon = function(options)
     if element then
       error(invalid_params({pathAlreadyExists = path}))
     end
+    if not jutils.is_valid_path(path) then
+      error(invalid_params({invalidPath = path}))
+    end
     local value = params.value-- might be nil for actions / methods
     element = {
       peer = peer,
       value = value,
+      fetchers = {},
     }
     elements[path] = element
-    publish({
-        path = path,
-        event = 'add',
-        value = value,
-    })
+    
+    local lpath = has_case_insensitives and path:lower()
+    
+    -- filter out fetchers, which will never ever
+    -- match / have interest in this element (fetchers, which
+    -- don't depend on the value of the element).
+    for peer in pairs(peers) do
+      for _,fetcher in pairs(peer.fetchers) do
+        local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
+        if ok then
+          if may_have_interest then
+            element.fetchers[fetcher] = true
+          end
+        else
+          crit('publish failed',may_have_interest,path,'add')
+        end
+      end
+    end
   end
   
   local remove = function(peer,message)
@@ -736,11 +348,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
-      publish({
-          path = path,
-          event = 'remove',
-          value = element.value,
-      })
+      publish(path,'remove',element.value,element)
       return
     elseif not element then
       error(invalid_params({pathNotExists=path}))
@@ -874,11 +482,7 @@ local create_daemon = function(options)
         end
       end
     else
-      error = {
-        code = -32601,
-        message = 'Method not found',
-        data = message.method,
-      }
+      error = method_not_found(message.method)
     end
     peer:queue({
         id = message.id,
@@ -902,7 +506,7 @@ local create_daemon = function(options)
         dispatch_request(peer,message)
         return
       elseif message.result or message.error then
-        route_message(peer,message)
+        route_response(peer,message)
         return
       end
     elseif message.method then
@@ -912,11 +516,7 @@ local create_daemon = function(options)
     log('invalid request:',jencode(message))
     peer:queue({
         id = message.id,
-        error = {
-          code = -32600,
-          message = 'Invalid Request',
-          data = message,
-        }
+        error = invalid_request(message)
     })
   end
   
@@ -930,11 +530,7 @@ local create_daemon = function(options)
           end
           if type(message) ~= 'table' then
             peer:queue({
-                error = {
-                  code = -32600,
-                  message = 'Invalid Request',
-                  data = message,
-                }
+                error = invalid_request(message)
             })
           elseif #message > 0 then
             for i,message in ipairs(message) do
@@ -945,13 +541,7 @@ local create_daemon = function(options)
           end
         else
           log('invalid json ('..(peer.name or 'unnamed')..')',msg,message)
-          peer:queue({
-              error = {
-                code  = -32700,
-                message = 'Parse error',
-                data = msg,
-              }
-          })
+          peer:queue({error = parse_error(msg)})
         end
       end)
     if not ok then
@@ -966,17 +556,16 @@ local create_daemon = function(options)
       if peer then
         for _,fetcher in pairs(peer.fetchers) do
           case_insensitives[fetcher] = nil
+          for _,element in pairs(elements) do
+            element.fetchers[fetcher] = nil
+          end
         end
         has_case_insensitives = not is_empty_table(case_insensitives)
         peer.fetchers = {}
         peers[peer] = nil
         for path,element in pairs(elements) do
           if element.peer == peer then
-            publish({
-                event = 'remove',
-                path = path,
-                value = element.value,
-            })
+            publish(path,'remove',element.value,element)
             elements[path] = nil
           end
         end
@@ -1021,14 +610,7 @@ local create_daemon = function(options)
     return peer
   end
   
-  local listener
-  local accept_tcp = function(loop,accept_io)
-    local sock = listener:accept()
-    if not sock then
-      log('accepting peer failed')
-      return
-    end
-    local jsock = jsocket.wrap(sock)
+  local accept_tcp = function(jsock)
     local peer = create_peer({
         close = function() jsock:close() end,
         send = function(msg) jsock:send(msg) end,
@@ -1045,7 +627,6 @@ local create_daemon = function(options)
         crit('peer socket error ('..(peer.name or '')..')',...)
         peer:release()
       end)
-    jsock:read_io():start(loop)
     peers[peer] = peer
   end
   
@@ -1080,18 +661,17 @@ local create_daemon = function(options)
     peers[peer] = peer
   end
   
-  local listen_io
   local websocket_server
+  local server
   
   local daemon = {
     start = function()
-      listener = assert(sbind('*',port))
-      listener:settimeout(0)
-      listen_io = ev.IO.new(
-        accept_tcp,
-        listener:getfd(),
-      ev.READ)
-      listen_io:start(loop)
+      server = jsocket.listener({
+          port = port,
+          log = log,
+          loop = loop,
+          on_connect = accept_tcp
+      })
       
       if options.ws_port then
         local websocket_ok,err = pcall(function()
@@ -1103,13 +683,12 @@ local create_daemon = function(options)
             })
           end)
         if not websocket_ok then
-          print('Could not start websocket server',err)
+          crit('Could not start websocket server',err)
         end
       end
     end,
     stop = function()
-      listen_io:stop(loop)
-      listener:close()
+      server:close()
       for _,peer in pairs(peers) do
         peer:close()
       end

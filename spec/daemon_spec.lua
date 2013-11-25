@@ -39,7 +39,6 @@ for _,info in ipairs(addresses_to_test) do
           {
             port = port,
             interface = info.addr,
-            print = function() end
           }
         end)
       
@@ -115,7 +114,7 @@ for _,info in ipairs(addresses_to_test) do
           it(
             'adding and removing states does not leak memory',
             function(done)
-              settimeout(20)
+              settimeout(40)
               
               local add_msg = cjson.encode({
                   method = 'add',
@@ -161,7 +160,6 @@ for _,info in ipairs(addresses_to_test) do
                       assert.is_nil('unexpected message id:'..response.id)
                     end
                 end))
-              message_socket:read_io():start(loop)
             end)
           
           it(
@@ -182,7 +180,6 @@ for _,info in ipairs(addresses_to_test) do
                     })
                     done()
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send('123')
             end)
           
@@ -204,7 +201,6 @@ for _,info in ipairs(addresses_to_test) do
                     })
                     done()
                 end))
-              message_socket:read_io():start(loop)
               message_socket:send('this is no json')
             end)
           
@@ -228,7 +224,6 @@ for _,info in ipairs(addresses_to_test) do
                         done()
                       end
                   end))
-                message_socket:read_io():start(loop)
                 for _,request in ipairs(requests) do
                   message_socket:send(cjson.encode(request))
                 end
@@ -401,7 +396,7 @@ for _,info in ipairs(addresses_to_test) do
           })
           
           req_resp_test({
-              title = 'fetch with unmatch,match,equalsNot,caseInsensitive works',
+              title = 'fetch with unmatch,match,caseInsensitive works',
               requests = {
                 {
                   method = 'add',
@@ -427,8 +422,7 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    unmatch = {'A'},
-                    equalsNot = {'C'},
+                    unmatch = {'A','^C$'},
                     caseInsensitive = true,
                     match = {'B'},
                     id = 'testFetch'
@@ -480,7 +474,6 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    match = {'.*'},
                     where = {
                       {
                         prop = 'age',
@@ -495,7 +488,7 @@ for _,info in ipairs(addresses_to_test) do
                     },
                     id = 'testFetch2'
                   },
-                }
+                },
               },
               responses = {
                 {
@@ -539,7 +532,6 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    match = {'.*'},
                     id = 'testFetch3',
                     sort = {
                       byValue = true

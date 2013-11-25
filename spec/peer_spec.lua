@@ -429,7 +429,7 @@ describe(
             local count = 0
             local fetcher = peer:fetch(
               {
-                match = {'persons/.*'},
+                match = {'persons/*'},
                 where = {
                   prop = 'age',
                   op = 'lessThan',
@@ -456,73 +456,6 @@ describe(
                   done()
               end))
             
-            finally(function()
-                fetcher:unfetch()
-              end)
-          end)
-        
-        it('can fetch states with limited number',function(done)
-            local count = 0
-            local fetcher = peer:fetch(
-              {
-                max = 1
-              },
-              async(function(fpath,fevent,fvalue)
-                  count = count + 1
-                  assert.is_equal(fevent,'add')
-              end))
-            finally(function() fetcher:unfetch() end)
-            ev.Timer.new(
-              async(function()
-                  assert.is_equal(count,1)
-                  done()
-              end),0.01):start(loop)
-          end)
-        
-        it('can fetch states with limited number updating content',function(done)
-            local count = 0
-            local newval = 99990
-            local test_val = states.test:value()
-            local foo_val = states.foo:value()
-            local expected = {
-              {
-                event = 'add',
-                value = test_val,
-                path = states.test:path(),
-                action = function()
-                  states.test:value(newval)
-                end
-              },
-              {
-                event = 'remove',
-                value = newval,
-                path = states.test:path(),
-                action = function()
-                  states.foo:value(test_val)
-                end
-              },
-              {
-                event = 'add',
-                value = test_val,
-                path = states.foo:path(),
-                action = function()
-                  ev.Timer.new(function()
-                      done()
-                    end,0.001):start(loop)
-                end
-              }
-            }
-            local fetcher = peer:fetch(
-              {
-                max = 1,
-                where={op='equals',value=test_val},
-              },
-              async(function(fpath,fevent,fvalue,fetcher)
-                  count = count + 1
-                  assert.is_equal(fevent,expected[count].event)
-                  assert.is_equal(fvalue,expected[count].value)
-                  expected[count].action()
-              end))
             finally(function()
                 fetcher:unfetch()
               end)
@@ -639,7 +572,7 @@ describe(
                   end),
                 error = async(function(err)
                     assert.is_same(err.message,'Internal error')
-                    assert.is_same(err.code,-32602)
+                    assert.is_same(err.code,-32603)
                     assert.is_truthy(err.data:match('terror'))
                     done()
                   end)

@@ -2,39 +2,30 @@ local jsocket = require'jet.socket'
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
-local require = require
-local pcall = pcall
-local pairs = pairs
-local ipairs = ipairs
-local setmetatable = setmetatable
-local type = type
-local error = error
-local print = print
+local jutils = require'jet.utils'
+
 local tinsert = table.insert
 local tremove = table.remove
 local tconcat = table.concat
-local unpack = unpack
-local assert = assert
-local log = function(...)
-  print('jet.peer',...)
-end
+
+local noop = jutils.noop
+local invalid_params = jutils.invalid_params
+local internal_error = jutils.internal_error
+local method_not_found = jutils.method_not_found
 
 local error_object = function(err)
   local error
   if type(err) == 'table' and err.code and err.message then
     error = err
   else
-    error = {
-      code = -32602,
-      message = 'Internal error',
-      data = err,
-    }
+    error = internal_error(err)
   end
   return error
 end
 
 new = function(config)
   config = config or {}
+  local log = config.log or noop
   local ip = config.ip or '127.0.0.1' -- localhost'
   local port = config.port or 11122
   local encode = cjson.encode
@@ -90,26 +81,8 @@ new = function(config)
     end
     return j_sync
   else
-    local sock
-    if socket.dns and socket.dns.getaddrinfo then
-      local addrinfo,err = socket.dns.getaddrinfo(ip)
-      if addrinfo then
-        assert(#addrinfo > 0)
-        if addrinfo[1].family == 'inet6' then
-          sock = socket.tcp6()
-        else
-          sock = socket.tcp()
-        end
-      else
-        assert(err,'error message expected')
-        error(err)
-      end
-    else
-      sock = socket.tcp()
-    end
-    sock:settimeout(0)
     local loop = config.loop or ev.Loop.default
-    local wsock = jsocket.wrap(sock,{loop = loop})
+    local wsock = jsocket.new({ip = ip, port = port, loop = loop})
     local messages = {}
     local queue = function(message)
       tinsert(messages,message)
@@ -161,10 +134,7 @@ new = function(config)
           error = error_object(err)
         end
       else
-        error = {
-          code = -32601,
-          message = 'Method not found'
-        }
+        error = method_not_found(message.method)
         if on_no_dispatcher then
           pcall(on_no_dispatcher,message)
         end
@@ -227,17 +197,7 @@ new = function(config)
     end
     
     j.close = function(self,options)
-      options = options or {}
-      if self.connect_io then
-        self.connect_io:stop(loop)
-      end
       flush('close')
-      if self.read_io then
-        self.read_io:stop(loop)
-        if options.clear_pending then
-          self.read_io:clear_pending(loop)
-        end
-      end
       wsock:close()
     end
     
@@ -305,6 +265,7 @@ new = function(config)
     
     j.add = function(self,desc,dispatch,callbacks)
       local path = desc.path
+      assert(jutils.is_valid_path(path))
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
       assert(type(dispatch) == 'function',dispatch)
@@ -586,11 +547,7 @@ new = function(config)
             queue
             {
               id = mid,
-              error = error_object
-              {
-                code = -32602,
-                message = 'Invalid params',
-              }
+              error = invalid_params()
             }
           end
         end
@@ -625,11 +582,7 @@ new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    local on_connect = function()
-      local connected,err = sock:connect(ip,port)
-      if connected or err == 'already connected' then
-        j.read_io = wsock:read_io()
-        j.read_io:start(loop)
+    wsock:on_connect(function()
         if config.name or config.encoding then
           j:config({
               name = config.name,
@@ -653,23 +606,10 @@ new = function(config)
           config.on_connect(j)
         end
         flush('on_connect')
-      end
-    end
+      end)
     
-    local connected,err = sock:connect(ip,port)
-    if connected then
-      on_connect()
-    elseif err == 'timeout' then
-      j.connect_io = ev.IO.new(
-        function(loop,io)
-          io:stop(loop)
-          j.connect_io = nil
-          on_connect()
-        end,sock:getfd(),ev.WRITE)
-      j.connect_io:start(loop)
-    else
-      error('jet.peer.new failed: '..err)
-    end
+    wsock:connect()
+    
     return j
   end
 end
