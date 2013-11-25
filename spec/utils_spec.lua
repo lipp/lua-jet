@@ -12,6 +12,8 @@ describe(
     
     it('is_valid_path works',function()
         assert.is_true(utils.is_valid_path('abc'))
+        assert.is_true(utils.is_valid_path('abc.123.PED'))
+        assert.is_true(utils.is_valid_path('abc.123.PED#09821374'))
         assert.is_true(utils.is_valid_path('123abc&PPP#'))
         assert.is_true(utils.is_valid_path('p/t/erasd/;;;:'))
         assert.is_false(utils.is_valid_path('^asd'))

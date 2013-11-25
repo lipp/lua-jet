@@ -396,7 +396,7 @@ for _,info in ipairs(addresses_to_test) do
           })
           
           req_resp_test({
-              title = 'fetch with unmatch,match,equalsNot,caseInsensitive works',
+              title = 'fetch with unmatch,match,caseInsensitive works',
               requests = {
                 {
                   method = 'add',
@@ -422,8 +422,7 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    unmatch = {'A'},
-                    equalsNot = {'C'},
+                    unmatch = {'A','^C$'},
                     caseInsensitive = true,
                     match = {'B'},
                     id = 'testFetch'

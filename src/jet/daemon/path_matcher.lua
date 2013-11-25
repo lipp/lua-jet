@@ -90,14 +90,6 @@ local create_path_matcher = function(options)
     end
   end
   
-  for i,eqnot in ipairs(options.equalsNot or {}) do
-    if ci then
-      equals_not[eqnot:lower()] = true
-    else
-      equals_not[eqnot] = true
-    end
-  end
-  
   if is_empty_table(equals_not) then
     equals_not = nil
   end

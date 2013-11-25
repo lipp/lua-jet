@@ -19,6 +19,20 @@ describe(
           end)
       end)
     
+    describe('(private) _is_exact',function()
+        it('positive works',function()
+            assert.is_equal(pm._is_exact('^foo$'),'foo')
+            assert.is_equal(pm._is_exact('^foo.bar$'),'foo.bar')
+          end)
+        
+        it('negative works',function()
+            assert.is_falsy(pm._is_exact('foo$'))
+            assert.is_falsy(pm._is_exact('^foo'))
+            assert.is_falsy(pm._is_exact('^foo$bar'))
+            assert.is_falsy(pm._is_exact('foo^bar$'))
+          end)
+      end)
+    
     describe('(private) _escape',function()
         it('works',function()
             assert.is_equal(pm._escape('foo'),'foo')
@@ -26,6 +40,7 @@ describe(
             assert.is_equal(pm._escape('*foo'),'.+foo')
             assert.is_equal(pm._escape('*foo*'),'.+foo.+')
             assert.is_equal(pm._escape('foo$'),'foo$')
+            assert.is_equal(pm._escape('foo.*.'),'foo%..+%.')
           end)
       end)
     
