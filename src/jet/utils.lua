@@ -70,6 +70,10 @@ local invalid_request = function(data)
   return err
 end
 
+local is_valid_path = function(path)
+  return not path:match('[$^*]')
+end
+
 return {
   noop = noop,
   is_empty_table = is_empty_table,
@@ -78,6 +82,7 @@ return {
   invalid_params = invalid_params,
   method_not_found = method_not_found,
   parse_error = parse_error,
-  response_timeout = response_timeout
+  response_timeout = response_timeout,
+  is_valid_path = is_valid_path,
 }
 
