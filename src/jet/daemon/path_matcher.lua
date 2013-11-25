@@ -9,7 +9,7 @@ end
 
 -- determines if the matcher has at least one * wildcard in between other stuff
 local is_partial = function(matcher)
-  return matcher:match('^%^?%*?([^*]+)%*?%$?$')
+  return matcher:match('^*?([^*^$]+)%*?$')
 end
 
 local sfind = string.find
@@ -142,5 +142,8 @@ local create_path_matcher = function(options)
 end
 
 return {
-  new = create_path_matcher
+  new = create_path_matcher,
+  -- for unit testing
+  _is_partial = is_partial,
+  _is_exact = is_exact,
 }
