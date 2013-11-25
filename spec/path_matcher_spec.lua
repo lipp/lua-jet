@@ -19,6 +19,16 @@ describe(
           end)
       end)
     
+    describe('(private) _escape',function()
+        it('works',function()
+            assert.is_equal(pm._escape('foo'),'foo')
+            assert.is_equal(pm._escape('foo*'),'foo.+')
+            assert.is_equal(pm._escape('*foo'),'.+foo')
+            assert.is_equal(pm._escape('*foo*'),'.+foo.+')
+            assert.is_equal(pm._escape('foo$'),'foo$')
+          end)
+      end)
+    
     describe('An exact path matcher',function()
         local match
         

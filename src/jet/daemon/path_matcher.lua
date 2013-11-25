@@ -19,6 +19,15 @@ local sfind_plain = function(a,b)
   return sfind(a,b,1,true)
 end
 
+local escape = function(path)
+  local start,middle,stop = path:match('(%^?)([^$]+)(%$?)')
+  middle = middle:gsub('([().%+-?[^$])','%%%1')
+  middle = middle:gsub('%*','.+')
+  start = start or ''
+  stop = stop or ''
+  return start..middle..stop
+end
+
 -- given the fetcher options table, creates a function which performs the path
 -- matching stuff.
 -- returns nil if no path matching is required.
@@ -47,6 +56,7 @@ local create_path_matcher = function(options)
         match[partial] = sfind_plain
       end
     else
+      matcher = escape(matcher)
       if ci then
         match[matcher:lower()] = smatch
       else
@@ -71,6 +81,7 @@ local create_path_matcher = function(options)
         unmatch[partial] = sfind_plain
       end
     else
+      unmatcher = escape(unmatcher)
       if ci then
         unmatch[unmatcher:lower()] = smatch
       else
@@ -146,4 +157,5 @@ return {
   -- for unit testing
   _is_partial = is_partial,
   _is_exact = is_exact,
+  _escape = escape,
 }
