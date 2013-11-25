@@ -1,4 +1,3 @@
-local socket = require'socket'
 local pm = require'jet.daemon.path_matcher'
 
 describe(
@@ -210,6 +209,5 @@ describe(
             assert.is_falsy(match('asomepatho'))
           end)
       end)
-    
     
   end)
