@@ -4,55 +4,16 @@ describe(
   'The jet.daemon.path_matcher module',
   function()
     
-    describe('(private) _is_partial',function()
-        it('matches',function()
-            assert.is_equal(pm._is_partial('foo'),'foo')
-            assert.is_equal(pm._is_partial('foo*'),'foo')
-            assert.is_equal(pm._is_partial('*foo'),'foo')
-            assert.is_equal(pm._is_partial('*foo*'),'foo')
-          end)
-        
-        it('mismatches',function()
-            assert.is_falsy(pm._is_partial('^foo*'))
-            assert.is_falsy(pm._is_partial('foo$'))
-            assert.is_falsy(pm._is_partial('*foo$'))
-          end)
-      end)
-    
-    describe('(private) _is_exact',function()
-        it('positive works',function()
-            assert.is_equal(pm._is_exact('^foo$'),'foo')
-            assert.is_equal(pm._is_exact('^foo.bar$'),'foo.bar')
-          end)
-        
-        it('negative works',function()
-            assert.is_falsy(pm._is_exact('foo$'))
-            assert.is_falsy(pm._is_exact('^foo'))
-            assert.is_falsy(pm._is_exact('^foo$bar'))
-            assert.is_falsy(pm._is_exact('foo^bar$'))
-          end)
-      end)
-    
-    describe('(private) _escape',function()
-        it('works',function()
-            assert.is_equal(pm._escape('foo'),'foo')
-            assert.is_equal(pm._escape('foo*'),'foo.+')
-            assert.is_equal(pm._escape('*foo'),'.+foo')
-            assert.is_equal(pm._escape('*foo*'),'.+foo.+')
-            assert.is_equal(pm._escape('foo$'),'foo$')
-            assert.is_equal(pm._escape('foo.*.'),'foo%..+%.')
-          end)
-      end)
-    
     describe('An exact path matcher',function()
         local match
         
         setup(function()
-            match = pm.new({
-                match = {
-                  '^somepath$'
+            local path_matcher = pm.new({
+                path = {
+                  equals = 'somepath'
                 }
             })
+            match = path_matcher
           end)
         
         it('matches',function()
@@ -63,20 +24,51 @@ describe(
             assert.is_falsy(match('somePath'))
             assert.is_falsy(match('somepathsomepath'))
             assert.is_falsy(match('some*path'))
-            assert.is_falsy(match('^somepath'))
-            assert.is_falsy(match('^somepath$'))
+            assert.is_falsy(match('1somepath'))
+            assert.is_falsy(match('somepath3'))
           end)
         
       end)
+    
+    describe('An case insensitive exact path matcher',function()
+        local match
+        
+        setup(function()
+            local path_matcher = pm.new({
+                path = {
+                  equals = 'somePATH',
+                  caseInsensitive = true
+                },
+            })
+            match = function(path)
+              return path_matcher(path,path:lower())
+            end
+          end)
+        
+        it('matches',function()
+            assert.is_true(match('somepath'))
+            assert.is_true(match('somePath'))
+            assert.is_true(match('somePATH'))
+          end)
+        
+        it('mismatches',function()
+            assert.is_falsy(match('somepathsomepath'))
+            assert.is_falsy(match('some*path'))
+          end)
+        
+      end)
+    
     
     describe('Multiple exact path matcher',function()
         local match
         
         setup(function()
             match = pm.new({
-                match = {
-                  '^somepath$',
-                  '^foobar$',
+                path = {
+                  equalsOneOf = {
+                    'somepath',
+                    'foobar',
+                  }
                 }
             })
           end)
@@ -101,8 +93,8 @@ describe(
         
         setup(function()
             match = pm.new({
-                match = {
-                  'somewhere'
+                path = {
+                  contains = 'somewhere'
                 }
             })
             
@@ -128,12 +120,10 @@ describe(
         
         setup(function()
             match = pm.new({
-                match = {
-                  'somewhere'
+                path = {
+                  contains = 'somewhere',
+                  equalsNot = 'abcsomewhere1234'
                 },
-                unmatch = {
-                  '^abcsomewhere1234$'
-                }
             })
             
           end)
@@ -159,11 +149,9 @@ describe(
         
         setup(function()
             match = pm.new({
-                match = {
-                  'somewhere'
-                },
-                unmatch = {
-                  '1234'
+                path = {
+                  contains = 'somewhere',
+                  containsNot = '1234'
                 }
             })
             
@@ -191,8 +179,8 @@ describe(
         
         setup(function()
             match = pm.new({
-                match = {
-                  '^somepath'
+                path = {
+                  startsWith = 'somepath'
                 }
             })
             
@@ -216,8 +204,8 @@ describe(
         
         setup(function()
             match = pm.new({
-                match = {
-                  'somepath$'
+                path = {
+                  endsWith = 'somepath'
                 }
             })
           end)

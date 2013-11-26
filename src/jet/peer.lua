@@ -351,7 +351,9 @@ new = function(config)
       end
       if type(params) == 'string' then
         params = {
-          match = {params}
+          path = {
+            contains = params
+          }
         }
       end
       params.id = id
