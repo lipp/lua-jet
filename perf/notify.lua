@@ -40,7 +40,7 @@ local count = 1
 
 -- Creates an exact path based count fetcher
 -- which increments the count immediatly.
-peer:fetch('^'..count_state:path()..'$',function(path,event,value)
+peer:fetch({path={equals=count_state:path()}},function(path,event,value)
     assert(value == (count-1))
     count_state:value(count)
     count = count + 1
@@ -65,7 +65,7 @@ ev.Timer.new(function(loop,timer)
       timer:stop(loop)
     else
       for i=1,20 do
-        peer:fetch('^'..long_path_prefix..fetchers..'$',function() end)
+        peer:fetch({path = {equals = long_path_prefix..fetchers}},function() end)
         fetchers = fetchers + 1
       end
     end
