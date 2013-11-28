@@ -105,7 +105,10 @@ local create_fetcher = function(options,notify)
     options.caseInsensitive = false
   end
   
-  return fetchop,options.caseInsensitive
+  return {
+    op = fetchop,
+    is_case_insensitive = options.caseInsensitive,
+  }
 end
 
 return {
