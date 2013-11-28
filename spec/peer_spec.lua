@@ -338,7 +338,7 @@ describe(
               {
                 event = 'remove',
                 action = function()
-                   states.test:add()
+                  states.test:add()
                 end
               },
               {

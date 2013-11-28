@@ -258,11 +258,15 @@ local create_daemon = function(options)
     local timeout = optional(params,'timeout','number') or 5
     local element = elements[path]
     if element then
-      local id
       local mid = message.id
+      local req = {}
       if mid then
         local timer = new_timer(function()
-            routes[id] = nil
+            local element = elements[path]
+            if element then
+              element.peer:cancel_request(req)
+            end
+            routes[req.id] = nil
             peer:queue({
                 id = mid,
                 error = response_timeout(params),
@@ -270,20 +274,16 @@ local create_daemon = function(options)
             peer:flush()
           end,timeout)
         timer:start(loop)
-        id = mid..tostring(peer)
-        assert(not routes[id])
+        req.id = mid..tostring(peer)
+        assert(not routes[req.id])
         -- save route to forward reply
-        routes[id] = {
+        routes[req.id] = {
           receiver = peer,
           id = mid,
           timer = timer,
         }
       end
-      local req = {
-        id = id,-- maybe nil
-        method = path,
-      }
-      
+      req.method = path
       local value = params.value
       if value ~= nil then
         req.params = {value = value}
@@ -684,6 +684,19 @@ local create_daemon = function(options)
     end
     local send = ops.send
     peer.message_count = 0
+    peer.cancel_request = function(_,req)
+      -- maybe messages have not been flushed
+      jutils.remove(peer.messages,req)
+      -- messages are flushed, but maybe the peer
+      -- is persistant, so remove from history
+      local history = peer.message_history
+      if history then
+        local found = jutils.remove(history,req)
+        if found then
+          peer.message_count = peer.message_count - 1
+        end
+      end
+    end
     peer.flush = function(_)
       local messages = peer.messages
       local num = #messages

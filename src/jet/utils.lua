@@ -74,6 +74,19 @@ local is_valid_path = function(path)
   return not path:match('[$^*]')
 end
 
+-- searches an element in an array and removes
+-- it if found.
+-- if element has been removed returns true.
+local remove = function(array,value)
+  for index,val in ipairs(array) do
+    if val == value then
+      table.remove(array,index)
+      return true
+    end
+  end
+  return false
+end
+
 return {
   noop = noop,
   is_empty_table = is_empty_table,
@@ -84,5 +97,6 @@ return {
   parse_error = parse_error,
   response_timeout = response_timeout,
   is_valid_path = is_valid_path,
+  remove = remove,
 }
 
