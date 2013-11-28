@@ -328,7 +328,7 @@ local create_daemon = function(options)
     -- don't depend on the value of the element).
     for peer in pairs(peers) do
       for _,fetcher in pairs(peer.fetchers) do
-        local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
+        local ok,may_have_interest = pcall(fetcher.op,path,lpath,'add',value)
         if ok then
           if may_have_interest then
             element.fetchers[fetcher] = true
