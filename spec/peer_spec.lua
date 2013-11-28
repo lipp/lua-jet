@@ -338,9 +338,7 @@ describe(
               {
                 event = 'remove',
                 action = function()
-                  print(pcall(function()
-                        states.test:add()
-                    end))
+                   states.test:add()
                 end
               },
               {
@@ -354,7 +352,6 @@ describe(
             local fetcher = peer:fetch(
               states.test:path(),
               async(function(fpath,fevent,fvalue)
-                  print(fpath,fevent)
                   count = count + 1
                   assert.is_equal(expected[count].event,fevent)
                   assert.is_equal(fpath,states.test:path())
