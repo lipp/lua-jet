@@ -52,6 +52,7 @@ local create_value_matcher = function(options)
   -- sorting by value implicit defines value matcher rule against expected type.
   if options.sort then
     if options.sort.byValue then
+      options.value = options.value or {}
       options.value.isType = options.sort.byValue
     end
     if options.sort.byValueField then
