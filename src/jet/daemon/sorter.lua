@@ -30,46 +30,46 @@ local create_sorter = function(options,notify)
       end
     end
   else
-     local lt
-     local gt
-     if options.sort.byValue then
-	lt = function(a,b)
-	   return a < b
-	end
-	gt = function(a,b)
-	   return a > b
-	end
-     elseif options.sort.byValueField then
-	local tmp = options.sort.byValueField
-	local field_str = pairs(tmp)(tmp)
-	local get_field = jutils.access_field(field_str)
-	lt = function(a,b)
-	   return get_field(a) < get_field(b)
-	end
-	gt = function(a,b)
-	   return get_field(a) > get_field(b)
-	end
-     end
-     
-     -- protected sort
-     local psort = function(s,a,b)
-	local ok,res = pcall(s,a,b)
-	if not ok or not res then
-	   return false
-	else
-	   return true
-	end
-     end
-     
-     if options.sort.descending then
-	sort = function(a,b)
-	   return psort(gt,a.value,b.value)
-	end
-     else
-	sort = function(a,b)
-	   return psort(lt,a.value,b.value)
-	end
-     end
+    local lt
+    local gt
+    if options.sort.byValue then
+      lt = function(a,b)
+        return a < b
+      end
+      gt = function(a,b)
+        return a > b
+      end
+    elseif options.sort.byValueField then
+      local tmp = options.sort.byValueField
+      local field_str = pairs(tmp)(tmp)
+      local get_field = jutils.access_field(field_str)
+      lt = function(a,b)
+        return get_field(a) < get_field(b)
+      end
+      gt = function(a,b)
+        return get_field(a) > get_field(b)
+      end
+    end
+    
+    -- protected sort
+    local psort = function(s,a,b)
+      local ok,res = pcall(s,a,b)
+      if not ok or not res then
+        return false
+      else
+        return true
+      end
+    end
+    
+    if options.sort.descending then
+      sort = function(a,b)
+        return psort(gt,a.value,b.value)
+      end
+    else
+      sort = function(a,b)
+        return psort(lt,a.value,b.value)
+      end
+    end
   end
   
   local from = options.sort.from or 1
