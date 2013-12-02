@@ -25,11 +25,18 @@ local equals_not = function(other)
   end
 end
 
+local is_type = function(typ)
+  return function(x)
+    return type(x) == typ
+  end
+end
+
 local generators = {
   lessThan = less_than,
   greaterThan = greater_than,
   equals = equals,
   equalsNot = equals_not,
+  isType = is_type,
 }
 
 local access_field = jutils.access_field
@@ -41,6 +48,21 @@ end
 -- given the fetcher options table, creates a function which matches an element (state) value
 -- against some defined rule.
 local create_value_matcher = function(options)
+  
+  -- sorting by value implicit defines value matcher rule against expected type.
+  if options.sort then
+    if options.sort.byValue then
+      options.value.isType = options.sort.byValue
+    end
+    if options.sort.byValueField then
+      local tmp = options.sort.byValueField
+      local fieldname,typ = pairs(tmp)(tmp)
+      options.valueField = options.valueField or {}
+      options.valueField[fieldname] = options.valueField[fieldname] or {}
+      options.valueField[fieldname].isType = typ
+    end
+  end
+  
   if not options.value and not options.valueField then
     return nil
   end
