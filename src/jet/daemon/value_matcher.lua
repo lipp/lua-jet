@@ -85,7 +85,8 @@ local create_value_matcher = function(options)
   
   return function(value)
     for _,pred in ipairs(predicates) do
-      if not pred(value) then
+      local ok,match = pcall(pred,value)
+      if not ok or not match then
         return false
       end
     end
