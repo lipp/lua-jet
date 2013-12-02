@@ -10,19 +10,28 @@ describe(
         assert.is_false(utils.is_empty_table({a=123}))
       end)
     
-    it('is_valid_path works',function()
-        assert.is_true(utils.is_valid_path('abc'))
-        assert.is_true(utils.is_valid_path('abc.123.PED'))
-        assert.is_true(utils.is_valid_path('abc.123.PED#09821374'))
-        assert.is_true(utils.is_valid_path('123abc&PPP#'))
-        assert.is_true(utils.is_valid_path('p/t/erasd/;;;:'))
-        assert.is_false(utils.is_valid_path('^asd'))
-        assert.is_false(utils.is_valid_path('a^sd'))
-        assert.is_false(utils.is_valid_path('$asd'))
-        assert.is_false(utils.is_valid_path('asd$'))
-        assert.is_false(utils.is_valid_path('asd*ppp'))
-        assert.is_false(utils.is_valid_path('asdppp*'))
+    it('access_field works one level deep',function()
+        local t = {}
+        local b = {}
+        t.a = b
+        local accessor = utils.access_field('a')
+        assert.is_equal(t.a,accessor(t))
+        assert.is_nil(accessor({}))
       end)
+    
+    it('access_field works two level deep',function()
+        local t = {}
+        local b = {}
+        t.a = {
+          xx = b
+        }
+        local accessor = utils.access_field('a.xx')
+        assert.is_equal(t.a.xx,accessor(t))
+        t.a = nil
+        local ok = pcall(accessor,t)
+        assert.is_false(ok)
+      end)
+    
     
   end)
 

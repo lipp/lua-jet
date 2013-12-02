@@ -70,9 +70,25 @@ local invalid_request = function(data)
   return err
 end
 
-local is_valid_path = function(path)
-  return not path:match('[$^*]')
+-- creates and returns a function, that extracts
+-- a (sub) table entry specified by field_str.
+-- field_str can be any valid Javascript Object index:
+-- "age"
+-- "person.age"
+-- "person.age.year"
+-- "person.friends[0]"
+-- passed in a table instance, extracts the field:
+-- local accessor = access_field('a.b.c')
+-- accessor(some_table)
+-- may throw if trying to index non tables.
+local access_field = function(field_str)
+  if field_str:sub(1,1) ~= '[' then
+    field_str = "."..field_str
+  end
+  local func_str = 'return function(tab) return tab'..field_str..' end'
+  return loadstring(func_str)()
 end
+
 
 return {
   noop = noop,
@@ -83,6 +99,6 @@ return {
   method_not_found = method_not_found,
   parse_error = parse_error,
   response_timeout = response_timeout,
-  is_valid_path = is_valid_path,
+  access_field = access_field,
 }
 

@@ -1,3 +1,4 @@
+local jutils = require'jet.utils'
 local tinsert = table.insert
 
 local less_than = function(other)
@@ -31,14 +32,10 @@ local generators = {
   equalsNot = equals_not,
 }
 
+local access_field = jutils.access_field
+
 local is_table = function(tab)
   return type(tab) == 'table'
-end
-
--- array access not handled yet.
-local access_field = function(field_str)
-  local func_str = 'return function(tab) return tab.'..field_str..' end'
-  return loadstring(func_str)()
 end
 
 -- given the fetcher options table, creates a function which matches an element (state) value

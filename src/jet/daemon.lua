@@ -310,9 +310,6 @@ local create_daemon = function(options)
     if element then
       error(invalid_params({pathAlreadyExists = path}))
     end
-    if not jutils.is_valid_path(path) then
-      error(invalid_params({invalidPath = path}))
-    end
     local value = params.value-- might be nil for actions / methods
     element = {
       peer = peer,
