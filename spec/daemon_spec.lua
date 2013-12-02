@@ -444,7 +444,7 @@ for _,info in ipairs(addresses_to_test) do
           })
           
           req_resp_test({
-              title = 'fetch with where array works',
+              title = 'fetch with valueField array works',
               requests = {
                 {
                   method = 'add',
@@ -476,16 +476,12 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    where = {
-                      {
-                        prop = 'age',
-                        value = 30,
-                        op = 'lessThan'
+                    valueField = {
+                      age = {
+                        lessThan = 30
                       },
-                      {
-                        prop = 'weight',
-                        value = 20,
-                        op = 'greaterThan'
+                      weight = {
+                        greaterThan = 20
                       }
                     },
                     id = 'testFetch2'
