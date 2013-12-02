@@ -314,7 +314,7 @@ describe(
             }
             local count = 0
             local fetcher = peer:fetch(
-              {where={op='equals',value=states.test:value()}},
+              {value={equals=states.test:value()}},
               async(function(fpath,fevent,fvalue)
                   count = count + 1
                   assert.is_equal(expected[count].event,fevent)
@@ -356,9 +356,8 @@ describe(
                 path = {
                   endsWith = 'hobby',
                 },
-                where = {
-                  op = 'equalsNot',
-                  value = states.peters_hobby:value()
+                value = {
+                  equalsNot = states.peters_hobby:value()
                 }
               },
               async(function(fpath,fevent,fvalue)
@@ -406,10 +405,10 @@ describe(
                 path = {
                   startWith = 'persons/',
                 },
-                where = {
-                  prop = 'age',
-                  op = 'lessThan',
-                  value = 40,
+                valueField = {
+                  age = {
+                    lessThan = 40
+                  }
                 }
               },
               async(function(fpath,fevent,fvalue)
@@ -424,7 +423,11 @@ describe(
         
         it('can fetch states with "equals" and "prop" path',function(done)
             local fetcher = peer:fetch(
-              {where={op='equals',value='peter',prop='name'}},
+              {valueField={
+                  name = {
+                    equals='peter'
+                  }
+              }},
               async(function(fpath,fevent,fvalue,fetcher)
                   assert.is_equal(fevent,'add')
                   assert.is_equal(fpath,states.peter:path())
