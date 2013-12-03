@@ -32,6 +32,21 @@ describe(
         assert.is_false(ok)
       end)
     
+    it('equals_deep works',function()
+        assert.is_true(utils.equals_deep({a={1,3},asd=true},{a={1,3},asd=true}))
+        assert.is_false(utils.equals_deep({a={1,3},asd=true},{a={1},asd=true}))
+        assert.is_false(utils.equals_deep(1,4))
+        assert.is_false(utils.equals_deep(1,'foo'))
+        assert.is_true(utils.equals_deep(1,1))
+      end)
+    
+    it('mapper works',function()
+        local map = utils.mapper({
+            ['person.age'] = 'age',
+            ['hobby'] = 'work',
+        })
+        assert.is_same(map({person={age=32},hobby='guitar'}),{age=32,work='guitar'})
+      end)
     
   end)
 

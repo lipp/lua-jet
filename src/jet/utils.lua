@@ -89,6 +89,48 @@ local access_field = function(field_str)
   return loadstring(func_str)()
 end
 
+-- deep table comparison from here:
+-- http://snippets.luacode.org/snippets/Deep_Comparison_of_Two_Values_3
+--
+local equals_deep -- needed as upvalue for recursion
+equals_deep = function(t1,t2)
+  local ty1 = type(t1)
+  local ty2 = type(t2)
+  if ty1 ~= ty2 then
+    return false
+  end
+  -- non-table types can be directly compared
+  if ty1 ~= 'table' and ty2 ~= 'table' then
+    return t1 == t2
+  end
+  for k1,v1 in pairs(t1) do
+    local v2 = t2[k1]
+    if v2 == nil or not equals_deep(v1,v2) then
+      return false
+    end
+  end
+  for k2,v2 in pairs(t2) do
+    local v1 = t1[k2]
+    if v1 == nil or not equals_deep(v1,v2) then
+      return false
+    end
+  end
+  return true
+end
+
+local mapper = function(field_str_map)
+  local accessors = {}
+  for field_str,name in pairs(field_str_map) do
+    accessors[name] = access_field(field_str)
+  end
+  return function(tab)
+    local mapped = {}
+    for name,accessor in pairs(accessors) do
+      mapped[name] = accessor(tab)
+    end
+    return mapped
+  end
+end
 
 return {
   noop = noop,
@@ -100,5 +142,7 @@ return {
   parse_error = parse_error,
   response_timeout = response_timeout,
   access_field = access_field,
+  equals_deep = equals_deep,
+  mapper = mapper,
 }
 
