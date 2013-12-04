@@ -206,6 +206,7 @@ local create_daemon = function(options)
       })
     end
     
+    -- TODO: radix.get_element_candidates
     for path,element in pairs(elements) do
       local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
       if may_have_interest then
@@ -323,6 +324,8 @@ local create_daemon = function(options)
     -- filter out fetchers, which will never ever
     -- match / have interest in this element (fetchers, which
     -- don't depend on the value of the element).
+
+    -- TODO: radix.get_fetcher_candidates
     for peer in pairs(peers) do
       for _,fetcher in pairs(peer.fetchers) do
         local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
