@@ -4,7 +4,10 @@
 -- The time is measured for adding and removing <count> states.
 -- Afterwards, the number of fetchers is incremented by 20 and the test is repeated.
 -- Note that the add/remove peer stuff benefits from batching messages!
---local profiler = require'profiler'
+-- local profiler = require'profiler'
+local this_dir = arg[0]:match('(.+/)[^/]+%.lua') or './'
+package.path = this_dir..'../src/'..package.path
+
 local jet = require'jet'
 local ev = require'ev'
 local step = require'step'
@@ -106,6 +109,11 @@ step.new({
       print(cjson.encode({...}))
     end
 })()
+
+ev.Signal.new(function()
+    os.exit(1)
+  end,2):start(ev.Loop.default)
+
 
 --profiler.start()
 
