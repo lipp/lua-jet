@@ -265,7 +265,6 @@ new = function(config)
     
     j.add = function(self,desc,dispatch,callbacks)
       local path = desc.path
-      assert(jutils.is_valid_path(path))
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
       assert(type(dispatch) == 'function',dispatch)
@@ -351,7 +350,9 @@ new = function(config)
       end
       if type(params) == 'string' then
         params = {
-          match = {params}
+          path = {
+            contains = params
+          }
         }
       end
       params.id = id

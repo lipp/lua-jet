@@ -396,7 +396,7 @@ for _,info in ipairs(addresses_to_test) do
           })
           
           req_resp_test({
-              title = 'fetch with unmatch,match,caseInsensitive works',
+              title = 'fetch with path matching works',
               requests = {
                 {
                   method = 'add',
@@ -422,9 +422,11 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    unmatch = {'A','^C$'},
-                    caseInsensitive = true,
-                    match = {'B'},
+                    path = {
+                      unequalsAllOf = {'A','^C$'},
+                      caseInsensitive = true,
+                      contains = 'B'
+                    },
                     id = 'testFetch'
                   },
                 }
@@ -442,7 +444,7 @@ for _,info in ipairs(addresses_to_test) do
           })
           
           req_resp_test({
-              title = 'fetch with where array works',
+              title = 'fetch with valueField array works',
               requests = {
                 {
                   method = 'add',
@@ -474,16 +476,12 @@ for _,info in ipairs(addresses_to_test) do
                 {
                   method = 'fetch',
                   params = {
-                    where = {
-                      {
-                        prop = 'age',
-                        value = 30,
-                        op = 'lessThan'
+                    valueField = {
+                      age = {
+                        lessThan = 30
                       },
-                      {
-                        prop = 'weight',
-                        value = 20,
-                        op = 'greaterThan'
+                      weight = {
+                        greaterThan = 20
                       }
                     },
                     id = 'testFetch2'
@@ -534,7 +532,7 @@ for _,info in ipairs(addresses_to_test) do
                   params = {
                     id = 'testFetch3',
                     sort = {
-                      byValue = true
+                      byValue = 'number'
                     }
                   },
                 }
@@ -557,6 +555,75 @@ for _,info in ipairs(addresses_to_test) do
                       },
                       {
                         value = 789,
+                        path = 'c',
+                        index = 3
+                      }
+                    }
+                  }
+                }
+              }
+          })
+          
+          req_resp_test({
+              title = 'fetch with sort by valueField works',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'a',
+                    value = {
+                      age = 123,
+                    }
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'b',
+                    value = {
+                      age = 456,
+                    }
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'c',
+                    value = {
+                      age = 789,
+                    }
+                  },
+                },
+                {
+                  method = 'fetch',
+                  params = {
+                    id = 'testFetch3',
+                    sort = {
+                      byValueField = {
+                        age = 'number'
+                      }
+                    }
+                  },
+                }
+              },
+              responses = {
+                {
+                  method = 'testFetch3',
+                  params = {
+                    n = 3,
+                    changes = {
+                      {
+                        value = {age = 123},
+                        path = 'a',
+                        index = 1
+                      },
+                      {
+                        value = {age = 456},
+                        path = 'b',
+                        index = 2
+                      },
+                      {
+                        value = {age = 789},
                         path = 'c',
                         index = 3
                       }

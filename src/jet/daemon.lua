@@ -164,9 +164,7 @@ local create_daemon = function(options)
   local fetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
-    local queue_notification = function(nparams)
-      assert(false,'fetcher misbehaves: must not be called yet')
-    end
+    local queue_notification
     local notify = function(nparams)
       queue_notification(nparams)
     end
@@ -311,9 +309,6 @@ local create_daemon = function(options)
     local element = elements[path]
     if element then
       error(invalid_params({pathAlreadyExists = path}))
-    end
-    if not jutils.is_valid_path(path) then
-      error(invalid_params({invalidPath = path}))
     end
     local value = params.value-- might be nil for actions / methods
     element = {

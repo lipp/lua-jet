@@ -159,7 +159,7 @@ describe(
                   assert.is_nil('should not happen, unfetch broken')
               end))
             peer:fetch(
-              '^test$',
+              {path = {equals = 'test'}},
               async(
                 function(fpath,fevent,fvalue,fetcher)
                   if fevent == 'add' then
@@ -269,17 +269,6 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch states with match array',function(done)
-            local fetcher = peer:fetch(
-              {match={states.test:path()}},
-              async(function(fpath,fevent,fvalue)
-                  assert.is_equal(fpath,states.test:path())
-                  assert.is_equal(fvalue,states.test:value())
-                  done()
-              end))
-            finally(function() fetcher:unfetch() end)
-          end)
-        
         it('does not fetch on simple path mismatch',function(done)
             local timer
             local fetcher = peer:fetch(
@@ -288,23 +277,6 @@ describe(
                   timer:stop(loop)
                   fetcher:unfetch()
                   assert.is_falsy('should not happen'..fpath)
-                  done()
-              end))
-            timer = ev.Timer.new(async(function()
-                  assert.is_true(true)
-                  done()
-              end),dt)
-            timer:start(loop)
-          end)
-        
-        it('does not fetch on match array mismatch',function(done)
-            local timer
-            peer:fetch(
-              {match={'bla'}},
-              async(function(fpath,fevent,fdata,fetcher)
-                  timer:stop(loop)
-                  fetcher:unfetch()
-                  assert.is_falsy('should not happen')
                   done()
               end))
             timer = ev.Timer.new(async(function()
@@ -342,7 +314,7 @@ describe(
             }
             local count = 0
             local fetcher = peer:fetch(
-              {where={op='equals',value=states.test:value()}},
+              {value={equals=states.test:value()}},
               async(function(fpath,fevent,fvalue)
                   count = count + 1
                   assert.is_equal(expected[count].event,fevent)
@@ -381,10 +353,11 @@ describe(
             local count = 0
             local fetcher = peer:fetch(
               {
-                match = {'hobby'},
-                where = {
-                  op = 'equalsNot',
-                  value = states.peters_hobby:value()
+                path = {
+                  endsWith = 'hobby',
+                },
+                value = {
+                  equalsNot = states.peters_hobby:value()
                 }
               },
               async(function(fpath,fevent,fvalue)
@@ -429,11 +402,13 @@ describe(
             local count = 0
             local fetcher = peer:fetch(
               {
-                match = {'persons/*'},
-                where = {
-                  prop = 'age',
-                  op = 'lessThan',
-                  value = 40,
+                path = {
+                  startWith = 'persons/',
+                },
+                valueField = {
+                  age = {
+                    lessThan = 40
+                  }
                 }
               },
               async(function(fpath,fevent,fvalue)
@@ -448,7 +423,11 @@ describe(
         
         it('can fetch states with "equals" and "prop" path',function(done)
             local fetcher = peer:fetch(
-              {where={op='equals',value='peter',prop='name'}},
+              {valueField={
+                  name = {
+                    equals='peter'
+                  }
+              }},
               async(function(fpath,fevent,fvalue,fetcher)
                   assert.is_equal(fevent,'add')
                   assert.is_equal(fpath,states.peter:path())
@@ -482,8 +461,10 @@ describe(
             }
             local count = 0
             local fetcher = peer:fetch({
-                match = {'persons/1/HOBBY'},
-                caseInsensitive = true,
+                path = {
+                  equals = 'persons/1/HOBBY',
+                  caseInsensitive = true,
+                }
               },async(function(fpath,fevent,fvalue)
                   count = count + 1
                   assert.is_equal(fevent,expected[count].event)

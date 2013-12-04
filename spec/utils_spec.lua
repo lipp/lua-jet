@@ -10,18 +10,42 @@ describe(
         assert.is_false(utils.is_empty_table({a=123}))
       end)
     
-    it('is_valid_path works',function()
-        assert.is_true(utils.is_valid_path('abc'))
-        assert.is_true(utils.is_valid_path('abc.123.PED'))
-        assert.is_true(utils.is_valid_path('abc.123.PED#09821374'))
-        assert.is_true(utils.is_valid_path('123abc&PPP#'))
-        assert.is_true(utils.is_valid_path('p/t/erasd/;;;:'))
-        assert.is_false(utils.is_valid_path('^asd'))
-        assert.is_false(utils.is_valid_path('a^sd'))
-        assert.is_false(utils.is_valid_path('$asd'))
-        assert.is_false(utils.is_valid_path('asd$'))
-        assert.is_false(utils.is_valid_path('asd*ppp'))
-        assert.is_false(utils.is_valid_path('asdppp*'))
+    it('access_field works one level deep',function()
+        local t = {}
+        local b = {}
+        t.a = b
+        local accessor = utils.access_field('a')
+        assert.is_equal(t.a,accessor(t))
+        assert.is_nil(accessor({}))
+      end)
+    
+    it('access_field works two level deep',function()
+        local t = {}
+        local b = {}
+        t.a = {
+          xx = b
+        }
+        local accessor = utils.access_field('a.xx')
+        assert.is_equal(t.a.xx,accessor(t))
+        t.a = nil
+        local ok = pcall(accessor,t)
+        assert.is_false(ok)
+      end)
+    
+    it('equals_deep works',function()
+        assert.is_true(utils.equals_deep({a={1,3},asd=true},{a={1,3},asd=true}))
+        assert.is_false(utils.equals_deep({a={1,3},asd=true},{a={1},asd=true}))
+        assert.is_false(utils.equals_deep(1,4))
+        assert.is_false(utils.equals_deep(1,'foo'))
+        assert.is_true(utils.equals_deep(1,1))
+      end)
+    
+    it('mapper works',function()
+        local map = utils.mapper({
+            ['person.age'] = 'age',
+            ['hobby'] = 'work',
+        })
+        assert.is_same(map({person={age=32},hobby='guitar'}),{age=32,work='guitar'})
       end)
     
   end)
