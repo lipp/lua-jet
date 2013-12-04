@@ -1,5 +1,5 @@
-local this_dir = arg[0]:match('(.+)/[^/]+%.lua')
-package.path = this_dir..'/../src/'..package.path
+local this_dir = arg[0]:match('(.+/)[^/]+%.lua') or './'
+package.path = this_dir..'../src/'..package.path
 
 local ev = require'ev'
 local port = 12343
@@ -36,5 +36,9 @@ ev.Timer.new(function()
     client:close()
     server:close()
   end,dt):start(ev.Loop.default)
+
+ev.Signal.new(function()
+    os.exit(1)
+  end,2):start(ev.Loop.default)
 
 ev.Loop.default:loop()
