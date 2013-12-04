@@ -1,3 +1,6 @@
+local this_dir = arg[0]:match('(.+)/[^/]+%.lua')
+package.path = this_dir..'/../src/'..package.path
+
 local ev = require'ev'
 local port = 12343
 local count = 0

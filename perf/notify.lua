@@ -2,6 +2,9 @@
 -- Measure fetch-notification throughput and the impact of a growing
 -- number of fetchers (which dont match).
 -- This (unrealistic) setup can not benefit from message batches.
+local this_dir = arg[0]:match('(.+)/[^/]+%.lua')
+package.path = this_dir..'/../src/'..package.path
+
 local profiler = require'profiler'
 local jet = require'jet'
 local ev = require'ev'
