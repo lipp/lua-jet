@@ -6,6 +6,7 @@ local jpath_matcher = require'jet.daemon.path_matcher'
 local jvalue_matcher = require'jet.daemon.value_matcher'
 local jsorter = require'jet.daemon.sorter'
 local jfetcher = require'jet.daemon.fetcher'
+local jradix = require'jet.daemon.radix'
 local jutils = require'jet.utils'
 
 local tinsert = table.insert
@@ -17,9 +18,11 @@ local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
 local unpack = unpack
+local next = next
 local mmin = math.min
 local mmax = math.max
 local smatch = string.match
+local print = print
 
 local noop = jutils.noop
 local invalid_params = jutils.invalid_params
@@ -43,7 +46,7 @@ local create_daemon = function(options)
   local info = options.info or noop
   local crit = options.crit or noop
   local debug = options.debug or noop
-  
+  print('starting')
   -- all connected peers (clients)
   -- key and value are peer itself (table)
   local peers = {}
@@ -64,6 +67,8 @@ local create_daemon = function(options)
   -- holds all case insensitive fetchers
   -- key is fetcher (table), value is true
   local case_insensitives = {}
+  
+  local radixtree = jradix.new()
   
   -- routes an incoming response to the requestor (peer)
   -- stops the request timeout eventually
@@ -162,6 +167,7 @@ local create_daemon = function(options)
   -- all elements are inputed as "fake" add events. The fetchop
   -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
+    
     local params = message.params
     local fetch_id = checked(params,'id','string')
     local queue_notification
@@ -206,8 +212,58 @@ local create_daemon = function(options)
       })
     end
     
-    -- TODO: radix.get_element_candidates
-    for path,element in pairs(elements) do
+    local involves_path_match = params.path
+    local involves_value_match = params.value
+    
+    peer.level[fetch_id] = 'impossible'
+    if involves_path_match and not is_case_insensitive then
+      peer.radix_expressions[fetch_id] = {}
+      for name,value in pairs(params.path) do
+        if (name == 'equals' or name == 'startsWith' or name == 'endsWith' or name == 'contains') then
+          if peer.radix_expressions[fetch_id][name] then
+            peer.radix_expressions[fetch_id] = nil
+            peer.level[fetch_id] = 'impossible'
+            break
+          end
+          peer.radix_expressions[fetch_id][name] = value
+          if (peer.level[fetch_id] == 'partial_pending' or involves_value_match) then
+            peer.level[fetch_id] = 'partial'
+          elseif (peer.level[fetch_id] ~= 'partial') then
+            peer.level[fetch_id] = 'easy'
+          end
+        else
+          if (peer.level[fetch_id] == 'easy' or peer.level[fetch_id] == 'partial') then
+            peer.level[fetch_id] = 'partial'
+          else
+            peer.level[fetch_id] = 'partial_pending'
+          end
+        end
+      end
+      if (peer.level[fetch_id] == 'partial_pending') then
+        peer.level[fetch_id] = 'impossible'
+      end
+    end
+    
+    local element_candidates = elements
+    
+    if peer.level[fetch_id] == 'easy' then
+      radixtree.reset_elements()
+      radixtree.match_parts_main(peer.radix_expressions[fetch_id])
+      for element,bo in pairs(radixtree.found_elements) do
+        fetcher(element,has_case_insensitives and element:lower(),'add',elements[element].value)
+        elements[element].fetchers[fetcher] = true
+      end
+      element_candidates = {}
+    elseif peer.level[fetch_id] == 'partial' then
+      radixtree.reset_elements()
+      radixtree.match_parts_main(peer.radix_expressions[fetch_id])
+      element_candidates = {}
+      for element,bo in pairs(radixtree.found_elements) do
+        tinsert(element_candidates, elements[element])
+      end
+    end
+    
+    for path,element in pairs(element_candidates) do
       local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
       if may_have_interest then
         element.fetchers[fetcher] = true
@@ -233,7 +289,8 @@ local create_daemon = function(options)
     local fetch_id = checked(params,'id','string')
     local fetcher = peer.fetchers[fetch_id]
     peer.fetchers[fetch_id] = nil
-    
+    peer.level[fetch_id] = nil
+    peer.radix_expressions[fetch_id] = nil
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
     
@@ -318,24 +375,42 @@ local create_daemon = function(options)
       fetchers = {},
     }
     elements[path] = element
+    radixtree.add_main(path)
     
     local lpath = has_case_insensitives and path:lower()
     
     -- filter out fetchers, which will never ever
     -- match / have interest in this element (fetchers, which
     -- don't depend on the value of the element).
-
-    -- TODO: radix.get_fetcher_candidates
+    
+    local possible_fetchers = {}
+    
     for peer in pairs(peers) do
-      for _,fetcher in pairs(peer.fetchers) do
-        local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
-        if ok then
-          if may_have_interest then
-            element.fetchers[fetcher] = true
-          end
-        else
-          crit('publish failed',may_have_interest,path,'add')
+      for id,fetcher in pairs(peer.fetchers) do
+        local add_fetcher = true
+        if (peer.radix_expressions[id]['equals'] and peer.radix_expressions[id]['equals'] ~= path) then
+          add_fetcher = false
+        elseif (peer.radix_expressions[id]['startsWith'] and peer.radix_expressions[id]['startsWith'] ~= path:sub(1, peer.radix_expressions[id]['startsWith']:len())) then
+          add_fetcher = false
+        elseif (peer.radix_expressions[id]['endsWith'] and peer.radix_expressions[id]['endsWith'] ~= path:sub(path:len() - peer.radix_expressions[id]['endsWith']:len() + 1, path:len())) then
+          add_fetcher = false
+        elseif (peer.radix_expressions[id]['contains'] and not path:find(peer.radix_expressions[id]['contains'])) then
+          add_fetcher = false
         end
+        if (add_fetcher == true) then
+          tinsert(possible_fetchers, fetcher)
+        end
+      end
+    end
+    
+    for _,fetcher in pairs(possible_fetchers) do
+      local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
+      if ok then
+        if may_have_interest then
+          element.fetchers[fetcher] = true
+        end
+      else
+        crit('publish failed',may_have_interest,path,'add')
       end
     end
   end
@@ -346,6 +421,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
+      radixtree.remove_main(path)
       publish(path,'remove',element.value,element)
       return
     elseif not element then
@@ -602,6 +678,8 @@ local create_daemon = function(options)
       end
     end
     peer.fetchers = {}
+    peer.level = {}
+    peer.radix_expressions = {}
     peer.encode = cjson.encode
     peer.decode = cjson.decode
     
