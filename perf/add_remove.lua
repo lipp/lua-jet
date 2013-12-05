@@ -99,21 +99,22 @@ for i=1,10 do
   end
 end
 
+local sighandler = ev.Signal.new(function()
+    os.exit(1)
+  end,2)
+sighandler:start(ev.Loop.default)
+
 step.new({
     try = tries,
     finally = function()
       fetch_peer:close()
       daemon:stop()
+      sighandler:stop(ev.Loop.default)
     end,
     catch = function(step,...)
       print(cjson.encode({...}))
     end
 })()
-
-ev.Signal.new(function()
-    os.exit(1)
-  end,2):start(ev.Loop.default)
-
 
 --profiler.start()
 
