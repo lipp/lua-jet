@@ -43,6 +43,7 @@ local wrap = function(sock,args)
   local read_io
   local send_io
   local connect_io
+  local connected
   
   local stop_ios = function()
     if connect_io then
