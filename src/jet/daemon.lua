@@ -22,7 +22,6 @@ local next = next
 local mmin = math.min
 local mmax = math.max
 local smatch = string.match
-local print = print
 
 local noop = jutils.noop
 local invalid_params = jutils.invalid_params
@@ -46,7 +45,6 @@ local create_daemon = function(options)
   local info = options.info or noop
   local crit = options.crit or noop
   local debug = options.debug or noop
-  print('starting')
   -- all connected peers (clients)
   -- key and value are peer itself (table)
   local peers = {}
