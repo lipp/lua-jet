@@ -540,7 +540,7 @@ local create_daemon = function(options)
         end
       end)
     if not ok then
-      crit('dispatching message',jencode(message),err)
+      crit('dispatching message',msg,err)
     end
     flush_peers()
   end
