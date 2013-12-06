@@ -1,3 +1,5 @@
+-- Implements a radix tree for the jet-daemon
+
 local pairs = pairs
 local print = print
 local next = next
@@ -5,17 +7,25 @@ local type = type
 
 local new = function()
   local j = {}
+  
+  -- the table that holds the radix_tree
+  
   local radix_tree = {}
+  
+  -- elments that can be filled by several functions
+  -- and be returned as set of possible hits
+  
   local radix_elements = {}
+  
+  -- internal tree instance or table of tree instances
+  -- used to hold parts of the tree that may be interesting afterwards
+  
   local return_tree = {}
+
+  -- this FSM is used for string comparison
+  -- can evaluate if the radix tree contains or ends with a specific string
+
   local lookup_fsm
-  local root_lookup
-  local leaf_lookup
-  local radix_traverse
-  local root_leaf_lookup
-  local root_anypos_lookup
-  
-  
   lookup_fsm = function (wordpart, next_state, next_letter)
     if (wordpart:sub(next_state,next_state) ~= next_letter) then
       return false, 0
@@ -27,22 +37,26 @@ local new = function()
     end
   end
   
-  root_lookup = function( tree_instance, part, traverse, tree)
+  -- evaluate if the radix tree starts with a specific string
+  -- returns pointer to subtree
+  
+  local root_lookup
+  root_lookup = function( tree_instance, part)
     if part:len() < 1 then
-      if (traverse) then
-        radix_traverse( tree_instance )
-      else
-        return_tree = tree_instance
-      end
+      return_tree = tree_instance
     else
       local s = part:sub( 1, 1 )
       if type(tree_instance[s])=="table" then
-        root_lookup( tree_instance[s], part:sub(2), traverse)
+        root_lookup( tree_instance[s], part:sub(2))
       end
     end
   end
   
-  leaf_lookup = function( tree_instance, word, state, only_end, traverse)
+  -- evaluate if the radix tree contains or ends with a specific string
+  -- returns list of pointers to subtrees
+  
+  local leaf_lookup
+  leaf_lookup = function( tree_instance, word, state, only_end)
     local next_state = state+1
     for k, v in pairs(tree_instance) do
       if type(v)=="table" then
@@ -53,18 +67,30 @@ local new = function()
               radix_elements[next(v)] = true
             end
           else
-            if traverse then
-              radix_traverse( v )
-            else
-              table.insert(return_tree, v)
-            end
+            table.insert(return_tree, v)
           end
         else
-          leaf_lookup( v, word, next_state, only_end, traverse);
+          leaf_lookup( v, word, next_state, only_end);
         end
       end
     end
   end
+  
+  -- takes a single tree or a list of trees
+  -- traverses the trees and adds all elements to radix_elements
+  
+  local radix_traverse
+  radix_traverse = function( tree_instance )
+    for k, v in pairs(tree_instance) do
+      if type(v)=="boolean" then
+        radix_elements[k] = true
+      elseif type(v)=="table" then
+        radix_traverse( v );
+      end
+    end
+  end
+  
+  -- adds a new element to the tree
   
   local add_to_tree
   add_to_tree = function( tree_instance, fullword, part )
@@ -80,6 +106,8 @@ local new = function()
     end
   end
   
+  -- removes an element from the tree
+  
   local remove_from_tree
   remove_from_tree = function( tree_instance, fullword, part )
     part = part or fullword;
@@ -94,21 +122,15 @@ local new = function()
     end
   end
   
-  radix_traverse = function( tree_instance )
-    for k, v in pairs(tree_instance) do
-      if type(v)=="boolean" then
-        radix_elements[k] = true
-      elseif type(v)=="table" then
-        radix_traverse( v );
-      end
-    end
-  end
+  -- performs the respective actions for the parts of a fetcher
+  -- that can be handled by a radix tree
+  -- fills radix_elements with all hits that were found
   
   local match_parts
   match_parts = function (tree_instance, parts)
     if (parts['equals']) then
       return_tree = {}
-      root_lookup(tree_instance, parts['equals'], false)
+      root_lookup(tree_instance, parts['equals'])
       if type(return_tree[next(return_tree)])=="boolean" then
         radix_elements[next(return_tree)] = true
       end
@@ -116,17 +138,17 @@ local new = function()
       local temp_tree = tree_instance
       if (parts['startsWith']) then
         return_tree = {}
-        root_lookup(temp_tree, parts['startsWith'], false)
+        root_lookup(temp_tree, parts['startsWith'])
         temp_tree = return_tree
       end
       if (parts['contains']) then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['contains'], 0, false, false)
+        leaf_lookup(temp_tree, parts['contains'], 0, false)
         temp_tree = return_tree
       end
       if (parts['endsWith']) then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['endsWith'], 0, true, false)
+        leaf_lookup(temp_tree, parts['endsWith'], 0, true)
         temp_tree = return_tree
       end
       if temp_tree then
@@ -134,6 +156,11 @@ local new = function()
       end
     end
   end
+  
+  -- evaluates if the fetch operation can be handled
+  -- completely or partially by the radix tree
+  -- returns elements from the radix_tree if it can be handled
+  -- and nil otherwise
   
   local get_possible_matches
   get_possible_matches = function (peer, params, fetch_id, is_case_insensitive)
