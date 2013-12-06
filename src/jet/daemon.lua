@@ -185,7 +185,10 @@ local create_daemon = function(options)
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
     
-    peer.fetchers[fetch_id] = fetcher
+    peer.fetchers[fetch_id] = {}
+    peer.fetchers[fetch_id].fetchop = fetcher
+    peer.fetchers[fetch_id].level = 'impossible'
+    peer.fetchers[fetch_id].radix_expressions = {}
     
     if is_case_insensitive then
       case_insensitives[fetcher] = true
@@ -212,45 +215,43 @@ local create_daemon = function(options)
     local involves_path_match = params.path
     local involves_value_match = params.value or params.valueField
     
-    peer.level[fetch_id] = 'impossible'
     if involves_path_match and not is_case_insensitive then
-      peer.radix_expressions[fetch_id] = {}
       for name,value in pairs(params.path) do
         if name == 'equals' or name == 'startsWith' or name == 'endsWith' or name == 'contains' then
-          if peer.radix_expressions[fetch_id][name] then
-            peer.radix_expressions[fetch_id] = nil
-            peer.level[fetch_id] = 'impossible'
+          if peer.fetchers[fetch_id].radix_expressions[name] then
+            peer.fetchers[fetch_id].radix_expressions = {}
+            peer.fetchers[fetch_id].level = 'impossible'
             break
           end
-          peer.radix_expressions[fetch_id][name] = value
-          if peer.level[fetch_id] == 'partial_pending' or involves_value_match then
-            peer.level[fetch_id] = 'partial'
-          elseif peer.level[fetch_id] ~= 'partial' then
-            peer.level[fetch_id] = 'easy'
+          peer.fetchers[fetch_id].radix_expressions[name] = value
+          if peer.fetchers[fetch_id].level == 'partial_pending' or involves_value_match then
+            peer.fetchers[fetch_id].level = 'partial'
+          elseif peer.fetchers[fetch_id].level ~= 'partial' then
+            peer.fetchers[fetch_id].level = 'easy'
           end
         else
-          if peer.level[fetch_id] == 'easy' or peer.level[fetch_id] == 'partial' then
-            peer.level[fetch_id] = 'partial'
+          if peer.fetchers[fetch_id].level == 'easy' or peer.fetchers[fetch_id].level == 'partial' then
+            peer.fetchers[fetch_id].level = 'partial'
           else
-            peer.level[fetch_id] = 'partial_pending'
+            peer.fetchers[fetch_id].level = 'partial_pending'
           end
         end
       end
-      if peer.level[fetch_id] == 'partial_pending' then
-        peer.level[fetch_id] = 'impossible'
+      if peer.fetchers[fetch_id].level == 'partial_pending' then
+        peer.fetchers[fetch_id].level = 'impossible'
       end
     end
     
-    if peer.level[fetch_id] == 'easy' then
+    if peer.fetchers[fetch_id].level == 'easy' then
       radixtree.reset_elements()
-      radixtree.match_parts_main(peer.radix_expressions[fetch_id])
+      radixtree.match_parts_main(peer.fetchers[fetch_id].radix_expressions)
       for path,bo in pairs(radixtree.found_elements) do
         fetcher(path,has_case_insensitives and path:lower(),'add',elements[path].value)
         elements[path].fetchers[fetcher] = true
       end
-    elseif peer.level[fetch_id] == 'partial' then
+    elseif peer.fetchers[fetch_id].level == 'partial' then
       radixtree.reset_elements()
-      radixtree.match_parts_main(peer.radix_expressions[fetch_id])
+      radixtree.match_parts_main(peer.fetchers[fetch_id].radix_expressions)
       for path,bo in pairs(radixtree.found_elements) do
         local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',elements[path].value)
         if may_have_interest then
@@ -283,10 +284,8 @@ local create_daemon = function(options)
   local unfetch = function(peer,message)
     local params = message.params
     local fetch_id = checked(params,'id','string')
-    local fetcher = peer.fetchers[fetch_id]
+    local fetcher = peer.fetchers[fetch_id].fetchop
     peer.fetchers[fetch_id] = nil
-    peer.level[fetch_id] = nil
-    peer.radix_expressions[fetch_id] = nil
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
     
@@ -380,21 +379,21 @@ local create_daemon = function(options)
     -- don't depend on the value of the element).
     
     local possible_fetchers = {}
-    
+
     for peer in pairs(peers) do
       for id,fetcher in pairs(peer.fetchers) do
         local add_fetcher = true
-        if peer.radix_expressions[id]['equals'] and peer.radix_expressions[id]['equals'] ~= path then
+        if peer.fetchers[id].radix_expressions['equals'] and peer.fetchers[id].radix_expressions['equals'] ~= path then
           add_fetcher = false
-        elseif peer.radix_expressions[id]['startsWith'] and peer.radix_expressions[id]['startsWith'] ~= path:sub(1, peer.radix_expressions[id]['startsWith']:len()) then
+        elseif peer.fetchers[id].radix_expressions['startsWith'] and peer.fetchers[id].radix_expressions['startsWith'] ~= path:sub(1, peer.fetchers[id].radix_expressions['startsWith']:len()) then
           add_fetcher = false
-        elseif peer.radix_expressions[id]['endsWith'] and peer.radix_expressions[id]['endsWith'] ~= path:sub(path:len() - peer.radix_expressions[id]['endsWith']:len() + 1, path:len()) then
+        elseif peer.fetchers[id].radix_expressions['endsWith'] and peer.fetchers[id].radix_expressions['endsWith'] ~= path:sub(path:len() - peer.fetchers[id].radix_expressions['endsWith']:len() + 1, path:len()) then
           add_fetcher = false
-        elseif peer.radix_expressions[id]['contains'] and not path:find(peer.radix_expressions[id]['contains']) then
+        elseif peer.fetchers[id].radix_expressions['contains'] and not path:find(peer.fetchers[id].radix_expressions['contains']) then
           add_fetcher = false
         end
         if add_fetcher == true then
-          tinsert(possible_fetchers, fetcher)
+          tinsert(possible_fetchers, fetcher.fetchop)
         end
       end
     end
@@ -674,8 +673,6 @@ local create_daemon = function(options)
       end
     end
     peer.fetchers = {}
-    peer.level = {}
-    peer.radix_expressions = {}
     peer.encode = cjson.encode
     peer.decode = cjson.decode
     
