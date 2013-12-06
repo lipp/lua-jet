@@ -43,6 +43,7 @@ local wrap = function(sock,args)
   local read_io
   local send_io
   local connect_io
+  local connected
   
   local stop_ios = function()
     if connect_io then
@@ -192,8 +193,8 @@ local wrap = function(sock,args)
   local receive_message = function(loop,read_io)
     local io_active = read_io:is_active()
     while true do
+      local err,sub
       if not len_bin or #len_bin < 4 then
-        local err,sub
         len_bin,err,sub = sock:receive(4,len_bin)
         if len_bin then
           _,len = sunpack(len_bin,'>I')
