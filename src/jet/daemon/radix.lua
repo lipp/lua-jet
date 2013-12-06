@@ -94,7 +94,6 @@ local new = function()
     end
   end
   
-  
   radix_traverse = function( tree_instance )
     for k, v in pairs(tree_instance) do
       if type(v)=="boolean" then
@@ -136,41 +135,55 @@ local new = function()
     end
   end
   
-  j.add = add_to_tree
-  j.add_main = function (word)
+  local get_possible_matches
+  get_possible_matches = function (peer, params, fetch_id, is_case_insensitive)
+    local involves_path_match = params.path
+    local involves_value_match = params.value or params.valueField
+    local level = 'impossible'
+    local radix_expressions = {}
+    
+    if involves_path_match and not is_case_insensitive then
+      for name,value in pairs(params.path) do
+        if name == 'equals' or name == 'startsWith' or name == 'endsWith' or name == 'contains' then
+          if radix_expressions[name] then
+            level = 'impossible'
+            break
+          end
+          radix_expressions[name] = value
+          if level == 'partial_pending' or involves_value_match then
+            level = 'partial'
+          elseif level ~= 'partial' then
+            level = 'all'
+          end
+        else
+          if level == 'easy' or level == 'partial' then
+            level = 'partial'
+          else
+            level = 'partial_pending'
+          end
+        end
+      end
+      if level == 'partial_pending' then
+        level = 'impossible'
+      end
+    end       
+    
+    if level ~= 'impossible' then
+      radix_elements = {}
+      match_parts(radix_tree, radix_expressions)
+      return radix_elements
+    else
+	  return nil
+    end
+  end
+  
+  j.add = function (word)
     add_to_tree(radix_tree, word)
   end
-  j.remove = remove_from_tree
-  j.remove_main = function (word)
+  j.remove = function (word)
     remove_from_tree(radix_tree, word)
   end
-  j.traverse = radix_traverse
-  j.traverse_main = function ()
-    radix_traverse(radix_tree)
-  end
-  j.root_lookup = root_lookup
-  j.root_lookup_main = function (word)
-    root_lookup(radix_tree, word, true)
-  end
-  j.leaf_lookup = leaf_lookup
-  j.leaf_lookup_main = function (word)
-    leaf_lookup(radix_tree, word, 0, true, true)
-  end
-  j.anypos_lookup_main = function (word)
-    leaf_lookup(radix_tree, word, 0, false, true)
-  end
-  j.reset_elements = function ()
-    for k,v in pairs(radix_elements) do radix_elements[k]=nil end
-  end
-  j.reset_tree = function ()
-    for k,v in pairs(radix_tree) do radix_tree[k]=nil end
-  end
-  j.match_parts = match_parts
-  j.match_parts_main = function(parts)
-    match_parts(radix_tree, parts)
-  end
-  j.found_elements = radix_elements
-  j.tree = radix_tree
+  j.get_possible_matches = get_possible_matches
   
   return j
 end
