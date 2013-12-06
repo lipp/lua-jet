@@ -3,7 +3,7 @@ local print = print
 local next = next
 local type = type
 
-new = function()
+local new = function()
   local j = {}
   local radix_tree = {}
   local radix_elements = {}
