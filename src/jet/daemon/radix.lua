@@ -166,14 +166,14 @@ local new = function()
       if level == 'partial_pending' then
         level = 'impossible'
       end
-    end       
+    end
     
     if level ~= 'impossible' then
       radix_elements = {}
       match_parts(radix_tree, radix_expressions)
       return radix_elements
     else
-	  return nil
+      return nil
     end
   end
   
