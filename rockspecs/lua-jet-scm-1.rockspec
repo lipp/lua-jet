@@ -31,6 +31,7 @@ build = {
       ['jet.daemon'] = 'src/jet/daemon.lua',
       ['jet.daemon.value_matcher'] = 'src/jet/daemon/value_matcher.lua',
       ['jet.daemon.path_matcher'] = 'src/jet/daemon/path_matcher.lua',
+      ['jet.daemon.radix'] = 'src/jet/daemon/radix.lua',
       ['jet.daemon.sorter'] = 'src/jet/daemon/sorter.lua',
       ['jet.daemon.fetcher'] = 'src/jet/daemon/fetcher.lua',
     },

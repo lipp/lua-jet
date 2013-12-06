@@ -6,6 +6,7 @@ local jpath_matcher = require'jet.daemon.path_matcher'
 local jvalue_matcher = require'jet.daemon.value_matcher'
 local jsorter = require'jet.daemon.sorter'
 local jfetcher = require'jet.daemon.fetcher'
+local jradix = require'jet.daemon.radix'
 local jutils = require'jet.utils'
 
 local tinsert = table.insert
@@ -43,7 +44,6 @@ local create_daemon = function(options)
   local info = options.info or noop
   local crit = options.crit or noop
   local debug = options.debug or noop
-  
   -- all connected peers (clients)
   -- key and value are peer itself (table)
   local peers = {}
@@ -64,6 +64,8 @@ local create_daemon = function(options)
   -- holds all case insensitive fetchers
   -- key is fetcher (table), value is true
   local case_insensitives = {}
+  
+  local radixtree = jradix.new()
   
   -- routes an incoming response to the requestor (peer)
   -- stops the request timeout eventually
@@ -162,6 +164,7 @@ local create_daemon = function(options)
   -- all elements are inputed as "fake" add events. The fetchop
   -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
+    
     local params = message.params
     local fetch_id = checked(params,'id','string')
     local queue_notification
@@ -205,12 +208,14 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
-    
-    -- TODO: radix.get_element_candidates
-    for path,element in pairs(elements) do
-      local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
+    local lookup_elements = radixtree.get_possible_matches(peer, params, fetch_id, is_case_insensitive)
+    if not lookup_elements then
+      lookup_elements = elements
+    end
+    for path,_ in pairs(lookup_elements) do
+      local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',elements[path].value)
       if may_have_interest then
-        element.fetchers[fetcher] = true
+        elements[path].fetchers[fetcher] = true
       end
     end
     
@@ -233,7 +238,6 @@ local create_daemon = function(options)
     local fetch_id = checked(params,'id','string')
     local fetcher = peer.fetchers[fetch_id]
     peer.fetchers[fetch_id] = nil
-    
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
     
@@ -318,16 +322,15 @@ local create_daemon = function(options)
       fetchers = {},
     }
     elements[path] = element
+    radixtree.add(path)
     
     local lpath = has_case_insensitives and path:lower()
     
     -- filter out fetchers, which will never ever
     -- match / have interest in this element (fetchers, which
     -- don't depend on the value of the element).
-
-    -- TODO: radix.get_fetcher_candidates
     for peer in pairs(peers) do
-      for _,fetcher in pairs(peer.fetchers) do
+      for id,fetcher in pairs(peer.fetchers) do
         local ok,may_have_interest = pcall(fetcher,path,lpath,'add',value)
         if ok then
           if may_have_interest then
@@ -346,6 +349,7 @@ local create_daemon = function(options)
     local element = elements[path]
     if element and element.peer == peer then
       elements[path] = nil
+      radixtree.remove(path)
       publish(path,'remove',element.value,element)
       return
     elseif not element then
@@ -543,7 +547,7 @@ local create_daemon = function(options)
         end
       end)
     if not ok then
-      crit('dispatching message',jencode(message),err)
+      crit('dispatching message',msg,err)
     end
     flush_peers()
   end

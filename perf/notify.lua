@@ -56,6 +56,11 @@ local dt = 3
 local fetchers = 1
 local last = 0
 
+local sighandler = ev.Signal.new(function()
+    os.exit(1)
+  end,2)
+sighandler:start(ev.Loop.default)
+
 -- After 'dt' seconds, print the current throughput results and
 -- restart the test with 20 more peers.
 ev.Timer.new(function(loop,timer)
@@ -66,6 +71,7 @@ ev.Timer.new(function(loop,timer)
       peer:close()
       daemon:stop()
       timer:stop(loop)
+      sighandler:stop(loop)
     else
       for i=1,20 do
         peer:fetch({path = {equals = long_path_prefix..fetchers}},function() end)
