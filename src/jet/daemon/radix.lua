@@ -28,7 +28,11 @@ local new = function()
   local lookup_fsm
   lookup_fsm = function (wordpart, next_state, next_letter)
     if (wordpart:sub(next_state,next_state) ~= next_letter) then
-      return false, 0
+      if (wordpart:sub(1,1) ~= next_letter) then
+        return false, 0
+      else
+        return false, 1
+      end
     end
     if (wordpart:len() == next_state) then
       return true, next_state
@@ -64,7 +68,7 @@ local new = function()
         if (hit == true) then
           table.insert(return_tree, v)
         else
-          leaf_lookup( v, word, next_state, only_end);
+          leaf_lookup( v, word, next_state)
         end
       end
     end
@@ -122,6 +126,7 @@ local new = function()
   
   local match_parts
   match_parts = function (tree_instance, parts)
+    radix_elements = {}
     if (parts['equals']) then
       return_tree = {}
       root_lookup(tree_instance, parts['equals'])
@@ -195,7 +200,6 @@ local new = function()
     end
     
     if level ~= 'impossible' then
-      radix_elements = {}
       match_parts(radix_tree, radix_expressions)
       return radix_elements
     else
@@ -210,6 +214,13 @@ local new = function()
     remove_from_tree(radix_tree, word)
   end
   j.get_possible_matches = get_possible_matches
+  
+  -- for unit testing
+  
+  j.match_parts = function (parts)
+    match_parts(radix_tree, parts)
+  end
+  j.found_elements = function() return radix_elements end
   
   return j
 end
