@@ -324,7 +324,7 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+        it('can fetch states with "endsWith" and "value" "equalsNot"',function(done)
             local oldval = states.bens_hobby:value()
             local newval = states.peters_hobby:value()
             local expected = {
@@ -370,7 +370,7 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch states with "equalsNot" and no "prop" value',function(done)
+        it('can fetch states with "startsWidth" and "valueField"',function(done)
             local oldval = states.peter:value()
             local newval = {
               age = 40,
@@ -403,7 +403,7 @@ describe(
             local fetcher = peer:fetch(
               {
                 path = {
-                  startWith = 'persons/',
+                  startsWith = 'persons/',
                 },
                 valueField = {
                   age = {
@@ -421,7 +421,7 @@ describe(
             finally(function() fetcher:unfetch() end)
           end)
         
-        it('can fetch states with "equals" and "prop" path',function(done)
+        it('can fetch states with no path matcher "valueField" "equals"',function(done)
             local fetcher = peer:fetch(
               {valueField={
                   name = {
