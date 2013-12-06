@@ -18,7 +18,6 @@ local jencode = cjson.encode
 local jdecode = cjson.decode
 local jnull = cjson.null
 local unpack = unpack
-local next = next
 local mmin = math.min
 local mmax = math.max
 local smatch = string.match
@@ -217,27 +216,27 @@ local create_daemon = function(options)
     if involves_path_match and not is_case_insensitive then
       peer.radix_expressions[fetch_id] = {}
       for name,value in pairs(params.path) do
-        if (name == 'equals' or name == 'startsWith' or name == 'endsWith' or name == 'contains') then
+        if name == 'equals' or name == 'startsWith' or name == 'endsWith' or name == 'contains' then
           if peer.radix_expressions[fetch_id][name] then
             peer.radix_expressions[fetch_id] = nil
             peer.level[fetch_id] = 'impossible'
             break
           end
           peer.radix_expressions[fetch_id][name] = value
-          if (peer.level[fetch_id] == 'partial_pending' or involves_value_match) then
+          if peer.level[fetch_id] == 'partial_pending' or involves_value_match then
             peer.level[fetch_id] = 'partial'
           elseif (peer.level[fetch_id] ~= 'partial') then
             peer.level[fetch_id] = 'easy'
           end
         else
-          if (peer.level[fetch_id] == 'easy' or peer.level[fetch_id] == 'partial') then
+          if peer.level[fetch_id] == 'easy' or peer.level[fetch_id] == 'partial' then
             peer.level[fetch_id] = 'partial'
           else
             peer.level[fetch_id] = 'partial_pending'
           end
         end
       end
-      if (peer.level[fetch_id] == 'partial_pending') then
+      if peer.level[fetch_id] == 'partial_pending' then
         peer.level[fetch_id] = 'impossible'
       end
     end
@@ -386,13 +385,13 @@ local create_daemon = function(options)
     for peer in pairs(peers) do
       for id,fetcher in pairs(peer.fetchers) do
         local add_fetcher = true
-        if (peer.radix_expressions[id]['equals'] and peer.radix_expressions[id]['equals'] ~= path) then
+        if peer.radix_expressions[id]['equals'] and peer.radix_expressions[id]['equals'] ~= path then
           add_fetcher = false
-        elseif (peer.radix_expressions[id]['startsWith'] and peer.radix_expressions[id]['startsWith'] ~= path:sub(1, peer.radix_expressions[id]['startsWith']:len())) then
+        elseif peer.radix_expressions[id]['startsWith'] and peer.radix_expressions[id]['startsWith'] ~= path:sub(1, peer.radix_expressions[id]['startsWith']:len()) then
           add_fetcher = false
-        elseif (peer.radix_expressions[id]['endsWith'] and peer.radix_expressions[id]['endsWith'] ~= path:sub(path:len() - peer.radix_expressions[id]['endsWith']:len() + 1, path:len())) then
+        elseif peer.radix_expressions[id]['endsWith'] and peer.radix_expressions[id]['endsWith'] ~= path:sub(path:len() - peer.radix_expressions[id]['endsWith']:len() + 1, path:len()) then
           add_fetcher = false
-        elseif (peer.radix_expressions[id]['contains'] and not path:find(peer.radix_expressions[id]['contains'])) then
+        elseif peer.radix_expressions[id]['contains'] and not path:find(peer.radix_expressions[id]['contains']) then
           add_fetcher = false
         end
         if (add_fetcher == true) then
