@@ -208,20 +208,14 @@ local create_daemon = function(options)
           params = nparams,
       })
     end
-    local radix_elements = radixtree.get_possible_matches(peer, params, fetch_id, is_case_insensitive)
-    if radix_elements then
-      for path,_ in pairs(radix_elements) do
-        local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',elements[path].value)
-        if may_have_interest then
-          elements[path].fetchers[fetcher] = true
-        end
-      end
-    else
-      for path,element in pairs(elements) do
-        local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',element.value)
-        if may_have_interest then
-          element.fetchers[fetcher] = true
-        end
+    local lookup_elements = radixtree.get_possible_matches(peer, params, fetch_id, is_case_insensitive)
+    if not lookup_elements then
+      lookup_elements = elements
+    end
+    for path,_ in pairs(lookup_elements) do
+      local may_have_interest = fetcher(path,has_case_insensitives and path:lower(),'add',elements[path].value)
+      if may_have_interest then
+        elements[path].fetchers[fetcher] = true
       end
     end
     
