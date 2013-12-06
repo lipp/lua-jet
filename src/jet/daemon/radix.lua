@@ -21,10 +21,10 @@ local new = function()
   -- used to hold parts of the tree that may be interesting afterwards
   
   local return_tree = {}
-
+  
   -- this FSM is used for string comparison
   -- can evaluate if the radix tree contains or ends with a specific string
-
+  
   local lookup_fsm
   lookup_fsm = function (wordpart, next_state, next_letter)
     if (wordpart:sub(next_state,next_state) ~= next_letter) then
@@ -41,7 +41,7 @@ local new = function()
   -- returns pointer to subtree
   
   local root_lookup
-  root_lookup = function( tree_instance, part)
+  root_lookup = function(tree_instance, part)
     if part:len() < 1 then
       return_tree = tree_instance
     else
@@ -56,19 +56,13 @@ local new = function()
   -- returns list of pointers to subtrees
   
   local leaf_lookup
-  leaf_lookup = function( tree_instance, word, state, only_end)
+  leaf_lookup = function(tree_instance, word, state)
     local next_state = state+1
     for k, v in pairs(tree_instance) do
       if type(v)=="table" then
         local hit, next_state = lookup_fsm(word, next_state, k)
         if (hit == true) then
-          if only_end then
-            if type(v[next(v)])=="boolean" then
-              radix_elements[next(v)] = true
-            end
-          else
-            table.insert(return_tree, v)
-          end
+          table.insert(return_tree, v)
         else
           leaf_lookup( v, word, next_state, only_end);
         end
@@ -80,7 +74,7 @@ local new = function()
   -- traverses the trees and adds all elements to radix_elements
   
   local radix_traverse
-  radix_traverse = function( tree_instance )
+  radix_traverse = function(tree_instance)
     for k, v in pairs(tree_instance) do
       if type(v)=="boolean" then
         radix_elements[k] = true
@@ -93,23 +87,23 @@ local new = function()
   -- adds a new element to the tree
   
   local add_to_tree
-  add_to_tree = function( tree_instance, fullword, part )
+  add_to_tree = function(tree_instance, fullword, part)
     part = part or fullword;
     if part:len() < 1 then
       tree_instance[fullword]=true;
     else
-      local s = part:sub( 1, 1 )
+      local s = part:sub(1, 1)
       if type(tree_instance[s])~="table" then
         tree_instance[s] = {};
       end
-      add_to_tree( tree_instance[s], fullword, part:sub(2) )
+      add_to_tree(tree_instance[s], fullword, part:sub(2))
     end
   end
   
   -- removes an element from the tree
   
   local remove_from_tree
-  remove_from_tree = function( tree_instance, fullword, part )
+  remove_from_tree = function(tree_instance, fullword, part)
     part = part or fullword;
     if part:len() < 1 then
       tree_instance[fullword]=nil;
@@ -118,7 +112,7 @@ local new = function()
       if type(tree_instance[s])~="table" then
         return
       end
-      remove_from_tree( tree_instance[s], fullword, part:sub(2) )
+      remove_from_tree(tree_instance[s], fullword, part:sub(2))
     end
   end
   
@@ -143,12 +137,17 @@ local new = function()
       end
       if (parts['contains']) then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['contains'], 0, false)
+        leaf_lookup(temp_tree, parts['contains'], 0)
         temp_tree = return_tree
       end
       if (parts['endsWith']) then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['endsWith'], 0, true)
+        leaf_lookup(temp_tree, parts['endsWith'], 0)
+        for k,t in pairs(return_tree) do
+          if type(t[next(t)])~="boolean" then
+            table.remove(return_tree, k)
+          end
+        end
         temp_tree = return_tree
       end
       if temp_tree then
