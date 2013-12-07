@@ -27,18 +27,18 @@ local new = function()
   -- can evaluate if the radix tree contains or ends with a specific string
   
   local lookup_fsm
-  lookup_fsm = function (wordpart, next_state, next_letter)
+  lookup_fsm = function (wordpart,next_state,next_letter)
     if wordpart:sub(next_state,next_state) ~= next_letter then
       if wordpart:sub(1,1) ~= next_letter then
-        return false, 0
+        return false,0
       else
-        return false, 1
+        return false,1
       end
     end
-    if wordpart:len() == next_state then
-      return true, next_state
+    if #wordpart == next_state then
+      return true,next_state
     else
-      return false, next_state
+      return false,next_state
     end
   end
   
@@ -46,13 +46,13 @@ local new = function()
   -- returns pointer to subtree
   
   local root_lookup
-  root_lookup = function(tree_instance, part)
-    if part:len() < 1 then
+  root_lookup = function(tree_instance,part)
+    if #part == 0 then
       return_tree = tree_instance
     else
-      local s = part:sub( 1, 1 )
+      local s = part:sub(1, 1)
       if type(tree_instance[s]) == 'table' then
-        root_lookup( tree_instance[s], part:sub(2))
+        root_lookup(tree_instance[s], part:sub(2))
       end
     end
   end
@@ -61,15 +61,15 @@ local new = function()
   -- returns list of pointers to subtrees
   
   local leaf_lookup
-  leaf_lookup = function(tree_instance, word, state)
+  leaf_lookup = function(tree_instance,word,state)
     local next_state = state+1
-    for k, v in pairs(tree_instance) do
+    for k,v in pairs(tree_instance) do
       if type(v) == 'table' then
-        local hit,next_state = lookup_fsm(word, next_state, k)
-        if (hit == true) then
-          tinsert(return_tree, v)
+        local hit,next_state = lookup_fsm(word,next_state,k)
+        if hit == true then
+          tinsert(return_tree,v)
         else
-          leaf_lookup( v, word, next_state)
+          leaf_lookup(v,word,next_state)
         end
       end
     end
@@ -80,11 +80,11 @@ local new = function()
   
   local radix_traverse
   radix_traverse = function(tree_instance)
-    for k, v in pairs(tree_instance) do
-      if type(v)=='boolean' then
+    for k,v in pairs(tree_instance) do
+      if type(v) == 'boolean' then
         radix_elements[k] = true
-      elseif type(v)=='table' then
-        radix_traverse( v );
+      elseif type(v) == 'table' then
+        radix_traverse(v);
       end
     end
   end
@@ -92,32 +92,32 @@ local new = function()
   -- adds a new element to the tree
   
   local add_to_tree
-  add_to_tree = function(tree_instance, fullword, part)
+  add_to_tree = function(tree_instance,fullword,part)
     part = part or fullword;
-    if part:len() < 1 then
-      tree_instance[fullword]=true;
+    if #part == 0 then
+      tree_instance[fullword] = true;
     else
-      local s = part:sub(1, 1)
+      local s = part:sub(1,1)
       if type(tree_instance[s]) ~= 'table' then
         tree_instance[s] = {};
       end
-      add_to_tree(tree_instance[s], fullword, part:sub(2))
+      add_to_tree(tree_instance[s],fullword,part:sub(2))
     end
   end
   
   -- removes an element from the tree
   
   local remove_from_tree
-  remove_from_tree = function(tree_instance, fullword, part)
+  remove_from_tree = function(tree_instance,fullword,part)
     part = part or fullword;
-    if part:len() < 1 then
-      tree_instance[fullword]=nil;
+    if #part == 0 then
+      tree_instance[fullword] = nil;
     else
       local s = part:sub( 1, 1 )
-      if type(tree_instance[s])~='table' then
+      if type(tree_instance[s]) ~= 'table' then
         return
       end
-      remove_from_tree(tree_instance[s], fullword, part:sub(2))
+      remove_from_tree(tree_instance[s],fullword,part:sub(2))
     end
   end
   
@@ -125,11 +125,11 @@ local new = function()
   -- that can be handled by a radix tree
   -- fills radix_elements with all hits that were found
   
-  local match_parts = function (tree_instance, parts)
+  local match_parts = function(tree_instance,parts)
     radix_elements = {}
     if parts['equals'] then
       return_tree = {}
-      root_lookup(tree_instance, parts['equals'])
+      root_lookup(tree_instance,parts['equals'])
       if type(return_tree[next(return_tree)]) == 'boolean' then
         radix_elements[next(return_tree)] = true
       end
@@ -137,20 +137,20 @@ local new = function()
       local temp_tree = tree_instance
       if parts['startsWith'] then
         return_tree = {}
-        root_lookup(temp_tree, parts['startsWith'])
+        root_lookup(temp_tree,parts['startsWith'])
         temp_tree = return_tree
       end
       if parts['contains'] then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['contains'], 0)
+        leaf_lookup(temp_tree,parts['contains'],0)
         temp_tree = return_tree
       end
       if parts['endsWith'] then
         return_tree = {}
-        leaf_lookup(temp_tree, parts['endsWith'], 0)
+        leaf_lookup(temp_tree,parts['endsWith'],0)
         for k,t in pairs(return_tree) do
           if type(t[next(t)]) ~= 'boolean' then
-            tremove(return_tree, k)
+            tremove(return_tree,k)
           end
         end
         temp_tree = return_tree
@@ -167,7 +167,7 @@ local new = function()
   -- and nil otherwise
   
   local get_possible_matches
-  get_possible_matches = function (peer, params, fetch_id, is_case_insensitive)
+  get_possible_matches = function(peer,params,fetch_id,is_case_insensitive)
     local involves_path_match = params.path
     local involves_value_match = params.value or params.valueField
     local level = 'impossible'
@@ -200,27 +200,29 @@ local new = function()
     end
     
     if level ~= 'impossible' then
-      match_parts(radix_tree, radix_expressions)
+      match_parts(radix_tree,radix_expressions)
       return radix_elements
     else
       return nil
     end
   end
   
-  j.add = function (word)
-    add_to_tree(radix_tree, word)
+  j.add = function(word)
+    add_to_tree(radix_tree,word)
   end
-  j.remove = function (word)
-    remove_from_tree(radix_tree, word)
+  j.remove = function(word)
+    remove_from_tree(radix_tree,word)
   end
   j.get_possible_matches = get_possible_matches
   
   -- for unit testing
   
-  j.match_parts = function (parts)
-    match_parts(radix_tree, parts)
+  j.match_parts = function(parts)
+    match_parts(radix_tree,parts)
   end
-  j.found_elements = function() return radix_elements end
+  j.found_elements = function() 
+     return radix_elements 
+  end
   
   return j
 end
