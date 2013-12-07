@@ -1,9 +1,10 @@
 -- Implements a radix tree for the jet-daemon
 
 local pairs = pairs
-local print = print
 local next = next
 local type = type
+local tinsert = table.insert
+local tremove = table.remove
 
 local new = function()
   local j = {}
@@ -27,14 +28,14 @@ local new = function()
   
   local lookup_fsm
   lookup_fsm = function (wordpart, next_state, next_letter)
-    if (wordpart:sub(next_state,next_state) ~= next_letter) then
-      if (wordpart:sub(1,1) ~= next_letter) then
+    if wordpart:sub(next_state,next_state) ~= next_letter then
+      if wordpart:sub(1,1) ~= next_letter then
         return false, 0
       else
         return false, 1
       end
     end
-    if (wordpart:len() == next_state) then
+    if wordpart:len() == next_state then
       return true, next_state
     else
       return false, next_state
@@ -50,7 +51,7 @@ local new = function()
       return_tree = tree_instance
     else
       local s = part:sub( 1, 1 )
-      if type(tree_instance[s])=="table" then
+      if type(tree_instance[s]) == 'table' then
         root_lookup( tree_instance[s], part:sub(2))
       end
     end
@@ -63,10 +64,10 @@ local new = function()
   leaf_lookup = function(tree_instance, word, state)
     local next_state = state+1
     for k, v in pairs(tree_instance) do
-      if type(v)=="table" then
-        local hit, next_state = lookup_fsm(word, next_state, k)
+      if type(v) == 'table' then
+        local hit,next_state = lookup_fsm(word, next_state, k)
         if (hit == true) then
-          table.insert(return_tree, v)
+          tinsert(return_tree, v)
         else
           leaf_lookup( v, word, next_state)
         end
@@ -80,9 +81,9 @@ local new = function()
   local radix_traverse
   radix_traverse = function(tree_instance)
     for k, v in pairs(tree_instance) do
-      if type(v)=="boolean" then
+      if type(v)=='boolean' then
         radix_elements[k] = true
-      elseif type(v)=="table" then
+      elseif type(v)=='table' then
         radix_traverse( v );
       end
     end
@@ -97,7 +98,7 @@ local new = function()
       tree_instance[fullword]=true;
     else
       local s = part:sub(1, 1)
-      if type(tree_instance[s])~="table" then
+      if type(tree_instance[s]) ~= 'table' then
         tree_instance[s] = {};
       end
       add_to_tree(tree_instance[s], fullword, part:sub(2))
@@ -113,7 +114,7 @@ local new = function()
       tree_instance[fullword]=nil;
     else
       local s = part:sub( 1, 1 )
-      if type(tree_instance[s])~="table" then
+      if type(tree_instance[s])~='table' then
         return
       end
       remove_from_tree(tree_instance[s], fullword, part:sub(2))
@@ -124,33 +125,32 @@ local new = function()
   -- that can be handled by a radix tree
   -- fills radix_elements with all hits that were found
   
-  local match_parts
-  match_parts = function (tree_instance, parts)
+  local match_parts = function (tree_instance, parts)
     radix_elements = {}
-    if (parts['equals']) then
+    if parts['equals'] then
       return_tree = {}
       root_lookup(tree_instance, parts['equals'])
-      if type(return_tree[next(return_tree)])=="boolean" then
+      if type(return_tree[next(return_tree)]) == 'boolean' then
         radix_elements[next(return_tree)] = true
       end
     else
       local temp_tree = tree_instance
-      if (parts['startsWith']) then
+      if parts['startsWith'] then
         return_tree = {}
         root_lookup(temp_tree, parts['startsWith'])
         temp_tree = return_tree
       end
-      if (parts['contains']) then
+      if parts['contains'] then
         return_tree = {}
         leaf_lookup(temp_tree, parts['contains'], 0)
         temp_tree = return_tree
       end
-      if (parts['endsWith']) then
+      if parts['endsWith'] then
         return_tree = {}
         leaf_lookup(temp_tree, parts['endsWith'], 0)
         for k,t in pairs(return_tree) do
-          if type(t[next(t)])~="boolean" then
-            table.remove(return_tree, k)
+          if type(t[next(t)]) ~= 'boolean' then
+            tremove(return_tree, k)
           end
         end
         temp_tree = return_tree
