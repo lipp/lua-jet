@@ -10,24 +10,19 @@ local new = function()
   local j = {}
   
   -- the table that holds the radix_tree
-  
   local radix_tree = {}
   
   -- elments that can be filled by several functions
   -- and be returned as set of possible hits
-  
   local radix_elements = {}
   
   -- internal tree instance or table of tree instances
   -- used to hold parts of the tree that may be interesting afterwards
-  
   local return_tree = {}
   
   -- this FSM is used for string comparison
   -- can evaluate if the radix tree contains or ends with a specific string
-  
-  local lookup_fsm
-  lookup_fsm = function (wordpart,next_state,next_letter)
+  local lookup_fsm = function (wordpart,next_state,next_letter)
     if wordpart:sub(next_state,next_state) ~= next_letter then
       if wordpart:sub(1,1) ~= next_letter then
         return false,0
@@ -44,7 +39,6 @@ local new = function()
   
   -- evaluate if the radix tree starts with a specific string
   -- returns pointer to subtree
-  
   local root_lookup
   root_lookup = function(tree_instance,part)
     if #part == 0 then
@@ -59,7 +53,6 @@ local new = function()
   
   -- evaluate if the radix tree contains or ends with a specific string
   -- returns list of pointers to subtrees
-  
   local leaf_lookup
   leaf_lookup = function(tree_instance,word,state)
     local next_state = state+1
@@ -77,41 +70,38 @@ local new = function()
   
   -- takes a single tree or a list of trees
   -- traverses the trees and adds all elements to radix_elements
-  
   local radix_traverse
   radix_traverse = function(tree_instance)
     for k,v in pairs(tree_instance) do
       if type(v) == 'boolean' then
         radix_elements[k] = true
       elseif type(v) == 'table' then
-        radix_traverse(v);
+        radix_traverse(v)
       end
     end
   end
   
   -- adds a new element to the tree
-  
   local add_to_tree
   add_to_tree = function(tree_instance,fullword,part)
-    part = part or fullword;
+    part = part or fullword
     if #part == 0 then
-      tree_instance[fullword] = true;
+      tree_instance[fullword] = true
     else
       local s = part:sub(1,1)
       if type(tree_instance[s]) ~= 'table' then
-        tree_instance[s] = {};
+        tree_instance[s] = {}
       end
       add_to_tree(tree_instance[s],fullword,part:sub(2))
     end
   end
   
   -- removes an element from the tree
-  
   local remove_from_tree
   remove_from_tree = function(tree_instance,fullword,part)
-    part = part or fullword;
+    part = part or fullword
     if #part == 0 then
-      tree_instance[fullword] = nil;
+      tree_instance[fullword] = nil
     else
       local s = part:sub( 1, 1 )
       if type(tree_instance[s]) ~= 'table' then
@@ -124,7 +114,6 @@ local new = function()
   -- performs the respective actions for the parts of a fetcher
   -- that can be handled by a radix tree
   -- fills radix_elements with all hits that were found
-  
   local match_parts = function(tree_instance,parts)
     radix_elements = {}
     if parts['equals'] then
@@ -165,9 +154,7 @@ local new = function()
   -- completely or partially by the radix tree
   -- returns elements from the radix_tree if it can be handled
   -- and nil otherwise
-  
-  local get_possible_matches
-  get_possible_matches = function(peer,params,fetch_id,is_case_insensitive)
+  local get_possible_matches = function(peer,params,fetch_id,is_case_insensitive)
     local involves_path_match = params.path
     local involves_value_match = params.value or params.valueField
     local level = 'impossible'
@@ -220,8 +207,8 @@ local new = function()
   j.match_parts = function(parts)
     match_parts(radix_tree,parts)
   end
-  j.found_elements = function() 
-     return radix_elements 
+  j.found_elements = function()
+    return radix_elements
   end
   
   return j
