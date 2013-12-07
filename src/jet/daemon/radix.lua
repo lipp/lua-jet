@@ -2,7 +2,6 @@
 
 local pairs = pairs
 local next = next
-local type = type
 local tinsert = table.insert
 local tremove = table.remove
 
@@ -10,15 +9,15 @@ local new = function()
   local j = {}
   
   -- the table that holds the radix_tree
-  local radix_tree = {}
+  j.radix_tree = {}
   
   -- elments that can be filled by several functions
   -- and be returned as set of possible hits
-  local radix_elements = {}
+  j.radix_elements = {}
   
   -- internal tree instance or table of tree instances
   -- used to hold parts of the tree that may be interesting afterwards
-  local return_tree = {}
+  j.return_tree = {}
   
   -- this FSM is used for string comparison
   -- can evaluate if the radix tree contains or ends with a specific string
@@ -42,10 +41,10 @@ local new = function()
   local root_lookup
   root_lookup = function(tree_instance,part)
     if #part == 0 then
-      return_tree = tree_instance
+      j.return_tree = tree_instance
     else
-      local s = part:sub(1, 1)
-      if type(tree_instance[s]) == 'table' then
+      local s = part:sub(1,1)
+      if tree_instance[s] ~= true then
         root_lookup(tree_instance[s], part:sub(2))
       end
     end
@@ -55,12 +54,12 @@ local new = function()
   -- returns list of pointers to subtrees
   local leaf_lookup
   leaf_lookup = function(tree_instance,word,state)
-    local next_state = state+1
+    local next_state = state + 1
     for k,v in pairs(tree_instance) do
-      if type(v) == 'table' then
+      if v ~= true then
         local hit,next_state = lookup_fsm(word,next_state,k)
         if hit == true then
-          tinsert(return_tree,v)
+          tinsert(j.return_tree,v)
         else
           leaf_lookup(v,word,next_state)
         end
@@ -69,13 +68,13 @@ local new = function()
   end
   
   -- takes a single tree or a list of trees
-  -- traverses the trees and adds all elements to radix_elements
+  -- traverses the trees and adds all elements to j.radix_elements
   local radix_traverse
   radix_traverse = function(tree_instance)
     for k,v in pairs(tree_instance) do
-      if type(v) == 'boolean' then
-        radix_elements[k] = true
-      elseif type(v) == 'table' then
+      if v == true then
+        j.radix_elements[k] = true
+      elseif v ~= true then
         radix_traverse(v)
       end
     end
@@ -89,7 +88,7 @@ local new = function()
       tree_instance[fullword] = true
     else
       local s = part:sub(1,1)
-      if type(tree_instance[s]) ~= 'table' then
+      if tree_instance[s] == true or tree_instance[s] == nil then
         tree_instance[s] = {}
       end
       add_to_tree(tree_instance[s],fullword,part:sub(2))
@@ -103,8 +102,8 @@ local new = function()
     if #part == 0 then
       tree_instance[fullword] = nil
     else
-      local s = part:sub( 1, 1 )
-      if type(tree_instance[s]) ~= 'table' then
+      local s = part:sub(1,1)
+      if tree_instance[s] == true then
         return
       end
       remove_from_tree(tree_instance[s],fullword,part:sub(2))
@@ -113,36 +112,39 @@ local new = function()
   
   -- performs the respective actions for the parts of a fetcher
   -- that can be handled by a radix tree
-  -- fills radix_elements with all hits that were found
+  -- fills j.radix_elements with all hits that were found
   local match_parts = function(tree_instance,parts)
-    radix_elements = {}
+    j.radix_elements = {}
     if parts['equals'] then
-      return_tree = {}
+      j.return_tree = {}
       root_lookup(tree_instance,parts['equals'])
-      if type(return_tree[next(return_tree)]) == 'boolean' then
-        radix_elements[next(return_tree)] = true
+      if j.return_tree[parts['equals']] == true then
+        j.radix_elements[parts['equals']] = true
       end
     else
       local temp_tree = tree_instance
       if parts['startsWith'] then
-        return_tree = {}
+        j.return_tree = {}
         root_lookup(temp_tree,parts['startsWith'])
-        temp_tree = return_tree
+        temp_tree = j.return_tree
       end
       if parts['contains'] then
-        return_tree = {}
+        j.return_tree = {}
         leaf_lookup(temp_tree,parts['contains'],0)
-        temp_tree = return_tree
+        temp_tree = j.return_tree
       end
       if parts['endsWith'] then
-        return_tree = {}
+        j.return_tree = {}
         leaf_lookup(temp_tree,parts['endsWith'],0)
-        for k,t in pairs(return_tree) do
-          if type(t[next(t)]) ~= 'boolean' then
-            tremove(return_tree,k)
+        for k,t in pairs(j.return_tree) do
+          for _,v in pairs(t) do
+            if v ~= true then
+              j.return_tree[k] = nil
+              break
+            end
           end
         end
-        temp_tree = return_tree
+        temp_tree = j.return_tree
       end
       if temp_tree then
         radix_traverse(temp_tree)
@@ -152,7 +154,7 @@ local new = function()
   
   -- evaluates if the fetch operation can be handled
   -- completely or partially by the radix tree
-  -- returns elements from the radix_tree if it can be handled
+  -- returns elements from the j.radix_tree if it can be handled
   -- and nil otherwise
   local get_possible_matches = function(peer,params,fetch_id,is_case_insensitive)
     local involves_path_match = params.path
@@ -187,28 +189,28 @@ local new = function()
     end
     
     if level ~= 'impossible' then
-      match_parts(radix_tree,radix_expressions)
-      return radix_elements
+      match_parts(j.radix_tree,radix_expressions)
+      return j.radix_elements
     else
       return nil
     end
   end
   
   j.add = function(word)
-    add_to_tree(radix_tree,word)
+    add_to_tree(j.radix_tree,word)
   end
   j.remove = function(word)
-    remove_from_tree(radix_tree,word)
+    remove_from_tree(j.radix_tree,word)
   end
   j.get_possible_matches = get_possible_matches
   
   -- for unit testing
   
-  j.match_parts = function(parts)
-    match_parts(radix_tree,parts)
+  j.match_parts = function(parts,xxx)
+    match_parts(j.radix_tree,parts,xxx)
   end
   j.found_elements = function()
-    return radix_elements
+    return j.radix_elements
   end
   
   return j
