@@ -17,7 +17,7 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somepath'))
+            assert.is_truthy(match('somepath'))
           end)
         
         it('mismatches',function()
@@ -46,9 +46,9 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somepath'))
-            assert.is_true(match('somePath'))
-            assert.is_true(match('somePATH'))
+            assert.is_truthy(match('somepath'))
+            assert.is_truthy(match('somePath'))
+            assert.is_truthy(match('somePATH'))
           end)
         
         it('mismatches',function()
@@ -74,8 +74,8 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somepath'))
-            assert.is_true(match('foobar'))
+            assert.is_truthy(match('somepath'))
+            assert.is_truthy(match('foobar'))
           end)
         
         it('mismatches',function()
@@ -101,10 +101,10 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somewhere'))
-            assert.is_true(match('somewhereA'))
-            assert.is_true(match('abcsomewhere123'))
-            assert.is_true(match('abcsomewhere'))
+            assert.is_truthy(match('somewhere'))
+            assert.is_truthy(match('somewhereA'))
+            assert.is_truthy(match('abcsomewhere123'))
+            assert.is_truthy(match('abcsomewhere'))
           end)
         
         it('mismatches',function()
@@ -129,10 +129,10 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somewhere'))
-            assert.is_true(match('somewhereA'))
-            assert.is_true(match('abcsomewhere123'))
-            assert.is_true(match('abcsomewhere'))
+            assert.is_truthy(match('somewhere'))
+            assert.is_truthy(match('somewhereA'))
+            assert.is_truthy(match('abcsomewhere123'))
+            assert.is_truthy(match('abcsomewhere'))
           end)
         
         it('mismatches',function()
@@ -158,10 +158,10 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somewhere'))
-            assert.is_true(match('somewhereA'))
-            assert.is_true(match('abcsomewhere123'))
-            assert.is_true(match('abcsomewhere'))
+            assert.is_truthy(match('somewhere'))
+            assert.is_truthy(match('somewhereA'))
+            assert.is_truthy(match('abcsomewhere123'))
+            assert.is_truthy(match('abcsomewhere'))
           end)
         
         it('mismatches',function()
@@ -187,8 +187,8 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somepath'))
-            assert.is_true(match('somepathFoo'))
+            assert.is_truthy(match('somepath'))
+            assert.is_truthy(match('somepathFoo'))
           end)
         
         it('mismatches',function()
@@ -211,8 +211,8 @@ describe(
           end)
         
         it('matches',function()
-            assert.is_true(match('somepath'))
-            assert.is_true(match('Foosomepath'))
+            assert.is_truthy(match('somepath'))
+            assert.is_truthy(match('Foosomepath'))
           end)
         
         it('mismatches',function()
