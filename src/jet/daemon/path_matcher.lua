@@ -132,16 +132,38 @@ local create_path_matcher = function(options)
       tinsert(predicates,gen(value))
     end
   end
-  return function(path,lpath)
-    if ci then
-      path = lpath
-    end
-    for _,pred in ipairs(predicates) do
-      if not pred(path) then
-        return false
+  if ci then
+    if #predicates == 1 then
+      local pred = predicates[1]
+      return function(_,lpath)
+        return pred(lpath)
+      end
+    else
+      return function(_,lpath)
+        for _,pred in ipairs(predicates) do
+          if not pred(lpath) then
+            return false
+          end
+        end
+        return true
       end
     end
-    return true
+  else
+    if #predicates == 1 then
+      local pred = predicates[1]
+      return function(path,_)
+        return pred(path)
+      end
+    else
+      return function(path,_)
+        for _,pred in ipairs(predicates) do
+          if not pred(path) then
+            return false
+          end
+        end
+        return true
+      end
+    end
   end
 end
 
