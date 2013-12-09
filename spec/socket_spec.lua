@@ -293,12 +293,11 @@ describe(
         end
       end)
     
-    it('should fire on_close event when closed before sending',
+    it('should fire on_close event when closed immediatly',
       function(done)
         local sock = socket.tcp()
-        sock:settimeout(0)
-        sock:connect('127.0.0.1',port)
-        local wrapped = jetsocket.wrap(sock)
+        local wrapped = jetsocket.wrap(sock,{ip='127.0.0.1',port=port})
+        wrapped:connect()
         wrapped:on_close(
           async(
             function(self)
@@ -306,8 +305,7 @@ describe(
               wrapped:close()
               done()
           end))
-        sock:close()
-        wrapped:send('hello')
+        wrapped:close()
       end)
     
   end)
