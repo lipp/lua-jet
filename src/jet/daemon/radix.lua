@@ -81,33 +81,28 @@ local new = function()
   end
   
   -- adds a new element to the tree
-  local add_to_tree
-  add_to_tree = function(tree_instance,fullword,part)
-    part = part or fullword
-    if #part == 0 then
-      tree_instance[fullword] = true
-    else
-      local s = part:sub(1,1)
-      if tree_instance[s] == true or tree_instance[s] == nil then
-        tree_instance[s] = {}
+  local add_to_tree = function(word)
+    local t = j.radix_tree
+    for char in word:gfind('.') do
+      if t[char] == true or t[char] == nil then
+        t[char] = {}
       end
-      add_to_tree(tree_instance[s],fullword,part:sub(2))
+      t = t[char]
     end
+    t[word] = true
   end
   
+  
   -- removes an element from the tree
-  local remove_from_tree
-  remove_from_tree = function(tree_instance,fullword,part)
-    part = part or fullword
-    if #part == 0 then
-      tree_instance[fullword] = nil
-    else
-      local s = part:sub(1,1)
-      if tree_instance[s] == true then
+  local remove_from_tree = function(word)
+    local t = j.radix_tree
+    for char in word:gfind('.') do
+      if t[char] == true then
         return
       end
-      remove_from_tree(tree_instance[s],fullword,part:sub(2))
+      t = t[char]
     end
+    t[word] = nil
   end
   
   -- performs the respective actions for the parts of a fetcher
@@ -197,10 +192,10 @@ local new = function()
   end
   
   j.add = function(word)
-    add_to_tree(j.radix_tree,word)
+    add_to_tree(word)
   end
   j.remove = function(word)
-    remove_from_tree(j.radix_tree,word)
+    remove_from_tree(word)
   end
   j.get_possible_matches = get_possible_matches
   
