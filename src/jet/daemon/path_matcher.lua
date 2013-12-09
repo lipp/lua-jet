@@ -106,6 +106,21 @@ local generators = {
   equalsNotOneOf = negate(equals_one_of),
 }
 
+local predicate_order = {
+  'equals',
+  'equalsNot',
+  'endsWith',
+  'startsWith',
+  'contains',
+  'containsNot',
+  'containsAllOf',
+  'containsOneOf',
+  'startsNotWith',
+  'endsNotWith',
+  'equalsOneOf',
+  'equalsNotOneOf',
+}
+
 -- given the fetcher options table, creates a function which performs the path
 -- matching stuff.
 -- returns nil if no path matching is required.
@@ -113,14 +128,16 @@ local create_path_matcher = function(options)
   if not options.path then
     return nil
   end
+  
   local po = options.path
   local ci = po.caseInsensitive
   
   local predicates = {}
   
-  for name,value in pairs(po) do
-    local gen = generators[name]
-    if gen then
+  for _,name in ipairs(predicate_order) do
+    local value = po[name]
+    if value then
+      local gen = generators[name]
       if ci then
         if type(value) == 'table' then
           for i,v in ipairs(value) do
@@ -133,6 +150,7 @@ local create_path_matcher = function(options)
       tinsert(predicates,gen(value))
     end
   end
+  
   if ci then
     if #predicates == 1 then
       local pred = predicates[1]
