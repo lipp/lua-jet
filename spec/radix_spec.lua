@@ -8,7 +8,7 @@ describe(
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abc')
             local radix_fetchers = {}
             radix_fetchers['equals'] = 'abc'
@@ -21,13 +21,13 @@ describe(
           end)
         
       end)
-      
-      describe('Can remove path',function()
+    
+    describe('Can remove path',function()
         local match
         local removed
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abc')
             radix_tree.add('def')
             local radix_fetchers = {}
@@ -42,18 +42,18 @@ describe(
         it('matches',function()
             assert.is_true(match)
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(removed)
           end)
         
       end)
-      
-      describe('Can fetch equals',function()
+    
+    describe('Can fetch equals',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdef')
             radix_tree.add('ddefghi')
             radix_tree.add('defghi')
@@ -70,7 +70,7 @@ describe(
         it('matches',function()
             assert.is_true(match('defghi'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('ddefghi'))
             assert.is_falsy(match('defghid'))
@@ -79,12 +79,12 @@ describe(
           end)
         
       end)
-      
-      describe('Can fetch startsWith',function()
+    
+    describe('Can fetch startsWith',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdef')
             radix_tree.add('defghi')
             radix_tree.add('abcghi')
@@ -100,19 +100,19 @@ describe(
             assert.is_true(match('abcdef'))
             assert.is_true(match('abcghi'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('abc'))
             assert.is_falsy(match('defghi'))
           end)
         
       end)
-      
-      describe('Can fetch contains',function()
+    
+    describe('Can fetch contains',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdef')
             radix_tree.add('fgabcdef')
             radix_tree.add('abcdefg')
@@ -132,19 +132,19 @@ describe(
             assert.is_true(match('fgabcdef'))
             assert.is_true(match('abcdefg'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('fg'))
             assert.is_falsy(match('abcdef'))
           end)
         
       end)
-      
-      describe('Can fetch endsWith',function()
+    
+    describe('Can fetch endsWith',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdeffg')
             radix_tree.add('defghi')
             radix_tree.add('abchifg')
@@ -161,7 +161,7 @@ describe(
             assert.is_true(match('abcdeffg'))
             assert.is_true(match('abchifg'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('fg'))
             assert.is_falsy(match('defghi'))
@@ -169,12 +169,12 @@ describe(
           end)
         
       end)
-      
-      describe('Can fetch startsWith + endsWith',function()
+    
+    describe('Can fetch startsWith + endsWith',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdeffg')
             radix_tree.add('defghi')
             radix_tree.add('abchifg')
@@ -192,7 +192,7 @@ describe(
         it('matches',function()
             assert.is_true(match('ahfbcfghi'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('a'))
             assert.is_falsy(match('hi'))
@@ -202,12 +202,12 @@ describe(
           end)
         
       end)
-      
-      describe('Can fetch contains + endsWith',function()
+    
+    describe('Can fetch contains + endsWith',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('hiabghcdeffhi')
             radix_tree.add('deghfghi')
             radix_tree.add('ahchifg')
@@ -226,7 +226,7 @@ describe(
             assert.is_true(match('deghfghi'))
             assert.is_true(match('hiabghcdeffhi'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('ahchifg'))
             assert.is_falsy(match('hi'))
@@ -237,12 +237,12 @@ describe(
           end)
         
       end)
-      
-      describe('Can fetch startsWith + contains',function()
+    
+    describe('Can fetch startsWith + contains',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('abcdeffg')
             radix_tree.add('defghi')
             radix_tree.add('ahchifg')
@@ -263,7 +263,7 @@ describe(
             assert.is_true(match('ahchifghi'))
             assert.is_true(match('ahchifg'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('a'))
             assert.is_falsy(match('hi'))
@@ -273,12 +273,12 @@ describe(
           end)
         
       end)
-      
-      describe('Can fetch startsWith + contains + endsWith',function()
+    
+    describe('Can fetch startsWith + contains + endsWith',function()
         local match
         
         setup(function()
-            local radix_tree = radix.new()            
+            local radix_tree = radix.new()
             radix_tree.add('defghi')
             radix_tree.add('ahchifg')
             radix_tree.add('ahicfg')
@@ -297,7 +297,7 @@ describe(
         it('matches',function()
             assert.is_true(match('ahchifg'))
           end)
-          
+        
         it('mismatches',function()
             assert.is_falsy(match('ah'))
             assert.is_falsy(match('hi'))
@@ -307,6 +307,6 @@ describe(
           end)
         
       end)
-      
+    
     
   end)
