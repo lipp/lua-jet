@@ -2,6 +2,7 @@ local jutils = require'jet.utils'
 local is_empty_table = jutils.is_empty_table
 local ipairs = ipairs
 local sfind = string.find
+local sub = string.sub
 local tinsert = table.insert
 
 local contains = function(what)
@@ -34,13 +35,13 @@ end
 
 local starts_with = function(what)
   return function(path)
-    return sfind(path,what,1,true) == 1
+    return sub(path,1,#what) == what
   end
 end
 
 local ends_with = function(what)
   return function(path)
-    return sfind(path,what,#path-#what+1,true)
+    return sub(path,#path-#what+1) == what
   end
 end
 
