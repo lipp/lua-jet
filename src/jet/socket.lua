@@ -76,10 +76,12 @@ local wrap = function(sock,args)
     if io_active then
       on_error(wrapped,err_msg)
       on_close(wrapped)
+      on_close = function() end
     else
       detach(function()
           on_error(wrapped,err_msg)
           on_close(wrapped)
+          on_close = function() end
         end)
     end
   end
@@ -89,9 +91,11 @@ local wrap = function(sock,args)
     sock:close()
     if io_active then
       on_close(wrapped)
+      on_close = function() end
     else
       detach(function()
           on_close(wrapped)
+          on_close = function() end
         end)
     end
   end
@@ -138,16 +142,22 @@ local wrap = function(sock,args)
     end
   end
   
+  local closing
+  
   wrapped.close = function()
-    if connect_io then
-      connect_io:stop(loop)
-    end
-    read_io:stop(loop)
-    send_io:stop(loop)
-    if connected then
-      sock:shutdown()
-    end
     sock:close()
+    if not closing then
+      closing = true
+      stop_ios()
+      if connected then
+        sock:shutdown()
+        connected = false
+      end
+      detach(function()
+          on_close(wrapped)
+          on_close = function() end
+        end)
+    end
   end
   
   wrapped.connect = function()
@@ -156,12 +166,15 @@ local wrap = function(sock,args)
         if sock_connected or err == 'already connected' then
           connected = true
           flush()
+          read_io:start(loop)
           on_connect(wrapped)
         elseif err == 'timeout' or err == 'Operation already in progress' then
           connect_io = ev.IO.new(
             function(loop,io)
               io:stop(loop)
               connected = true
+              flush()
+              read_io:start(loop)
               connect_io = nil
               on_connect(wrapped)
             end,sock:getfd(),ev.WRITE)
@@ -243,7 +256,10 @@ local wrap = function(sock,args)
   end
   
   read_io = ev.IO.new(receive_message,sock:getfd(),ev.READ)
-  read_io:start(loop)
+  
+  if connected then
+    read_io:start(loop)
+  end
   
   return wrapped
 end
