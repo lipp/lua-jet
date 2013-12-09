@@ -296,9 +296,9 @@ describe(
     it('should fire on_close event when closed before sending',
       function(done)
         local sock = socket.tcp()
-        local wrapped = jetsocket.wrap(sock)
         sock:settimeout(0)
         sock:connect('127.0.0.1',port)
+        local wrapped = jetsocket.wrap(sock)
         wrapped:on_close(
           async(
             function(self)
