@@ -43,7 +43,7 @@ local wrap = function(sock,args)
   local read_io
   local send_io
   local connect_io
-  local connected
+  local connected = sock:getpeername()
   
   local stop_ios = function()
     if connect_io then
@@ -118,17 +118,23 @@ local wrap = function(sock,args)
   assert(fd > -1)
   send_io = ev.IO.new(send_message,fd,ev.WRITE)
   
+  local flush = function()
+    if not send_io:is_active() then
+      send_message(loop,send_io)
+      if send_buffer ~= '' then
+        send_io:start(loop)
+      end
+    end
+  end
+  
   -- sends asynchronous the supplied message object
   --
   -- the message format is 32bit big endian integer
   -- denoting the size of the JSON following
   wrapped.send = function(_,message)
     send_buffer = send_buffer..spack('>I',#message)..message
-    if not send_io:is_active() then
-      send_message(loop,send_io)
-      if send_buffer ~= '' then
-        send_io:start(loop)
-      end
+    if connected then
+      flush()
     end
   end
   
@@ -146,9 +152,10 @@ local wrap = function(sock,args)
   
   wrapped.connect = function()
     detach(function()
-        local connected,err = sock:connect(args.ip,args.port)
-        if connected or err == 'already connected' then
+        local sock_connected,err = sock:connect(args.ip,args.port)
+        if sock_connected or err == 'already connected' then
           connected = true
+          flush()
           on_connect(wrapped)
         elseif err == 'timeout' or err == 'Operation already in progress' then
           connect_io = ev.IO.new(
