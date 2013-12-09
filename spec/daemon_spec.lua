@@ -132,8 +132,8 @@ for _,info in ipairs(addresses_to_test) do
                   id = 'remove_id'
               })
               local count = 0
-              local message_socket = jetsocket.wrap(sock)
               sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
               collectgarbage()
               local kbyte_before = collectgarbage('count')
               message_socket:send(add_msg)

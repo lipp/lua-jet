@@ -43,7 +43,7 @@ local wrap = function(sock,args)
   local read_io
   local send_io
   local connect_io
-  local connected
+  local connected = sock:getpeername()
   
   local stop_ios = function()
     if connect_io then
@@ -76,10 +76,12 @@ local wrap = function(sock,args)
     if io_active then
       on_error(wrapped,err_msg)
       on_close(wrapped)
+      on_close = function() end
     else
       detach(function()
           on_error(wrapped,err_msg)
           on_close(wrapped)
+          on_close = function() end
         end)
     end
   end
@@ -89,9 +91,11 @@ local wrap = function(sock,args)
     sock:close()
     if io_active then
       on_close(wrapped)
+      on_close = function() end
     else
       detach(function()
           on_close(wrapped)
+          on_close = function() end
         end)
     end
   end
@@ -118,12 +122,7 @@ local wrap = function(sock,args)
   assert(fd > -1)
   send_io = ev.IO.new(send_message,fd,ev.WRITE)
   
-  -- sends asynchronous the supplied message object
-  --
-  -- the message format is 32bit big endian integer
-  -- denoting the size of the JSON following
-  wrapped.send = function(_,message)
-    send_buffer = send_buffer..spack('>I',#message)..message
+  local flush = function()
     if not send_io:is_active() then
       send_message(loop,send_io)
       if send_buffer ~= '' then
@@ -132,29 +131,50 @@ local wrap = function(sock,args)
     end
   end
   
-  wrapped.close = function()
-    if connect_io then
-      connect_io:stop(loop)
-    end
-    read_io:stop(loop)
-    send_io:stop(loop)
+  -- sends asynchronous the supplied message object
+  --
+  -- the message format is 32bit big endian integer
+  -- denoting the size of the JSON following
+  wrapped.send = function(_,message)
+    send_buffer = send_buffer..spack('>I',#message)..message
     if connected then
-      sock:shutdown()
+      flush()
     end
+  end
+  
+  local closing
+  
+  wrapped.close = function()
     sock:close()
+    if not closing then
+      closing = true
+      stop_ios()
+      if connected then
+        sock:shutdown()
+        connected = false
+      end
+      detach(function()
+          on_close(wrapped)
+          on_close = function() end
+        end)
+    end
   end
   
   wrapped.connect = function()
     detach(function()
-        local connected,err = sock:connect(args.ip,args.port)
-        if connected or err == 'already connected' then
+        local sock_connected,err = sock:connect(args.ip,args.port)
+        if sock_connected or err == 'already connected' then
           connected = true
+          flush()
+          read_io:start(loop)
           on_connect(wrapped)
         elseif err == 'timeout' or err == 'Operation already in progress' then
           connect_io = ev.IO.new(
             function(loop,io)
               io:stop(loop)
               connected = true
+              flush()
+              read_io:start(loop)
               connect_io = nil
               on_connect(wrapped)
             end,sock:getfd(),ev.WRITE)
@@ -236,7 +256,10 @@ local wrap = function(sock,args)
   end
   
   read_io = ev.IO.new(receive_message,sock:getfd(),ev.READ)
-  read_io:start(loop)
+  
+  if connected then
+    read_io:start(loop)
+  end
   
   return wrapped
 end

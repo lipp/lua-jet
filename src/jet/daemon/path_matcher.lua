@@ -2,6 +2,7 @@ local jutils = require'jet.utils'
 local is_empty_table = jutils.is_empty_table
 local ipairs = ipairs
 local sfind = string.find
+local sub = string.sub
 local tinsert = table.insert
 
 local contains = function(what)
@@ -34,13 +35,13 @@ end
 
 local starts_with = function(what)
   return function(path)
-    return sfind(path,what,1,true) == 1
+    return sub(path,1,#what) == what
   end
 end
 
 local ends_with = function(what)
   return function(path)
-    return sfind(path,what,#path-#what+1,true)
+    return sub(path,#path-#what+1) == what
   end
 end
 
@@ -105,6 +106,21 @@ local generators = {
   equalsNotOneOf = negate(equals_one_of),
 }
 
+local predicate_order = {
+  'equals',
+  'equalsNot',
+  'endsWith',
+  'startsWith',
+  'contains',
+  'containsNot',
+  'containsAllOf',
+  'containsOneOf',
+  'startsNotWith',
+  'endsNotWith',
+  'equalsOneOf',
+  'equalsNotOneOf',
+}
+
 -- given the fetcher options table, creates a function which performs the path
 -- matching stuff.
 -- returns nil if no path matching is required.
@@ -112,14 +128,16 @@ local create_path_matcher = function(options)
   if not options.path then
     return nil
   end
+  
   local po = options.path
   local ci = po.caseInsensitive
   
   local predicates = {}
   
-  for name,value in pairs(po) do
-    local gen = generators[name]
-    if gen then
+  for _,name in ipairs(predicate_order) do
+    local value = po[name]
+    if value then
+      local gen = generators[name]
       if ci then
         if type(value) == 'table' then
           for i,v in ipairs(value) do
@@ -132,16 +150,39 @@ local create_path_matcher = function(options)
       tinsert(predicates,gen(value))
     end
   end
-  return function(path,lpath)
-    if ci then
-      path = lpath
-    end
-    for _,pred in ipairs(predicates) do
-      if not pred(path) then
-        return false
+  
+  if ci then
+    if #predicates == 1 then
+      local pred = predicates[1]
+      return function(_,lpath)
+        return pred(lpath)
+      end
+    else
+      return function(_,lpath)
+        for _,pred in ipairs(predicates) do
+          if not pred(lpath) then
+            return false
+          end
+        end
+        return true
       end
     end
-    return true
+  else
+    if #predicates == 1 then
+      local pred = predicates[1]
+      return function(path,_)
+        return pred(path)
+      end
+    else
+      return function(path,_)
+        for _,pred in ipairs(predicates) do
+          if not pred(path) then
+            return false
+          end
+        end
+        return true
+      end
+    end
   end
 end
 

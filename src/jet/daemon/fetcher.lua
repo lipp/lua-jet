@@ -12,7 +12,7 @@ local create_fetcher = function(options,notify)
   local fetchop
   
   if path_matcher and not value_matcher then
-    fetchop = function(path,lpath,event,value,element)
+    fetchop = function(path,lpath,event,value)
       if not path_matcher(path,lpath) then
         -- return false to indicate NO further interest
         return false
@@ -28,7 +28,7 @@ local create_fetcher = function(options,notify)
     
   elseif not path_matcher and value_matcher then
     local added = {}
-    fetchop = function(path,lpath,event,value,element)
+    fetchop = function(path,lpath,event,value)
       local is_added = added[path]
       if event == 'remove' or not value_matcher(value) then
         if is_added then
@@ -59,7 +59,7 @@ local create_fetcher = function(options,notify)
     end
   elseif path_matcher and value_matcher then
     local added = {}
-    fetchop = function(path,lpath,event,value,element)
+    fetchop = function(path,lpath,event,value)
       if not path_matcher(path,lpath) then
         -- return false to indicate NO further interest
         return false
