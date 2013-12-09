@@ -69,13 +69,15 @@ pi:set('persons/ae62a',{name='peter',age=33},{
 })
 ```
 
-### fetcher = pi:fetch(match|fetch_params,fetch_callback,[callbacks])
+### fetcher = pi:fetch(contains|fetch_params,fetch_callback,[callbacks])
 
 Creates a new fetcher. If the first parameter is a string, a 'fetch' message whith the following `fetch_params` is send to the daemon:
 
 ```lua
 fetch_params = {
-  matches = {match}
+  path = {
+    contains = contains
+  }
 }
 ```
 
@@ -109,11 +111,14 @@ local show_top_ten = function(changes,n)
 end
 
 pi:fetch({
-    matches = {'player'},
+    path = {
+		startsWith = 'player'
+	},
 	sort = {
-	  byValue = true,    -- optional, default is false
+	  byValueField = {
+		  score = 'number',
+	  }
 	  descending = true, -- optional, default is false
-	  prop = 'score', -- optional, tells which entry of table to use as order criteria
 	  from = 1, -- optional, default is 1
 	  to = 10, -- optional, default is 10
 	}

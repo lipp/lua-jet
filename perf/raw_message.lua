@@ -1,3 +1,7 @@
+#!/usr/bin/env lua
+local this_dir = arg[0]:match('(.+/)[^/]+%.lua') or './'
+package.path = this_dir..'../src/'..package.path
+
 local ev = require'ev'
 local port = 12343
 local count = 0
@@ -27,11 +31,17 @@ client:on_connect(function()
 
 client:connect()
 
+local sighandler = ev.Signal.new(function()
+    os.exit(1)
+  end,2)
+sighandler:start(ev.Loop.default)
+
 local dt = tonumber(arg[1]) or 3
 ev.Timer.new(function()
     print(count/dt,'messages/sec')
     client:close()
     server:close()
+    sighandler:stop(ev.Loop.default)
   end,dt):start(ev.Loop.default)
 
 ev.Loop.default:loop()

@@ -2,6 +2,9 @@
 -- Measure fetch-notification throughput and the impact of a growing
 -- number of fetchers (which dont match).
 -- This (unrealistic) setup can not benefit from message batches.
+local this_dir = arg[0]:match('(.+/)[^/]+%.lua') or './'
+package.path = this_dir..'../src/'..package.path
+
 local profiler = require'profiler'
 local jet = require'jet'
 local ev = require'ev'
@@ -40,7 +43,7 @@ local count = 1
 
 -- Creates an exact path based count fetcher
 -- which increments the count immediatly.
-peer:fetch('^'..count_state:path()..'$',function(path,event,value)
+peer:fetch({path={equals=count_state:path()}},function(path,event,value)
     assert(value == (count-1))
     count_state:value(count)
     count = count + 1
@@ -53,6 +56,11 @@ local dt = 3
 local fetchers = 1
 local last = 0
 
+local sighandler = ev.Signal.new(function()
+    os.exit(1)
+  end,2)
+sighandler:start(ev.Loop.default)
+
 -- After 'dt' seconds, print the current throughput results and
 -- restart the test with 20 more peers.
 ev.Timer.new(function(loop,timer)
@@ -63,9 +71,10 @@ ev.Timer.new(function(loop,timer)
       peer:close()
       daemon:stop()
       timer:stop(loop)
+      sighandler:stop(loop)
     else
       for i=1,20 do
-        peer:fetch('^'..long_path_prefix..fetchers..'$',function() end)
+        peer:fetch({path = {equals = long_path_prefix..fetchers}},function() end)
         fetchers = fetchers + 1
       end
     end

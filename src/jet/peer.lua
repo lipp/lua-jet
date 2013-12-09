@@ -59,45 +59,41 @@ new = function(config)
     local id = 0
     local service = function(method,params,timeout)
       local rid
-      if not (timeout == false) then
-        id = id + 1
-        rid = id
-        params.timeout = timeout
-      end
+      id = id + 1
+      rid = id
+      params.timeout = timeout -- maybe nil, defaults to 5secs at daemon
       wsock:send(encode
         {
           id = rid,
           method = method,
           params = params
       })
-      if not as_notification then
-        local response,err = wsock:receive()
-        if err then
-          error(err)
-        end
-        response = decode(response)
-        assert(response.id == rid)
-        if response.result then
-          return response.result
-        elseif response.error then
-          error(response.error,2)
-        else
-          assert(false,'invalid response:'..cjson.encode(response))
-        end
+      local response,err = wsock:receive()
+      if err then
+        error(err)
+      end
+      response = decode(response)
+      assert(response.id == rid)
+      if response.result then
+        return response.result
+      elseif response.error then
+        error(response.error,2)
+      else
+        assert(false,'invalid response:'..cjson.encode(response))
       end
     end
     local j_sync = {}
-    j_sync.call = function(_,path,params,as_notification)
-      return service('call',{path=path,args=params or {}},as_notification)
+    j_sync.call = function(_,path,params,timeout)
+      return service('call',{path=path,args=params or {}},timeout)
     end
-    j_sync.set = function(_,path,value,as_notification)
-      return service('set',{path=path,value=value},as_notification)
+    j_sync.set = function(_,path,value,timeout)
+      return service('set',{path=path,value=value},timeout)
     end
-    j_sync.config = function(_,params,as_notification)
-      return service('config',params,as_notification)
+    j_sync.config = function(_,params,timeout)
+      return service('config',params,timeout)
     end
-    j_sync.state = function(_,params,as_notification)
-      return service('add',params,as_notification)
+    j_sync.state = function(_,params,timeout)
+      return service('add',params,timeout)
     end
     return j_sync
   else
@@ -176,7 +172,7 @@ new = function(config)
           log('invalid result:',cjson.encode(message))
         end
       else
-        log('invalid result id:',id,cjson.encode(message))
+        log('invalid result id:',mid,cjson.encode(message))
       end
     end
     local on_no_dispatcher
@@ -400,7 +396,6 @@ new = function(config)
     
     j.add = function(self,desc,dispatch,callbacks)
       local path = desc.path
-      assert(jutils.is_valid_path(path))
       assert(not request_dispatchers[path],path)
       assert(type(path) == 'string',path)
       assert(type(dispatch) == 'function',dispatch)
@@ -486,7 +481,9 @@ new = function(config)
       end
       if type(params) == 'string' then
         params = {
-          match = {params}
+          path = {
+            contains = params
+          }
         }
       end
       params.id = id

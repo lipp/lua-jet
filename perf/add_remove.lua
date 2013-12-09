@@ -4,7 +4,10 @@
 -- The time is measured for adding and removing <count> states.
 -- Afterwards, the number of fetchers is incremented by 20 and the test is repeated.
 -- Note that the add/remove peer stuff benefits from batching messages!
---local profiler = require'profiler'
+-- local profiler = require'profiler'
+local this_dir = arg[0]:match('(.+/)[^/]+%.lua') or './'
+package.path = this_dir..'../src/'..package.path
+
 local jet = require'jet'
 local ev = require'ev'
 local step = require'step'
@@ -23,7 +26,7 @@ local fetch_peer = jet.peer.new({
     port = port
 })
 
-local count = 10000
+local count = 30000
 local long_path_prefix = string.rep('foobar',10)
 
 local add_remove = function(done)
@@ -39,7 +42,7 @@ local add_remove = function(done)
         local added
         
         local t_start
-        state_peer:fetch('^'..last_path..'$',function(path,event,value,fetcher)
+        state_peer:fetch({path={equals=last_path}},function(path,event,value,fetcher)
             assert(path == last_path)
             if event == 'add' then
               assert(not added)
@@ -79,7 +82,7 @@ local fetchers = 1
 local print_and_increment_fetchers = function(dt)
   print(math.floor(count/dt),'add-remove/sec @'..fetchers..' fetchers')
   for i=1,20 do
-    fetch_peer:fetch('^'..long_path_prefix..fetchers..'f$',function() end)
+    fetch_peer:fetch({path = {equals=long_path_prefix..fetchers}},function() end)
     fetchers = fetchers + 1
   end
 end
@@ -96,11 +99,17 @@ for i=1,10 do
   end
 end
 
+local sighandler = ev.Signal.new(function()
+    os.exit(1)
+  end,2)
+sighandler:start(ev.Loop.default)
+
 step.new({
     try = tries,
     finally = function()
       fetch_peer:close()
       daemon:stop()
+      sighandler:stop(ev.Loop.default)
     end,
     catch = function(step,...)
       print(cjson.encode({...}))
