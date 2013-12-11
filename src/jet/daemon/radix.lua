@@ -44,7 +44,7 @@ local new = function()
       j.return_tree = tree_instance
     else
       local s = part:sub(1,1)
-      if tree_instance[s] ~= true then
+      if tree_instance and tree_instance[s] ~= true then
         root_lookup(tree_instance[s], part:sub(2))
       end
     end
@@ -55,13 +55,15 @@ local new = function()
   local leaf_lookup
   leaf_lookup = function(tree_instance,word,state)
     local next_state = state + 1
-    for k,v in pairs(tree_instance) do
-      if v ~= true then
-        local hit,next_state = lookup_fsm(word,next_state,k)
-        if hit == true then
-          tinsert(j.return_tree,v)
-        else
-          leaf_lookup(v,word,next_state)
+    if tree_instance then
+      for k,v in pairs(tree_instance) do
+        if v ~= true then
+          local hit,next_state = lookup_fsm(word,next_state,k)
+          if hit == true then
+            tinsert(j.return_tree,v)
+          else
+            leaf_lookup(v,word,next_state)
+          end
         end
       end
     end
