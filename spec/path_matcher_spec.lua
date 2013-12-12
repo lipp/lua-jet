@@ -199,6 +199,31 @@ describe(
           end)
       end)
     
+    describe('Another left-bound partial path matcher',function()
+        local match
+        
+        setup(function()
+            match = pm.new({
+                path = {
+                  startsWith = 'bla/blub/a'
+                }
+            })
+            
+          end)
+        
+        it('matches',function()
+            assert.is_truthy(match('bla/blub/aha'))
+            assert.is_truthy(match('bla/blub/a'))
+          end)
+        
+        it('mismatches',function()
+            assert.is_falsy(match('bla/blo'))
+            assert.is_falsy(match('abla/blub/aha'))
+            assert.is_falsy(match('bla/blub/'))
+          end)
+      end)
+    
+    
     describe('A right-bound partial path matcher',function()
         local match
         
