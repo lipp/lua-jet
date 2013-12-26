@@ -239,13 +239,6 @@ local create_daemon = function(options)
     for _,element in pairs(elements) do
       element.fetchers[fetcher] = nil
     end
-    
-    if message.id then
-      peer:queue({
-          id = message.id,
-          result = true,
-      })
-    end
   end
   
   -- routes / forwards a request ("call","set") to the corresponding peer.
@@ -455,7 +448,7 @@ local create_daemon = function(options)
     call = async(route),
     set = async(route),
     fetch = async(fetch),
-    unfetch = async(unfetch),
+    unfetch = sync(unfetch),
     change = sync(change),
     echo = sync(function(peer,message)
         return message.params
