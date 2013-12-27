@@ -58,10 +58,10 @@ local create_value_matcher = function(options)
   -- sorting by value implicit defines value matcher rule against expected type.
   if options.sort then
     if options.sort.byValue then
+       -- TODO: check that byValue is either 'number','string','boolean'
       options.value = options.value or {}
       options.value.isType = options.sort.byValue
-    end
-    if options.sort.byValueField then
+    elseif options.sort.byValueField then
       local tmp = options.sort.byValueField
       local fieldname,typ = pairs(tmp)(tmp)
       options.valueField = options.valueField or {}
