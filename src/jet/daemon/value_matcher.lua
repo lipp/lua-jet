@@ -26,8 +26,14 @@ local equals_not = function(other)
 end
 
 local is_type = function(typ)
+  local lua_type
+  if typ == 'object' then
+    lua_type = 'table'
+  else
+    lua_type = typ
+  end
   return function(x)
-    return type(x) == typ
+    return type(x) == lua_type
   end
 end
 
