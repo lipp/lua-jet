@@ -51,12 +51,6 @@ local equals = function(what)
   end
 end
 
-local equals_not = function(what)
-  return function(path)
-    return path ~= what
-  end
-end
-
 local equals_one_of = function(what_array)
   return function(path)
     for _,what in ipairs(what_array) do
@@ -65,17 +59,6 @@ local equals_one_of = function(what_array)
       end
     end
     return false
-  end
-end
-
-local equals_not_one_of = function(what_array)
-  return function(path)
-    for _,what in ipairs(what_array) do
-      if path == what then
-        return false
-      end
-    end
-    return true
   end
 end
 
