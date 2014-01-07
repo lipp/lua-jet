@@ -122,7 +122,6 @@ new = function(config)
         will_flush = false
       end
     else
-      
       flush = function(reason)
         local num = #messages
         if not is_persistant then
@@ -714,30 +713,6 @@ new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    if config.name then
-      table.insert(try,function(step)
-          j:config({name=config.name},step)
-        end)
-    end
-    
-    if config.encoding then
-      table.insert(try,function(step)
-          j:config({encoding=config.encoding},{
-              success = function()
-                flush('config')
-                if config.encoding then
-                  encode = cmsgpack.pack
-                  decode = cmsgpack.unpack
-                end
-                step.success()
-              end,
-              error = function(err)
-                step.error(err)
-              end
-          })
-        end)
-    end
-    
     if config.persist then
       table.insert(try,function(step)
           if not persist_id then
@@ -762,15 +737,17 @@ new = function(config)
                   is_persistant = true
                   local missed_messages_count = message_count - received_by_daemon_count
                   local history = message_history
-                  local start = #history-missed_messages_count
+                  -- the last message in history is "config.resume"
+                  -- skip that!
+                  local start = #history-missed_messages_count-1
+                  local stop = #history-1
                   if start < 0 then
                     step.error(internal_error(historyNotAvailable))
                   end
                   local missed = {}
-                  for i=start,#history do
+                  for i=start,stop do
                     tinsert(missed,history[i])
                   end
-                  
                   if #missed > 0 then
                     wsock:send(encode(missed))
                   end
@@ -785,6 +762,30 @@ new = function(config)
       
     end
     
+    if config.name then
+      table.insert(try,function(step)
+          j:config({name=config.name},step)
+          flush('name')
+        end)
+    end
+    
+    if config.encoding then
+      table.insert(try,function(step)
+          j:config({encoding=config.encoding},{
+              success = function()
+                flush('encoding')
+                if config.encoding then
+                  encode = cmsgpack.pack
+                  decode = cmsgpack.unpack
+                end
+                step.success()
+              end,
+              error = function(err)
+                step.error(err)
+              end
+          })
+        end)
+    end
     
     connect_sequence = step.new({
         try = try,
