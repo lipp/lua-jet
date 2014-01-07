@@ -228,9 +228,8 @@ for _,info in ipairs(addresses_to_test) do
                           response = cjson.decode(response)
                           assert.is_same(response.id,2)
                           -- the server has received two messages associated with this persist session
-                          -- before processing config.resume
-                          -- (config.persist)
-                          assert.is_same(response.result,1)
+                          -- (config.persist and config.resume)
+                          assert.is_same(response.result,2)
                           done()
                       end))
                     message_socket:send(cjson.encode({
@@ -274,9 +273,8 @@ for _,info in ipairs(addresses_to_test) do
                           response = cjson.decode(response)
                           assert.is_same(response.id,2)
                           -- the server has received two messages associated with this persist session
-                          -- before processing config.resume
-                          -- (config.persist)
-                          assert.is_same(response.result,1)
+                          -- (config.persist and config.resume)
+                          assert.is_same(response.result,2)
                           sock:close()
                           sock = new_sock()
                           sock:connect(info.addr,port)
@@ -286,10 +284,9 @@ for _,info in ipairs(addresses_to_test) do
                               function(_,response)
                                 response = cjson.decode(response)
                                 assert.is_same(response.id,3)
-                                -- the server has received two messages associated with this persist session
-                                -- before processing config.resume
-                                -- (config.persist)
-                                assert.is_same(response.result,1)
+                                -- the server has received three messages associated with this persist session
+                                -- (config.persist, config.resume and config.resume)
+                                assert.is_same(response.result,3)
                                 done()
                             end))
                           message_socket:send(cjson.encode({
@@ -326,6 +323,163 @@ for _,info in ipairs(addresses_to_test) do
             end)
           
           
+          it('a peer can configure persist and resume and missed messages are resend by daemon twice',function(done)
+              sock:connect(info.addr,port)
+              local message_socket = jetsocket.wrap(sock)
+              message_socket:on_message(
+                async(
+                  function(_,response)
+                    response = cjson.decode(response)
+                    if #response > 0 then
+                      response = response[1]
+                    end
+                    assert.is_string(response.result)
+                    local resume_id = response.result
+                    sock:close()
+                    sock = new_sock()
+                    sock:connect(info.addr,port)
+                    local message_socket = jetsocket.wrap(sock)
+                    message_socket:on_message(
+                      async(
+                        function(_,response)
+                          response = cjson.decode(response)
+                          assert.is_same(response,{
+                              {
+                                result = 5, -- five messages received by daemon yet (assoc. to the persist id)
+                                id = 5, -- config.resume id
+                              },
+                              {
+                                result = true, -- fetch set up successfully
+                                id = 3,
+                              },
+                              {
+                                method = 'fetchy', -- resumed fetched data
+                                params = {
+                                  path = 'dummy',
+                                  value = 123,
+                                  event = 'add',
+                                }
+                              },
+                              {
+                                method = 'fetchy', -- resumed fetched data
+                                params = {
+                                  path = 'dummy',
+                                  value = 234,
+                                  event = 'change',
+                                }
+                              },
+                              {
+                                result = true, -- change notification was success
+                                id = 4
+                              }
+                          })
+                          sock:close()
+                          sock = new_sock()
+                          sock:connect(info.addr,port)
+                          local message_socket = jetsocket.wrap(sock)
+                          message_socket:on_message(
+                            async(
+                              function(_,response)
+                                response = cjson.decode(response)
+                                assert.is_same(response,{
+                                    {
+                                      result = 6, -- six messages received by daemon yet (assoc. to the persist id)
+                                      id = 6, -- config.resume id
+                                    },
+                                    {
+                                      method = 'fetchy', -- resumed fetched data
+                                      params = {
+                                        path = 'dummy',
+                                        value = 123,
+                                        event = 'add',
+                                      }
+                                    },
+                                    {
+                                      method = 'fetchy', -- resumed fetched data
+                                      params = {
+                                        path = 'dummy',
+                                        value = 234,
+                                        event = 'change',
+                                      }
+                                    },
+                                    {
+                                      result = true, -- change notification was success
+                                      id = 4
+                                    }
+                                })
+                                -- close the socket and wait some time
+                                -- to let the daemon cleanup
+                                -- the dummy states assoc with this
+                                -- sock. should be improved be using
+                                -- *some* callback
+                                sock:close()
+                                ev.Timer.new(function()
+                                    done()
+                                  end,0.01):start(ev.Loop.default)
+                            end))
+                          message_socket:send(cjson.encode({
+                                method = 'config',
+                                params = {
+                                  resume = {
+                                    id = resume_id,
+                                    -- pretend only 2 more messages are
+                                    -- received (config and fetch setup)
+                                    receivedCount = 2+2
+                                  }
+                                },
+                                id = 6,
+                          }))
+                          
+                      end))
+                    
+                    message_socket:send(cjson.encode({
+                          method = 'config',
+                          params = {
+                            resume = {
+                              id = resume_id,
+                              -- pretend only config and add responses have been receveived
+                              receivedCount = 2
+                            }
+                          },
+                          id = 5,
+                    }))
+                    
+                end))
+              message_socket:send(cjson.encode({
+                    {
+                      method = 'config',
+                      params = {
+                        persist = 0.001
+                      },
+                      id = 1,
+                    },
+                    {
+                      method = 'add',
+                      params = {
+                        path = 'dummy',
+                        value = 123
+                      },
+                      id = 2,
+                    },
+                    {
+                      method = 'fetch',
+                      params = {
+                        id = 'fetchy',
+                        matches = {'.*'}
+                      },
+                      id = 3,
+                    },
+                    {
+                      method = 'change',
+                      params = {
+                        path = 'dummy',
+                        value = 234
+                      },
+                      id = 4,
+                    },
+              }))
+            end)
+          
           it('a peer can configure persist and resume and missed messages are resend by daemon',function(done)
               sock:connect(info.addr,port)
               local message_socket = jetsocket.wrap(sock)
@@ -348,7 +502,7 @@ for _,info in ipairs(addresses_to_test) do
                           response = cjson.decode(response)
                           assert.is_same(response,{
                               {
-                                result = 4, -- five messages received by daemon yet (assoc. to the persist id)
+                                result = 5, -- five messages received by daemon yet (assoc. to the persist id)
                                 id = 5, -- config.resume id
                               },
                               {

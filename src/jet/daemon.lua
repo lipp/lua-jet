@@ -419,13 +419,15 @@ local create_daemon = function(options)
       end
       resumer:transfer_fetchers(peer)
       resumer:transfer_elements(peer)
-      peer.receive_count = resumer.receive_count
+      peer.receive_count = resumer.receive_count + peer.receive_count
       if message.id then
         peer:queue({
             id = message.id,
             result = peer.receive_count,
         })
       end
+      -- this will add messages to peer.message_history
+      -- during flush.
       for i=start,#history do
         peer:queue(history[i])
       end
@@ -434,6 +436,12 @@ local create_daemon = function(options)
       peer.persist_id = persist_id
       peer.persist_time = resumer.persist_time
       peer.flush()
+      -- the peer message_count must be set here
+      -- to mimic a continuously growing message_count with respect to receivedCount
+      peer.message_count = resumer.message_count
+      if message.id then
+        peer.message_count = peer.message_count + 1
+      end
       return nil,true -- set dont_auto_reply true
     end
     
