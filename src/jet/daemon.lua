@@ -569,6 +569,7 @@ local create_daemon = function(options)
           if element.peer == peer then
             publish(path,'remove',element.value,element)
             elements[path] = nil
+            radixtree.remove(path)
           end
         end
         flush_peers()
