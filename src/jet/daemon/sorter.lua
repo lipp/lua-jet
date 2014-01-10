@@ -19,7 +19,7 @@ local create_sorter = function(options,notify)
   end
   
   local sort
-  if not options.sort.byValue or options.sort.byPath then
+  if (options.sort.byValue == nil and options.sort.byValueField == nil) or options.sort.byPath then
     if options.sort.descending then
       sort = function(a,b)
         return a.path > b.path
@@ -71,6 +71,7 @@ local create_sorter = function(options,notify)
       end
     end
   end
+  assert(sort)
   
   local from = options.sort.from or 1
   local to = options.sort.to or 10
