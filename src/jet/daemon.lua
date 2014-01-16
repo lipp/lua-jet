@@ -244,16 +244,15 @@ local create_daemon = function(options)
     for _,element in pairs(elements) do
       element.fetchers[fetcher] = nil
     end
-    
-    if message.id then
-      peer:queue({
-          id = message.id,
-          result = true,
-      })
-    end
   end
   
-  -- routes / forwards a request ("call","set") to the corresponding peer.
+  -- counter to make the routed request more unique.
+  -- addresses situation if a peer makes two requests with
+  -- same message.id.
+  local rcount = 0
+  
+  -- routes / forwards a request ("call","set") to the peer of the corresponding element
+  -- specified by "params.path".
   -- creates an entry in the "route" table and sets up a timer
   -- which will respond a response timeout error to the requestor if
   -- no corresponding response is received.
@@ -266,6 +265,7 @@ local create_daemon = function(options)
       local id
       local mid = message.id
       if mid then
+        rcount = (rcount + 1) % 2^31
         local timer = new_timer(function()
             routes[id] = nil
             peer:queue({
@@ -275,7 +275,7 @@ local create_daemon = function(options)
             peer:flush()
           end,timeout)
         timer:start(loop)
-        id = mid..tostring(peer)
+        id = tostring(mid)..tostring(peer)..rcount
         assert(not routes[id])
         -- save route to forward reply
         routes[id] = {
@@ -462,7 +462,7 @@ local create_daemon = function(options)
     call = async(route),
     set = async(route),
     fetch = async(fetch),
-    unfetch = async(unfetch),
+    unfetch = sync(unfetch),
     change = sync(change),
     echo = sync(function(peer,message)
         return message.params
