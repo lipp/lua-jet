@@ -130,7 +130,7 @@ local create_sorter = function(options,notify)
     local newindex = index[path]
     
     -- this may happen due to a refetch :(
-    if newindex and lastindex and newindex == lastindex then
+    if newindex and lastindex and newindex == lastindex and is_in_range(newindex) then
       if event == 'change' then
         notify({
             n = n,
