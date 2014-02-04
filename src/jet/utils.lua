@@ -132,6 +132,19 @@ local mapper = function(field_str_map)
   end
 end
 
+-- searches an element in an array and removes
+-- it if found.
+-- if element has been removed returns true.
+local remove = function(array,value)
+  for index,val in ipairs(array) do
+    if val == value then
+      table.remove(array,index)
+      return true
+    end
+  end
+  return false
+end
+
 return {
   noop = noop,
   is_empty_table = is_empty_table,
@@ -144,5 +157,6 @@ return {
   access_field = access_field,
   equals_deep = equals_deep,
   mapper = mapper,
+  remove = remove,
 }
 

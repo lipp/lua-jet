@@ -7,7 +7,7 @@ local ip = arg[2]
 local port = arg[3]
 
 local cjson = require'cjson'
-local peer = require'jet.peer'.new{ip=ip,port=port}
+local peer = require'jet.peer'.new{ip=ip,port=port,persist=100}
 
 local is_json,exp_json = pcall(cjson.decode,exp)
 if is_json then

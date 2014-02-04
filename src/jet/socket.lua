@@ -27,6 +27,7 @@ end
 local wrap = function(sock,args)
   assert(sock)
   args = args or {}
+  
   -- set non blocking
   sock:settimeout(0)
   -- send message asap
