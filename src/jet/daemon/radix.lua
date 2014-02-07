@@ -85,11 +85,14 @@ local new = function()
   -- adds a new element to the tree
   local add_to_tree = function(word)
     local t = j.radix_tree
-    for char in word:gfind('.') do
-      if t[char] == true or t[char] == nil then
-        t[char] = {}
+    for i=1,#word do
+      local char = word:sub(i,i)
+      local tmpt = t[char]
+      if tmpt == nil then
+        tmpt = {}
+        t[char] = tmpt
       end
-      t = t[char]
+      t = tmpt
     end
     t[word] = true
   end
@@ -98,13 +101,21 @@ local new = function()
   -- removes an element from the tree
   local remove_from_tree = function(word)
     local t = j.radix_tree
-    for char in word:gfind('.') do
-      if t[char] == true then
-        return
-      end
-      t = t[char]
+    local tables = {}
+    for i=1,#word do
+      local char = word:sub(i,i)
+      local tmpt = t[char]
+      tables[i] = tmpt
+      t = tmpt
     end
     t[word] = nil
+    local i = #word
+    while next(t) == nil and i > 1 do
+      local char = word:sub(i, i)
+      t = tables[i-1]
+      t[char] = nil
+      i = i - 1
+    end
   end
   
   -- performs the respective actions for the parts of a fetcher
