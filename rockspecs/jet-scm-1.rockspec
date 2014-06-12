@@ -1,4 +1,4 @@
-package = 'lua-jet'
+package = 'jet'
 version = 'scm-1'
 
 source = {

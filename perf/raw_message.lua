@@ -44,4 +44,8 @@ ev.Timer.new(function()
     sighandler:stop(ev.Loop.default)
   end,dt):start(ev.Loop.default)
 
+ev.Signal.new(function()
+    os.exit(1)
+  end,2):start(ev.Loop.default)
+
 ev.Loop.default:loop()

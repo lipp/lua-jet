@@ -80,6 +80,10 @@ ev.Timer.new(function(loop,timer)
     end
   end,dt,dt):start(ev.Loop.default)
 
+ev.Signal.new(function()
+    os.exit(1)
+  end,2):start(ev.Loop.default)
+
 --profiler.start()
 
 ev.Loop.default:loop()
