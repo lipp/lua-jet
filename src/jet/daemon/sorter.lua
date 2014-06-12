@@ -128,27 +128,26 @@ local create_sorter = function(options,notify)
     end
     
     local newindex = index[path]
+    local is_in = is_in_range(newindex)
     
-    -- this may happen due to a refetch :(
-    if newindex and lastindex and newindex == lastindex then
-      if event == 'change' then
-        notify({
-            n = n,
-            changes = {
-              {
-                path = path,
-                value = value,
-                index = newindex,
-              }
+    -- special treatment for states which change
+    -- value without changing positions
+    if is_in and lastindex and newindex == lastindex then
+      notify({
+          n = n,
+          changes = {
+            {
+              path = path,
+              value = value,
+              index = newindex,
             }
-        })
-      end
+          }
+      })
       return
     end
     
     local start
     local stop
-    local is_in = is_in_range(newindex)
     local was_in = is_in_range(lastindex)
     
     if is_in and was_in then
@@ -161,8 +160,8 @@ local create_sorter = function(options,notify)
       start = lastindex
       stop = mmin(to,#matches)
     else
-      start = from
-      stop = mmin(to,#matches)
+      -- not is_in and not was_in
+      return
     end
     
     local changes = {}
