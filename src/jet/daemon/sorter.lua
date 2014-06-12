@@ -84,6 +84,8 @@ local create_sorter = function(options,notify)
     return i and i >= from and i <= to
   end
   
+  local initialized
+  
   local sorter = function(notification,initializing)
     local event = notification.event
     local path = notification.path
@@ -159,8 +161,11 @@ local create_sorter = function(options,notify)
     elseif not is_in and was_in then
       start = lastindex
       stop = mmin(to,#matches)
+    elseif not initialized then
+      initialized = true
+      start = from
+      stop = mmin(to,#matches)
     else
-      -- not is_in and not was_in
       return
     end
     
