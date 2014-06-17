@@ -28,7 +28,13 @@ build = {
       ['jet'] = 'src/jet.lua',
       ['jet.peer'] = 'src/jet/peer.lua',
       ['jet.socket'] = 'src/jet/socket.lua',
-      ['jet.daemon'] = 'src/jet/daemon.lua'
+      ['jet.utils'] = 'src/jet/utils.lua',
+      ['jet.daemon'] = 'src/jet/daemon.lua',
+      ['jet.daemon.value_matcher'] = 'src/jet/daemon/value_matcher.lua',
+      ['jet.daemon.path_matcher'] = 'src/jet/daemon/path_matcher.lua',
+      ['jet.daemon.radix'] = 'src/jet/daemon/radix.lua',
+      ['jet.daemon.sorter'] = 'src/jet/daemon/sorter.lua',
+      ['jet.daemon.fetcher'] = 'src/jet/daemon/fetcher.lua',
     },
     bin = {
       'bin/jetd.lua',
