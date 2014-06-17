@@ -1,5 +1,11 @@
 #!/usr/bin/env lua
-local peer = require'jet.peer'.new({name='players'})
+local peer = require'jet.peer'.new({
+    -- url = 'ws://jet.nodejitsu.com:80',
+    name = 'players',
+    on_connect = function()
+      print('connected to Jet Daemon')
+    end
+})
 local ev = require'ev'
 
 local players = {
@@ -91,4 +97,3 @@ ev.Timer.new(function()
   end,2,2):start(ev.Loop.default)
 
 peer:loop()
-
