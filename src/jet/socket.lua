@@ -34,7 +34,7 @@ local wrap = function(sock,args)
   -- enable keep alive for detecting broken connections
   sock:setoption('keepalive',true)
   local on_message = args.on_message or function() end
-  local on_connect = args.on_connect or function() end
+  local on_open = args.on_open or function() end
   local on_close = args.on_close or function() end
   local on_error = args.on_error or function() end
   local loop = args.loop or ev.Loop.default
@@ -167,7 +167,7 @@ local wrap = function(sock,args)
           connected = true
           flush()
           read_io:start(loop)
-          on_connect(wrapped)
+          on_open(wrapped)
         elseif err == 'timeout' or err == 'Operation already in progress' then
           connect_io = ev.IO.new(
             function(loop,io)
@@ -176,7 +176,7 @@ local wrap = function(sock,args)
               flush()
               read_io:start(loop)
               connect_io = nil
-              on_connect(wrapped)
+              on_open(wrapped)
             end,sock:getfd(),ev.WRITE)
           connect_io:start(loop)
         else
@@ -190,9 +190,9 @@ local wrap = function(sock,args)
     on_message = f
   end
   
-  wrapped.on_connect = function(_,f)
+  wrapped.on_open = function(_,f)
     assert(type(f) == 'function')
-    on_connect = f
+    on_open = f
   end
   
   wrapped.on_close = function(_,f)
@@ -340,4 +340,3 @@ local mod = {
 }
 
 return mod
-

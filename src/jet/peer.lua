@@ -590,7 +590,7 @@ local new = function(config)
       cmsgpack = require'cmsgpack'
     end
     
-    wsock:on_connect(function()
+    wsock:on_open(function()
         if config.name or config.encoding then
           j:config({
               name = config.name,
