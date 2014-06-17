@@ -97,6 +97,7 @@ local new = function(config)
     end
     return j_sync
   else
+    local loop = config.loop or ev.Loop.default
     local messages = {}
     local queue = function(message)
       tinsert(messages,message)
