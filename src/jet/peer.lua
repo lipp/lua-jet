@@ -1,4 +1,5 @@
 local jsocket = require'jet.socket'
+local has_websockets, websockets_ev = pcall(require, 'websocket.client_ev')
 local socket = require'socket'
 local ev = require'ev'
 local cjson = require'cjson'
@@ -38,7 +39,13 @@ local create_sock = function(config)
       return jsocket.new({ip = ip, port = port, loop = loop})
     end
   else
-    error('not supported config.url ' ..config.url)
+    if has_websockets then
+      local ws = websockets_ev()
+      ws:connect(config.url, 'jet')
+      return ws
+    else
+      error('no websockets available. install lua-websockets')
+    end
   end
 end
 
@@ -55,12 +62,12 @@ local new = function(config)
       id = id + 1
       rid = id
       params.timeout = timeout -- maybe nil, defaults to 5secs at daemon
-      wsock:send(encode
-        {
+      local data = encode({
           id = rid,
           method = method,
           params = params
       })
+      wsock:send(data)
       local response,err = wsock:receive()
       if err then
         error(err)
@@ -98,9 +105,11 @@ local new = function(config)
     local flush = function(reason)
       local n = #messages
       if n == 1 then
-        wsock:send(encode(messages[1]))
+        local data = encode(messages[1])
+        wsock:send(data)
       elseif n > 1 then
-        wsock:send(encode(messages))
+        local data = encode(messages)
+        wsock:send(data)
       end
       messages = {}
       will_flush = false
@@ -260,7 +269,8 @@ local new = function(config)
       if will_flush then
         queue(message)
       else
-        wsock:send(encode(message))
+        local data = encode(message)
+        wsock:send(data)
       end
     end
     
