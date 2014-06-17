@@ -23,19 +23,32 @@ local error_object = function(err)
   return error
 end
 
+local create_sock = function(config)
+  if not config.url then
+    local ip = config.ip or '127.0.0.1' -- localhost'
+    local port = config.port or 11122
+    if config.sync then
+      local sock = socket.connect(ip,port)
+      if not sock then
+        error('could not connect to jetd with ip:'..ip..' port:'..port)
+      end
+      return jsocket.wrap_sync(sock)
+    else
+      local loop = config.loop or ev.Loop.default
+      return jsocket.new({ip = ip, port = port, loop = loop})
+    end
+  else
+    error('not supported config.url ' ..config.url)
+  end
+end
+
 local new = function(config)
   config = config or {}
   local log = config.log or noop
-  local ip = config.ip or '127.0.0.1' -- localhost'
-  local port = config.port or 11122
   local encode = cjson.encode
   local decode = cjson.decode
+  local wsock = create_sock(config)
   if config.sync then
-    local sock = socket.connect(ip,port)
-    if not sock then
-      error('could not connect to jetd with ip:'..ip..' port:'..port)
-    end
-    local wsock = jsocket.wrap_sync(sock)
     local id = 0
     local service = function(method,params,timeout)
       local rid
@@ -77,8 +90,6 @@ local new = function(config)
     end
     return j_sync
   else
-    local loop = config.loop or ev.Loop.default
-    local wsock = jsocket.new({ip = ip, port = port, loop = loop})
     local messages = {}
     local queue = function(message)
       tinsert(messages,message)
@@ -614,5 +625,3 @@ end
 return {
   new = new
 }
-
-
