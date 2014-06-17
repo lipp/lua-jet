@@ -17,7 +17,7 @@ local create_sorter = function(options,notify)
   if not options.sort then
     return nil
   end
-
+  
   local sort
   if (options.sort.byValue == nil and options.sort.byValueField == nil) or options.sort.byPath then
     if options.sort.descending then
@@ -50,7 +50,7 @@ local create_sorter = function(options,notify)
         return get_field(a) > get_field(b)
       end
     end
-
+    
     -- protected sort
     local psort = function(s,a,b)
       local ok,res = pcall(s,a,b)
@@ -60,7 +60,7 @@ local create_sorter = function(options,notify)
         return true
       end
     end
-
+    
     if options.sort.descending then
       sort = function(a,b)
         return psort(gt,a.value,b.value)
@@ -72,20 +72,20 @@ local create_sorter = function(options,notify)
     end
   end
   assert(sort)
-
+  
   local from = options.sort.from or 1
   local to = options.sort.to or 10
   local sorted = {}
   local matches = {}
   local index = {}
   local n
-
+  
   local is_in_range = function(i)
     return i and i >= from and i <= to
   end
-
+  
   local initialized
-
+  
   local sorter = function(notification,initializing)
     local event = notification.event
     local path = notification.path
@@ -118,20 +118,20 @@ local create_sorter = function(options,notify)
           value = value,
       })
     end
-
+    
     tsort(matches,sort)
-
+    
     for i,m in ipairs(matches) do
       index[m.path] = i
     end
-
+    
     if last_matches_len < from and #matches < from then
       return
     end
-
+    
     local newindex = index[path]
     local is_in = is_in_range(newindex)
-
+    
     -- special treatment for states which change
     -- value without changing positions
     if is_in and lastindex and newindex == lastindex then
@@ -147,11 +147,11 @@ local create_sorter = function(options,notify)
       })
       return
     end
-
+    
     local start
     local stop
     local was_in = is_in_range(lastindex)
-
+    
     if is_in and was_in then
       start = mmin(lastindex,newindex)
       stop = mmax(lastindex,newindex)
@@ -168,7 +168,7 @@ local create_sorter = function(options,notify)
     else
       return
     end
-
+    
     local changes = {}
     for i=start,stop do
       local new = matches[i]
@@ -185,9 +185,9 @@ local create_sorter = function(options,notify)
         break
       end
     end
-
+    
     local new_n = mmin(to,#matches) - from + 1
-
+    
     if new_n ~= n or #changes > 0 then
       n = new_n
       notify({
@@ -196,16 +196,16 @@ local create_sorter = function(options,notify)
       })
     end
   end
-
+  
   local flush = function()
     tsort(matches,sort)
-
+    
     for i,m in ipairs(matches) do
       index[m.path] = i
     end
-
+    
     n = 0
-
+    
     local changes = {}
     for i=from,to do
       local new = matches[i]
@@ -216,13 +216,13 @@ local create_sorter = function(options,notify)
         tinsert(changes,new)
       end
     end
-
+    
     notify({
         changes = changes,
         n = n,
     })
   end
-
+  
   return sorter,flush
 end
 
