@@ -8,7 +8,7 @@
 # * Upload the tarball to github.
 # * Announce
 
-version=$(git tag -l | tail -1)
+version=$(git tag -l | gsort -V | tail -1)
 
 name="lua-jet-$version"
 
