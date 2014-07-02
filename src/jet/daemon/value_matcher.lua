@@ -37,12 +37,44 @@ local is_type = function(typ)
   end
 end
 
+local has_one_of = function(array)
+  return function(x)
+    for _,comp in ipairs(array) do
+      for _,other in ipairs(x) do
+        if comp == other then
+          return true
+        end
+      end
+    end
+    return false
+  end
+end
+
+local has_all_of = function(array)
+  return function(x)
+    local i = 0
+    for _,comp in ipairs(array) do
+      for _,other in ipairs(x) do
+        if comp == other then
+          i = i + 1
+          if i == #array then
+            return true
+          end
+        end
+      end
+    end
+    return false
+  end
+end
+
 local generators = {
   lessThan = less_than,
   greaterThan = greater_than,
   equals = equals,
   equalsNot = equals_not,
   isType = is_type,
+  hasOneOf = has_one_of,
+  hasAllOf = has_all_of
 }
 
 local access_field = jutils.access_field
