@@ -6,7 +6,7 @@ install:
   - sudo apt-get install libev-dev
   - sudo apt-get install luajit
   - sudo apt-get install luarocks
-  - sudo apt-get install busted 1.11.1-1
+  - sudo luarocks install busted 1.11.1-1
   - sudo luarocks make rockspecs/lua-jet-scm-1.rockspec
 
 script: "busted spec"
