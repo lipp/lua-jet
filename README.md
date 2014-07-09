@@ -31,7 +31,7 @@ Watch Your Jet Bus on [Your local Radar](http://localhost:8080).
 
 # Doc
 
-For general information, visit the [Jet Homepage](http://lipp.github.io/jet). Look at the [API.md](https://github.com/lipp/lua-jet/blob/master/API.md), the [examples](https://github.com/lipp/lua-jet/tree/master/examples) or the [busted](https://github.com/lipp/busted/tree/add-finally) test [spec files](https://github.com/lipp/lua-jet/tree/master/spec).
+For general information, visit the [Jet Homepage](http://jetbus.io). Look at the [API.md](https://github.com/lipp/lua-jet/blob/master/API.md), the [examples](https://github.com/lipp/lua-jet/tree/master/examples) or the [busted](https://github.com/lipp/busted/tree/add-finally) test [spec files](https://github.com/lipp/lua-jet/tree/master/spec).
 
 # Tests
 
