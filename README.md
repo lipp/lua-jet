@@ -5,7 +5,7 @@ lua-jet is a [Jet](http://jetbus.io) daemon and peer implementation written in L
 
 # Installation
 
-    $ git clone https://github.com/lipp/jet.git
+    $ git clone https://github.com/lipp/lua-jet.git
     $ cd jet
     $ sudo luarocks make rockspecs/jet-scm-1.rockspec
 
