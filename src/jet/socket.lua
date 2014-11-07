@@ -1,11 +1,9 @@
 local ev = require'ev'
 local socket = require'socket'
-require'pack'-- blends pack/unpack into string table
+local struct = require'struct'
 
 local tinsert = table.insert
 local tconcat = table.concat
-local spack = string.pack
-local sunpack = string.unpack
 local eps = 2^-40
 
 local wrap_sync = function(sock)
@@ -13,12 +11,12 @@ local wrap_sync = function(sock)
   local wrapped = {}
   sock:setoption('tcp-nodelay',true)
   wrapped.send = function(_,message)
-    sock:send(spack('>I',#message))
+    sock:send(struct.pack('>I',#message))
     sock:send(message)
   end
   wrapped.receive = function(_)
     local bin_len = sock:receive(4)
-    local _,len = bin_len:unpack('>I')
+    local len = struct.unpack('>I', bin_len)
     return sock:receive(len)
   end
   return wrapped
@@ -136,7 +134,7 @@ local wrap = function(sock,args)
   -- the message format is 32bit big endian integer
   -- denoting the size of the JSON following
   wrapped.send = function(_,message)
-    send_buffer = send_buffer..spack('>I',#message)..message
+    send_buffer = send_buffer..struct.pack('>I',#message)..message
     if connected then
       flush()
     end
@@ -217,7 +215,7 @@ local wrap = function(sock,args)
       if not len_bin or #len_bin < 4 then
         len_bin,err,sub = sock:receive(4,len_bin)
         if len_bin then
-          _,len = sunpack(len_bin,'>I')
+          len = struct.unpack('>I', len_bin)
         elseif err == 'timeout' then
           len_bin = sub
           return
