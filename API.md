@@ -254,10 +254,11 @@ local change_net_async = function(reply,requested_net)
 end
 ```
 
-### pi:loop()
+### pi:loop([unloop_sigs])
 
-Starts the event loop. This call only returns if the `pi` gets closed for some reason. (Internally just calls lua-ev `loop:loop()).
-If integrating with other lua-ev watchers, this may not need to be called.
+Starts the event loop. This call only returns if the `pi` gets closed for some reason or one of the unloop signals has been caught.
+If integrating with other lua-ev watchers, this call might not be necessary (since you can call e.g. ev.Loop.default yourself).
+`unloop_sigs` defaults to `{ev.SIGINT,ev.SIGQUIT}`.  
 
 ## fetcher
 
