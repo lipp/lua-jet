@@ -204,20 +204,24 @@ local new = function(config)
     wsock:on_error(log)
     wsock:on_close(config.on_close or function() end)
     local j = {}
-    
-    j.loop = function()
+    j.loop = function(_,unloop_sigs)
+      unloop_sigs = unloop_sigs or ev.SIGINT ~= nil and {ev.SIGINT, ev.SIGQUIT}
+      if unloop_sigs then
+        jutils.install_unloop_signal_handlers(unloop_sigs, loop)
+      end
+      print('peer loop running...')
       loop:loop()
     end
-    
+
     j.on_no_dispatcher = function(_,f)
       on_no_dispatcher = f
     end
-    
+
     j.close = function(self,options)
       flush('close')
       wsock:close()
     end
-    
+
     local id = 0
     local service = function(method,params,complete,callbacks)
       local rpc_id
@@ -241,7 +245,7 @@ local new = function(config)
               complete(true)
             end
           end
-          
+
           if callbacks.error then
             local error = callbacks.error
             callbacks.error = function(result)
@@ -274,13 +278,13 @@ local new = function(config)
         wsock:send(data)
       end
     end
-    
+
     j.batch = function(self,action)
       will_flush = true
       action()
       flush('batch')
     end
-    
+
     j.add = function(self,desc,dispatch,callbacks)
       local path = desc.path
       assert(not request_dispatchers[path],path)
@@ -317,7 +321,7 @@ local new = function(config)
       }
       return ref
     end
-    
+
     j.remove = function(_,path,callbacks)
       local params = {
         path = path
@@ -328,7 +332,7 @@ local new = function(config)
       end
       service('remove',params,remove_dispatcher,callbacks)
     end
-    
+
     j.call = function(self,path,params,callbacks)
       local params = {
         path = path,
@@ -336,11 +340,11 @@ local new = function(config)
       }
       service('call',params,nil,callbacks)
     end
-    
+
     j.config = function(self,params,callbacks)
       service('config',params,nil,callbacks)
     end
-    
+
     j.set = function(self,path,value,callbacks)
       local params = {
         path = path,
@@ -348,9 +352,9 @@ local new = function(config)
       }
       service('set',params,nil,callbacks)
     end
-    
+
     local fetch_id = 0
-    
+
     j.fetch = function(self,params,f,callbacks)
       local id = '__f__'..fetch_id
       local sorting = params.sort
@@ -391,7 +395,7 @@ local new = function(config)
       }
       return ref
     end
-    
+
     j.method = function(self,desc,add_callbacks)
       local dispatch
       if desc.call then
@@ -444,7 +448,7 @@ local new = function(config)
               end
             end
           end
-          
+
           local ok,result
           local params = message.params
           if #params > 0 then
@@ -470,7 +474,7 @@ local new = function(config)
       local ref = self:add(desc,dispatch,add_callbacks)
       return ref
     end
-    
+
     j.state = function(self,desc,add_callbacks)
       local dispatch
       if desc.set then
@@ -592,7 +596,7 @@ local new = function(config)
       end
       return ref
     end
-    
+
     local cmsgpack
     if config.encoding then
       if config.encoding ~= 'msgpack' then
@@ -600,7 +604,7 @@ local new = function(config)
       end
       cmsgpack = require'cmsgpack'
     end
-    
+
     wsock:on_open(function()
         if config.name or config.encoding then
           j:config({
@@ -626,9 +630,9 @@ local new = function(config)
         end
         flush('on_connect')
       end)
-    
+
     wsock:connect()
-    
+
     return j
   end
 end
