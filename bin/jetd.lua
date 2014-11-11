@@ -5,6 +5,7 @@ local ev = require'ev'
 local start_as_daemon = false
 local ws_port = 11123
 local port = 11122
+local unloop_sigs = {ev.SIGINT,ev.SIGQUIT}
 local ffi
 
 for _,opt in ipairs(arg) do
@@ -47,4 +48,9 @@ if start_as_daemon then
   ffi.C.daemon(1,1)
 end
 
+if ev.SIGINT ~= nil then
+  require'jet.utils'.install_unloop_signal_handlers(unloop_sigs, ev.Loop.default)
+end
+
+print('daemon loop running...')
 ev.Loop.default:loop()
