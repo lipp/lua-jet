@@ -132,6 +132,27 @@ local mapper = function(field_str_map)
   end
 end
 
+local ev = require('ev')
+
+local signame = function(signum)
+  for k,v in pairs(ev) do
+    if v == signum and k:find('^SIG') == 1 then
+      return k
+    end
+  end
+end
+
+local install_unloop_signal_handlers = function(unloop_sigs, loop)
+  for _,sig in pairs(unloop_sigs) do
+    local signame = signame(sig)
+    print(signame.. ' -> quit (unloop)')
+    ev.Signal.new(function()
+        print('handling '..signame..' -> quitting (unlooping)')
+        loop:unloop()
+      end,sig):start(loop)
+  end
+end
+
 return {
   noop = noop,
   is_empty_table = is_empty_table,
@@ -144,5 +165,5 @@ return {
   access_field = access_field,
   equals_deep = equals_deep,
   mapper = mapper,
+  install_unloop_signal_handlers = install_unloop_signal_handlers
 }
-
