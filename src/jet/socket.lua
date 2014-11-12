@@ -42,7 +42,7 @@ local wrap = function(sock,args)
   local send_io
   local connect_io
   local connected = sock:getpeername()
-  
+
   local stop_ios = function()
     if connect_io then
       connect_io:stop(loop)
@@ -53,7 +53,7 @@ local wrap = function(sock,args)
     send_io:stop(loop)
     send_io:clear_pending(loop)
   end
-  
+
   local detach = function(f)
     if ev.Idle then
       ev.Idle.new(function(loop,io)
@@ -67,7 +67,7 @@ local wrap = function(sock,args)
         end,eps):start(loop)
     end
   end
-  
+
   local handle_error = function(io_active,err_msg)
     stop_ios()
     sock:close()
@@ -83,7 +83,7 @@ local wrap = function(sock,args)
         end)
     end
   end
-  
+
   local handle_close = function(io_active)
     stop_ios()
     sock:close()
@@ -97,7 +97,7 @@ local wrap = function(sock,args)
         end)
     end
   end
-  
+
   local send_pos
   local send_message = function(loop,write_io)
     local sent,err,sent_so_far = sock:send(send_buffer,send_pos)
@@ -119,7 +119,7 @@ local wrap = function(sock,args)
   local fd = sock:getfd()
   assert(fd > -1)
   send_io = ev.IO.new(send_message,fd,ev.WRITE)
-  
+
   local flush = function()
     if not send_io:is_active() then
       send_message(loop,send_io)
@@ -128,7 +128,7 @@ local wrap = function(sock,args)
       end
     end
   end
-  
+
   -- sends asynchronous the supplied message object
   --
   -- the message format is 32bit big endian integer
@@ -139,9 +139,9 @@ local wrap = function(sock,args)
       flush()
     end
   end
-  
+
   local closing
-  
+
   wrapped.close = function()
     sock:close()
     if not closing then
@@ -157,7 +157,7 @@ local wrap = function(sock,args)
         end)
     end
   end
-  
+
   wrapped.connect = function()
     detach(function()
         local sock_connected,err = sock:connect(args.ip,args.port)
@@ -182,32 +182,32 @@ local wrap = function(sock,args)
         end
       end)
   end
-  
+
   wrapped.on_message = function(_,f)
     assert(type(f) == 'function')
     on_message = f
   end
-  
+
   wrapped.on_open = function(_,f)
     assert(type(f) == 'function')
     on_open = f
   end
-  
+
   wrapped.on_close = function(_,f)
     assert(type(f) == 'function')
     on_close = f
   end
-  
+
   wrapped.on_error = function(_,f)
     assert(type(f) == 'function')
     on_error = f
   end
-  
+
   local len
   local len_bin
   local message
   local _
-  
+
   local receive_message = function(loop,read_io)
     local io_active = read_io:is_active()
     while true do
@@ -252,13 +252,13 @@ local wrap = function(sock,args)
       end
     end
   end
-  
+
   read_io = ev.IO.new(receive_message,sock:getfd(),ev.READ)
-  
+
   if connected then
     read_io:start(loop)
   end
-  
+
   return wrapped
 end
 
@@ -321,7 +321,7 @@ local listener = function(config)
     lsock:getfd(),
   ev.READ)
   listen_io:start(loop)
-  
+
   local l = {}
   l.close = function()
     listen_io:stop(loop)

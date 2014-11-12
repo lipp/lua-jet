@@ -219,6 +219,58 @@ create_peer_tests = function(config)
             end)
 
 
+          it('peer can set value and adjustments are visible in result if valueAsResult is true',function(done)
+              peer:state({
+                  path = 'adjusting_state',
+                  value = {
+                    x = 3
+                  },
+                  set = function(newval)
+                    local t = {}
+                    t.x = math.floor(newval.x)
+                    -- return the "real" adjusted value
+                    return t
+                  end
+              })
+              local new_val = 716.44
+              peer:set('adjusting_state',{x=new_val},{
+                  valueAsResult = true,
+                  success = async(function(result)
+                      assert.is_same(result,{x=math.floor(new_val)})
+                      done()
+                    end),
+                  error = async(function(err)
+                      assert.is_falsy(err)
+                    end)
+              })
+            end)
+
+          it('peer can set value and adjustments are not visible in result if valueAsResult is undefined',function(done)
+              peer:state({
+                  path = 'adjusting_state2',
+                  value = {
+                    x = 3
+                  },
+                  set = function(newval)
+                    local t = {}
+                    t.x = math.floor(newval.x)
+                    -- return the "real" adjusted value
+                    return t
+                  end
+              })
+              local new_val = 716.44
+              peer:set('adjusting_state2',{x=new_val},{
+                  success = async(function(result)
+                      assert.is_true(result)
+                      done()
+                    end),
+                  error = async(function(err)
+                      assert.is_falsy(err)
+                    end)
+              })
+            end)
+
+
           it('can fetch states with simple match string',function(done)
               local fetcher = peer:fetch(
                 states.test:path(),
@@ -985,7 +1037,7 @@ create_peer_tests = function(config)
 
 
             end)
-            
+
 
         end)
 
