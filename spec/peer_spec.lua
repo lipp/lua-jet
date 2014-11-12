@@ -219,7 +219,7 @@ create_peer_tests = function(config)
             end)
 
 
-          it('peer can set value and adjustments are visible in result if valueAsResult is true',function(done)
+          it('peer can set value and adjustments are visible in result if value_as_result is true',function(done)
               peer:state({
                   path = 'adjusting_state',
                   value = {
@@ -234,7 +234,7 @@ create_peer_tests = function(config)
               })
               local new_val = 716.44
               peer:set('adjusting_state',{x=new_val},{
-                  valueAsResult = true,
+                  value_as_result = true,
                   success = async(function(result)
                       assert.is_same(result,{x=math.floor(new_val)})
                       done()
@@ -245,7 +245,7 @@ create_peer_tests = function(config)
               })
             end)
 
-          it('peer can set value and adjustments are not visible in result if valueAsResult is undefined',function(done)
+          it('peer can set value and adjustments are not visible in result if value_as_result is undefined',function(done)
               peer:state({
                   path = 'adjusting_state2',
                   value = {

@@ -232,7 +232,7 @@ local new = function(config)
       -- is expected, aka Notification.
       if callbacks then
         params.timeout = callbacks.timeout -- optional
-        params.valueAsResult = callbacks.valueAsResult -- optional
+        params.valueAsResult = callbacks.value_as_result -- optional
         id = id + 1
         rpc_id = id
         if complete then
