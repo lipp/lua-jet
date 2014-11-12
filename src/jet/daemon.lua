@@ -259,9 +259,9 @@ local create_daemon = function(options)
   local route = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
-    local timeout = optional(params,'timeout','number') or 5
     local element = elements[path]
     if element then
+      local timeout = optional(params,'timeout','number') or element.timeout or 5
       local id
       local mid = message.id
       if mid then
@@ -319,6 +319,7 @@ local create_daemon = function(options)
     element = {
       peer = peer,
       value = value,
+      timeout = params.timeout, -- optional
       fetchers = {},
     }
     elements[path] = element
@@ -707,5 +708,3 @@ end
 return {
   new = create_daemon,
 }
-
-
