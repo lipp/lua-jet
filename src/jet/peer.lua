@@ -491,11 +491,15 @@ local new = function(config)
             desc.value = newvalue
             local mid = message.id
             if mid then
-              queue
-              {
-                id = mid,
-                result = result ~= nil and result or true
+              local resp = {
+                id = mid
               }
+              if message.params.wantResult then
+                resp.result = newvalue
+              else
+                resp.result = true
+              end
+              queue(resp)
             end
             if not dont_notify then
               queue
@@ -526,7 +530,11 @@ local new = function(config)
                 id = mid
               }
               if resp.result ~= nil and not resp.error then
-                response.result = resp.result
+                if message.params.wantResult then
+                  response.result = resp.result
+                else
+                  response.result = true
+                end
               elseif resp.error then
                 response.error = error_object(resp.error)
               else
@@ -534,12 +542,8 @@ local new = function(config)
               end
               queue(response)
             end
-            if resp.result and not resp.dont_notify then
-              if resp.value ~= nil then
-                desc.value = resp.value
-              else
-                desc.value = value
-              end
+            if resp.result ~= nil and not resp.dont_notify then
+              desc.value = value
               queue
               {
                 method = 'change',
