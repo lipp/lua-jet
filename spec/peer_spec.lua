@@ -10,7 +10,7 @@ local dt = 0.05
 setloop('ev')
 
 create_peer_tests = function(config)
-  
+
   describe(
     'A peer basic tests '.. (config.url and '(Websocket)' or ''),
     function()
@@ -24,11 +24,11 @@ create_peer_tests = function(config)
           }
           daemon:start()
         end)
-      
+
       teardown(function()
           daemon:stop()
         end)
-      
+
       it('provides the correct interface',function()
           local peer = jetpeer.new{port = port}
           assert.is_true(type(peer) == 'table')
@@ -41,8 +41,8 @@ create_peer_tests = function(config)
           assert.is_true(type(peer.loop) == 'function')
           peer:close()
         end)
-      
-      
+
+
       it('on_connect gets called',function(done)
           peer = jetpeer.new
           {
@@ -55,7 +55,7 @@ create_peer_tests = function(config)
           }
           --        finally(function() peer:close() end)
         end)
-      
+
       it('can add a state',function(done)
           peer:state(
             {
@@ -69,7 +69,7 @@ create_peer_tests = function(config)
                 end)
           })
         end)
-      
+
       it('can not add same state again',function()
           assert.has_error(function()
               peer:state
@@ -79,7 +79,7 @@ create_peer_tests = function(config)
               }
             end)
         end)
-      
+
       it('can add some other state',function(done)
           peer:state(
             {
@@ -99,12 +99,12 @@ create_peer_tests = function(config)
               peer:close()
             end)
         end)
-      
-      
+
+
       describe('with some states in place',function()
           local peer
           local states = {}
-          
+
           before_each(function(done)
               peer = jetpeer.new
               {
@@ -154,11 +154,11 @@ create_peer_tests = function(config)
                   end)
               }
             end)
-          
+
           after_each(function(done)
               peer:close()
             end)
-          
+
           it(
             'can fetch and unfetch states',
             function(done)
@@ -190,7 +190,7 @@ create_peer_tests = function(config)
                     end
                 end))
             end)
-          
+
           it('another peer can set value and change notifications are send',function(done)
               local new_val = 716
               local other = jetpeer.new
@@ -205,7 +205,7 @@ create_peer_tests = function(config)
                             done()
                           end
                       end))
-                    
+
                     other:set(states.test:path(),new_val,{
                         success = async(function()
                             assert.is_true(true)
@@ -217,8 +217,8 @@ create_peer_tests = function(config)
                   end)
               }
             end)
-          
-          
+
+
           it('can fetch states with simple match string',function(done)
               local fetcher = peer:fetch(
                 states.test:path(),
@@ -229,7 +229,7 @@ create_peer_tests = function(config)
                 end))
               finally(function() fetcher:unfetch() end)
             end)
-          
+
           it('can remove a state',function(done)
               local fetcher = peer:fetch(
                 states.test:path(),
@@ -243,7 +243,7 @@ create_peer_tests = function(config)
               finally(function() fetcher:unfetch() end)
               states.test:remove()
             end)
-          
+
           it('can (re)add a state',function(done)
               local expected = {
                 {
@@ -276,7 +276,7 @@ create_peer_tests = function(config)
                 end))
               finally(function() fetcher:unfetch() end)
             end)
-          
+
           it('does not fetch on simple path mismatch',function(done)
               local timer
               local fetcher = peer:fetch(
@@ -293,7 +293,7 @@ create_peer_tests = function(config)
                 end),dt)
               timer:start(loop)
             end)
-          
+
           it('can fetch states with "equals" and no "prop" value',function(done)
               local oldval = states.test:value()
               local newval = 333
@@ -331,7 +331,7 @@ create_peer_tests = function(config)
                 end))
               finally(function() fetcher:unfetch() end)
             end)
-          
+
           it('can fetch states with "endsWith" and "value" "equalsNot"',function(done)
               local oldval = states.bens_hobby:value()
               local newval = states.peters_hobby:value()
@@ -377,7 +377,7 @@ create_peer_tests = function(config)
                 end))
               finally(function() fetcher:unfetch() end)
             end)
-          
+
           it('can fetch states with "startsWidth" and "valueField"',function(done)
               local oldval = states.peter:value()
               local newval = {
@@ -428,7 +428,7 @@ create_peer_tests = function(config)
                 end))
               finally(function() fetcher:unfetch() end)
             end)
-          
+
           it('can fetch states with no path matcher "valueField" "equals"',function(done)
               local fetcher = peer:fetch(
                 {valueField={
@@ -442,12 +442,12 @@ create_peer_tests = function(config)
                     assert.is_same(fvalue,states.peter:value())
                     done()
                 end))
-              
+
               finally(function()
                   fetcher:unfetch()
                 end)
             end)
-          
+
           it('can fetch case insensitive',function(done)
               local expected = {
                 {
@@ -481,13 +481,13 @@ create_peer_tests = function(config)
                     expected[count].action()
                 end))
             end)
-          
-          
+
+
         end)
-      
+
       describe('when working with clean jet',function()
           local peer
-          
+
           before_each(function(done)
               peer = jetpeer.new
               {
@@ -496,11 +496,11 @@ create_peer_tests = function(config)
                 on_connect = async(function() done() end)
               }
             end)
-          
+
           after_each(function()
               peer:close()
             end)
-          
+
           it('set gets timeout error',function(done)
               local not_responding = peer:state
               {
@@ -509,7 +509,7 @@ create_peer_tests = function(config)
                 set_async = async(function() -- never responds
                   end)
               }
-              
+
               peer:set('abc',231,{
                   timeout = 0.2,
                   success = async(function()
@@ -522,7 +522,7 @@ create_peer_tests = function(config)
                     end)
               })
             end)
-          
+
           it('call method passes correct args and result',function(done)
               local m = peer:method
               {
@@ -544,7 +544,7 @@ create_peer_tests = function(config)
                     end)
               })
             end)
-          
+
           it('call method forwards "non-json-rpc" error as "Internal error"',function(done)
               local m = peer:method
               {
@@ -568,7 +568,7 @@ create_peer_tests = function(config)
                     end)
               })
             end)
-          
+
           it('call method forwards json-rpc-error unchanged',function(done)
               local m = peer:method
               {
@@ -592,9 +592,9 @@ create_peer_tests = function(config)
                     end)
               })
             end)
-          
-          
-          
+
+
+
           it('call gets timeout error',function(done)
               local not_responding = peer:method
               {
@@ -602,7 +602,7 @@ create_peer_tests = function(config)
                 call_async = async(function() -- never responds
                   end)
               }
-              
+
               peer:call('abc2',{},{
                   timeout = 0.2,
                   success = async(function()
@@ -615,7 +615,7 @@ create_peer_tests = function(config)
                     end)
               })
             end)
-          
+
           it('fetch with sort works when states are already added',function(done)
               local expected_adds = {
                 [1] = {
@@ -634,13 +634,13 @@ create_peer_tests = function(config)
                   index = 3
                 }
               }
-              
+
               -- add some other states which are not expected
               peer:state{
                 path = 'xyz',
                 value = {foo = 'bar'}
               }
-              
+
               -- add expected states in reverse order to be more evil
               for i=#expected_adds,1,-1 do
                 peer:state{
@@ -648,7 +648,7 @@ create_peer_tests = function(config)
                   value = expected_adds[i].value
                 }
               end
-              
+
               local fetcher
               fetcher = peer:fetch({
                   sort = {
@@ -661,19 +661,19 @@ create_peer_tests = function(config)
                     assert.is_same(sorted,expected_adds)
                     done()
                 end))
-              
+
               finally(function() fetcher:unfetch() end)
-              
-              
+
+
             end)
-          
+
           it('fetch with sort has n properly reduced',function(done)
               local a = peer:state{path = 'a', value = 1}
               local b = peer:state{path = 'b', value = 2}
               local c = peer:state{path = 'c', value = 3}
               local d = peer:state{path = 'd', value = 4}
               local e = peer:state{path = 'e', value = 5}
-              
+
               local expected = {
                 {
                   sorted = {
@@ -724,10 +724,10 @@ create_peer_tests = function(config)
                   end
                 },
               }
-              
-              
+
+
               local count = 0
-              
+
               local fetcher = peer:fetch({
                   sort = {
                     from = 1,
@@ -740,19 +740,19 @@ create_peer_tests = function(config)
                     assert.is_same(#expected[count].sorted,#sorted)
                     expected[count].action()
                 end))
-              
+
               finally(function() fetcher:unfetch() end)
-              
-              
+
+
             end)
-          
+
           it('fetch with sort has n properly reduced with from = 2',function(done)
               local a = peer:state{path = 'a', value = 1}
               local b = peer:state{path = 'b', value = 2}
               local c = peer:state{path = 'c', value = 3}
               local d = peer:state{path = 'd', value = 4}
               local e = peer:state{path = 'e', value = 5}
-              
+
               local expected = {
                 {
                   sorted = {
@@ -819,10 +819,10 @@ create_peer_tests = function(config)
                   end
                 },
               }
-              
-              
+
+
               local count = 0
-              
+
               local fetcher = peer:fetch({
                   sort = {
                     from = 2,
@@ -835,19 +835,19 @@ create_peer_tests = function(config)
                     assert.is_same(#expected[count].sorted,#sorted)
                     expected[count].action()
                 end))
-              
+
               finally(function() fetcher:unfetch() end)
-              
-              
+
+
             end)
-          
+
           it('fetch with from = 2 works when elements from top are removed',function(done)
               local a = peer:state{path = 'a', value = 1}
               local b = peer:state{path = 'b', value = 2}
               local c = peer:state{path = 'c', value = 3}
               local d = peer:state{path = 'd', value = 4}
               local e = peer:state{path = 'e', value = 5}
-              
+
               local expected = {
                 {
                   sorted = {
@@ -872,10 +872,10 @@ create_peer_tests = function(config)
                   end
                 }
               }
-              
-              
+
+
               local count = 0
-              
+
               local fetcher = peer:fetch({
                   sort = {
                     from = 2,
@@ -888,12 +888,12 @@ create_peer_tests = function(config)
                     assert.is_same(#expected[count].sorted,#sorted)
                     expected[count].action()
                 end))
-              
+
               finally(function() fetcher:unfetch() end)
-              
-              
+
+
             end)
-          
+
           it('fetch with sort works when states are added afterwards',function(done)
               local expected = {
                 -- when xcd is added
@@ -945,8 +945,8 @@ create_peer_tests = function(config)
                   }
                 }
               }
-              
-              
+
+
               local count = 0
               local fetcher = peer:fetch({
                   sort = {
@@ -964,34 +964,35 @@ create_peer_tests = function(config)
                       done()
                     end
                 end))
-              
+
               finally(function() fetcher:unfetch() end)
-              
+
               -- add some other states which are not expected
               peer:state{
                 path = 'xcd',
                 value = true
               }
-              
+
               peer:state{
                 path = 'ii98',
                 value = {}
               }
-              
+
               peer:state{
                 path = 'abc',
                 value = 123
               }
-              
-              
+
+
             end)
-          
-        end)
-      
-      describe('when working with clean jet with msgpack encoding',function()
-          
-          if pcall(require,'cmsgpack') then
             
+
+        end)
+
+      describe('when working with clean jet with msgpack encoding',function()
+
+          if pcall(require,'cmsgpack') then
+
             it('fetch with sort works when states are already added',function(done)
                 local peer = jetpeer.new
                 {
@@ -1002,7 +1003,7 @@ create_peer_tests = function(config)
                 finally(function()
                     peer:close()
                   end)
-                
+
                 local expected = {
                   -- when xcd is added
                   {
@@ -1053,8 +1054,8 @@ create_peer_tests = function(config)
                     }
                   }
                 }
-                
-                
+
+
                 local count = 0
                 local fetcher = peer:fetch({
                     sort = {
@@ -1072,35 +1073,35 @@ create_peer_tests = function(config)
                         done()
                       end
                   end))
-                
+
                 finally(function() fetcher:unfetch() end)
-                
+
                 -- add some other states which are not expected
                 peer:state{
                   path = 'xcd',
                   value = true
                 }
-                
+
                 peer:state{
                   path = 'ii98',
                   value = {}
                 }
-                
+
                 peer:state{
                   path = 'abc',
                   value = 123
                 }
-                
-                
+
+
               end)
           else
             pending('test msgpack')
           end
-          
+
         end)
-      
+
     end)
-  
+
 end
 
 create_peer_tests({port=port})
@@ -1118,7 +1119,7 @@ if socket.dns and socket.dns.getaddrinfo then
 end
 
 if ipv6_localhost_addr then
-  
+
   describe('ipv6 stuff',function()
       local daemon
       local peer
@@ -1130,14 +1131,14 @@ if ipv6_localhost_addr then
           }
           daemon:start()
         end)
-      
+
       teardown(function()
           daemon:stop()
           if peer then
             peer:close()
           end
         end)
-      
+
       it('The jet.peer can connect to the ipv6 localhost addr '..ipv6_localhost_addr..' and on_connect gets called',function(done)
           peer = jetpeer.new
           {
@@ -1149,6 +1150,6 @@ if ipv6_localhost_addr then
               end)
           }
         end)
-      
+
     end)
 end
