@@ -64,13 +64,14 @@ pi:call('persons/create',{name='peter',age=23},{
 })
 ```
 
-### pi:set(path,value,[callbacks])
+### pi:set(path,value,[async])
 
-Issues a 'set' Jet message to the daemon with the specified path and value. If `callbacks` is provided, the message is a Request and either `callbacks.success` or `callbacks.error` will be called on Response.
+Issues a 'set' Jet message to the daemon with the specified path and value. If `async` is provided, the message is a Request and either `async.success` or `async.error` will be called on Response. `async.timeout` may optionally specify
+a max timeout value [seconds] to wait. If `async.value_as_result` is set to true, the first argument to the `async.success` callback function will be the state's "new" value.
 
 ```lua
 pi:set('persons/ae62a',{name='peter',age=33},{
-  success = function()
+  success = function(res)
     print('success')
   end,
   error = function(err)
