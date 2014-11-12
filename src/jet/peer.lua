@@ -494,7 +494,7 @@ local new = function(config)
               queue
               {
                 id = mid,
-                result = true
+                result = result or true
               }
             end
             if not dont_notify then
