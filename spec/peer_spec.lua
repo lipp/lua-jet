@@ -219,7 +219,7 @@ create_peer_tests = function(config)
             end)
 
 
-          it('peer can set value and adjustments are visible in result',function(done)
+          it('peer can set value and adjustments are visible in result if want_result (4th param) is true',function(done)
               peer:state({
                   path = 'adjusting_state',
                   value = {
@@ -241,7 +241,7 @@ create_peer_tests = function(config)
                   error = async(function(err)
                       assert.is_falsy(err)
                     end)
-              })
+              }, true)
             end)
 
 

@@ -86,8 +86,8 @@ local new = function(config)
     j_sync.call = function(_,path,params,timeout)
       return service('call',{path=path,args=params or {}},timeout)
     end
-    j_sync.set = function(_,path,value,timeout)
-      return service('set',{path=path,value=value},timeout)
+    j_sync.set = function(_,path,value,timeout,want_result)
+      return service('set',{path=path,value=value,wantResult=want_result},timeout)
     end
     j_sync.config = function(_,params,timeout)
       return service('config',params,timeout)
@@ -345,10 +345,11 @@ local new = function(config)
       service('config',params,nil,callbacks)
     end
     
-    j.set = function(self,path,value,callbacks)
+    j.set = function(self,path,value,callbacks,want_result)
       local params = {
         path = path,
-        value = value
+        value = value,
+        wantResult = want_result
       }
       service('set',params,nil,callbacks)
     end
