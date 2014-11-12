@@ -292,6 +292,7 @@ local create_daemon = function(options)
       local value = params.value
       if value ~= nil then
         req.params = {value = value}
+        req.params.wantResult = params.wantResult
       else
         req.params = params.args or {}
       end
