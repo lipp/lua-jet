@@ -28,7 +28,7 @@ for _,info in ipairs(addresses_to_test) do
     return
   end
   family_done[info.family] = true
-  
+
   describe(
     'A daemon with address '..info.addr..' and family '..info.family,
     function()
@@ -41,7 +41,7 @@ for _,info in ipairs(addresses_to_test) do
             interface = info.addr,
           }
         end)
-      
+
       it(
         'provides the correct interface',
         function()
@@ -49,7 +49,7 @@ for _,info in ipairs(addresses_to_test) do
           assert.is_true(type(daemon.start) == 'function')
           assert.is_true(type(daemon.stop) == 'function')
         end)
-      
+
       it(
         'can be started',
         function()
@@ -58,7 +58,7 @@ for _,info in ipairs(addresses_to_test) do
               daemon:start()
             end)
         end)
-      
+
       it(
         'can be stopped',
         function()
@@ -67,7 +67,7 @@ for _,info in ipairs(addresses_to_test) do
               daemon:stop()
             end)
         end)
-      
+
       describe(
         'once started',
         function()
@@ -75,14 +75,14 @@ for _,info in ipairs(addresses_to_test) do
             function()
               daemon:start()
             end)
-          
+
           teardown(
             function()
               daemon:stop()
             end)
-          
+
           local sock
-          
+
           before_each(function()
               if info.family == 'inet6' then
                 sock = socket.tcp6()
@@ -90,12 +90,12 @@ for _,info in ipairs(addresses_to_test) do
                 sock = socket.tcp()
               end
             end)
-          
+
           after_each(function()
               sock:shutdown()
               sock:close()
             end)
-          
+
           it(
             'listens on specified port',
             function(done)
@@ -110,12 +110,12 @@ for _,info in ipairs(addresses_to_test) do
                 end),sock:getfd(),ev.WRITE):start(loop)
               sock:connect(info.addr,port)
             end)
-          
+
           it(
             'adding and removing states does not leak memory',
             function(done)
               settimeout(40)
-              
+
               local add_msg = cjson.encode({
                   method = 'add',
                   params = {
@@ -161,7 +161,7 @@ for _,info in ipairs(addresses_to_test) do
                     end
                 end))
             end)
-          
+
           it(
             'sending an Invalid Request is reported correctly',
             function(done)
@@ -182,7 +182,7 @@ for _,info in ipairs(addresses_to_test) do
                 end))
               message_socket:send('123')
             end)
-          
+
           it(
             'sending an Invalid JSON is reported correctly',
             function(done)
@@ -203,7 +203,7 @@ for _,info in ipairs(addresses_to_test) do
                 end))
               message_socket:send('this is no json')
             end)
-          
+
           local req_resp_test = function(desc)
             local requests = desc.requests
             local responses = desc.responses
@@ -212,7 +212,7 @@ for _,info in ipairs(addresses_to_test) do
               function(done)
                 sock:connect(info.addr,port)
                 local message_socket = jetsocket.wrap(sock)
-                
+
                 local count = 0
                 message_socket:on_message(
                   async(
@@ -229,7 +229,7 @@ for _,info in ipairs(addresses_to_test) do
                 end
               end)
           end
-          
+
           req_resp_test({
               title = 'adding a state twice fails and "pathAlreadyExists" is reported',
               requests = {
@@ -266,7 +266,7 @@ for _,info in ipairs(addresses_to_test) do
                   }
                 }
           }})
-          
+
           req_resp_test({
               title = 'adding a state twice fails and "pathAlreadyExists" is reported / variant with less message ids',
               requests = {
@@ -298,7 +298,7 @@ for _,info in ipairs(addresses_to_test) do
                   }
                 }
           }})
-          
+
           req_resp_test({
               title = 'add / change / remove',
               requests = {
@@ -341,7 +341,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'removing a not existing path gives error "pathNotExists"',
               requests = {
@@ -366,7 +366,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'calling add without a path gives an error',
               requests = {
@@ -394,7 +394,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'fetch with path matching works',
               requests = {
@@ -442,7 +442,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'fetch with valueField array works',
               requests = {
@@ -502,7 +502,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'fetch with sort by value works',
               requests = {
@@ -563,7 +563,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'fetch with sort by valueField works',
               requests = {
@@ -632,7 +632,7 @@ for _,info in ipairs(addresses_to_test) do
                 }
               }
           })
-          
+
           req_resp_test({
               title = 'calling an invalid service reports error',
               requests = {
@@ -651,7 +651,7 @@ for _,info in ipairs(addresses_to_test) do
                   }
                 }
           }})
-          
+
           req_resp_test({
               title = 'sending non jsonrpc JSON gives error with id',
               requests = {
@@ -673,7 +673,7 @@ for _,info in ipairs(addresses_to_test) do
                   }
                 }
           }})
-          
+
           req_resp_test({
               title = 'sending non jsonrpc JSON gives error without id',
               requests = {
@@ -692,8 +692,8 @@ for _,info in ipairs(addresses_to_test) do
                   }
                 }
           }})
-          
+
         end)
     end)
-  
+
 end
