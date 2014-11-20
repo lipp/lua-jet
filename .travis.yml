@@ -1,5 +1,11 @@
 language: erlang
 
+before_install:
+  - sudo luarocks install luacov-coveralls
+
+after_success:
+  - luacov-coveralls
+
 env:
   global:
     - LUAROCKS_BASE=luarocks-2.1.1
@@ -24,5 +30,4 @@ install:
   - sudo luarocks install busted 1.11.1-1
   - sudo luarocks make rockspecs/lua-jet-scm-1.rockspec
 
-script: "busted spec"
-
+script: "busted -c spec"
