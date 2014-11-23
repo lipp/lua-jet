@@ -2,6 +2,7 @@
 
 lua-jet is a [Jet](http://jetbus.io) daemon and peer implementation written in Lua.
 [![Build Status](https://travis-ci.org/lipp/lua-jet.png?branch=master)](https://travis-ci.org/lipp/lua-jet/builds)
+[![Coverage Status](https://img.shields.io/coveralls/lipp/lua-jet.svg)](https://coveralls.io/r/lipp/lua-jet?branch=master)
 
 # Installation
 

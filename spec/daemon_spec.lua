@@ -112,9 +112,9 @@ for _,info in ipairs(addresses_to_test) do
             end)
 
           it(
-            'adding and removing states does not leak memory',
+            'adding and removing states does not leak memory (may take a while...)',
             function(done)
-              settimeout(40)
+              settimeout(100)
 
               local add_msg = cjson.encode({
                   method = 'add',
