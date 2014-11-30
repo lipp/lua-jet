@@ -352,6 +352,10 @@ local new = function(config)
         path = path,
         value = value
       }
+      if callbacks and not callbacks.valueAsResult then
+        callbacks.valueAsResult = callbacks.value_as_result
+        callbacks.value_as_result = nil
+      end
       service('set',params,nil,callbacks)
     end
 
