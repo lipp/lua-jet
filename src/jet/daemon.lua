@@ -428,7 +428,7 @@ local create_daemon = function(options)
           })
         end
       elseif not ok then
-        log('sync '..message.method..' failed',jencode(result))
+        log('sync call failed('..(peer.name or peer.id)..'):',jencode(message),jencode(result))
       end
     end
     return sc
@@ -451,7 +451,7 @@ local create_daemon = function(options)
           })
         end
       elseif not ok then
-        log('async '..message.method..' failed:',jencode(err))
+        log('async call failed('..(peer.name or peer.id)..'):',jencode(message),jencode(err))        
       end
     end
     return ac
