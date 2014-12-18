@@ -451,7 +451,7 @@ local create_daemon = function(options)
           })
         end
       elseif not ok then
-        log('async call failed('..(peer.name or peer.id)..'):',jencode(message),jencode(err))        
+        log('async call failed('..(peer.name or peer.id)..'):',jencode(message),jencode(err))
       end
     end
     return ac
