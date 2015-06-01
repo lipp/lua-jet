@@ -31,7 +31,7 @@ describe(
         ev.READ)
         echo_server_io:start(loop)
       end)
-
+    
     teardown(
       function()
         echo_server_io:stop(loop)
@@ -40,7 +40,7 @@ describe(
         end
         echo_listener:close()
       end)
-
+    
     local sock
     local echo = function(message,done)
       local f = function(done)
@@ -56,7 +56,7 @@ describe(
       end
       return f
     end
-
+    
     local echo_array = function(messages,done)
       local f = function(done)
         local wrapped = jetsocket.wrap(sock)
@@ -77,18 +77,18 @@ describe(
       end
       return f
     end
-
+    
     before_each(
       function()
         sock = socket.connect('localhost',port)
       end)
-
+    
     after_each(
       function()
         sock:shutdown()
         sock:close()
       end)
-
+    
     it('can echo ascii',echo('ablbalblasdkjhsdkuhqdkkbjasdkjheiurq,jwek'))
     it('can echo really long data',echo(string.rep('foo',1000000)))
     it('can echo really long data twice',echo_array({string.rep('foo',1000000),string.rep('bar',1000000)}))
@@ -100,7 +100,7 @@ describe(
         local messages = {
           '123','sjygdjhgsudkshd','askjdhksahdkshkshdkshdkhaiuysd'
         }
-
+        
         wrapped:on_message(
           async(
             function(wrapped,echoed)
@@ -111,7 +111,7 @@ describe(
                 done()
               end
           end))
-
+        
         for _,message in ipairs(messages) do
           wrapped:send(message)
         end
@@ -125,7 +125,7 @@ describe(
     local server_sock
     local listener
     local on_accept
-
+    
     setup(
       function()
         listener,err = socket.bind('*',port)
@@ -147,14 +147,14 @@ describe(
         server_io:stop(loop)
         listener:close()
       end)
-
+    
     after_each(
       function(done)
         server_sock:shutdown()
         server_sock:close()
         on_accept = nil
       end)
-
+    
     it('should fire on_close event when closing',
       function(done)
         local wrapped
@@ -187,7 +187,7 @@ describe(
             end
           end)
       end)
-
+    
     it('should fire on_close event when closed while receiving',
       function(done)
         local wrapped
@@ -223,7 +223,7 @@ describe(
             end,0.001):start(loop)
         end
       end)
-
+    
     it('should fire on_close and on_error event when receiving a message with len > 10MB',
       function(done)
         local wrapped
@@ -258,7 +258,7 @@ describe(
           server_sock_wrapped:send(string.rep('f',10000001))
         end
       end)
-
+    
     it('should fire on_close event when closed while sending',
       function(done)
         local wrapped
@@ -292,7 +292,7 @@ describe(
           server_sock:close()
         end
       end)
-
+    
     it('should fire on_close event when closed immediatly',
       function(done)
         local sock = socket.tcp()
@@ -307,5 +307,5 @@ describe(
           end))
         wrapped:close()
       end)
-
+    
   end)
