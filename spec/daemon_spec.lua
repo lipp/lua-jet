@@ -444,6 +444,54 @@ for _,info in ipairs(addresses_to_test) do
           })
 
           req_resp_test({
+              title = 'fetch with path matching and numeric fetch id works',
+              requests = {
+                {
+                  method = 'add',
+                  params = {
+                    path = 'a',
+                    value = 123,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'b',
+                    value = 456,
+                  },
+                },
+                {
+                  method = 'add',
+                  params = {
+                    path = 'c',
+                    value = 789,
+                  },
+                },
+                {
+                  method = 'fetch',
+                  params = {
+                    path = {
+                      unequalsAllOf = {'A','^C$'},
+                      caseInsensitive = true,
+                      contains = 'B'
+                    },
+                    id = 6
+                  },
+                }
+              },
+              responses = {
+                {
+                  method = 6,
+                  params = {
+                    event = 'add',
+                    path = 'b',
+                    value = 456
+                  }
+                }
+              }
+          })
+
+          req_resp_test({
               title = 'fetch with valueField array works',
               requests = {
                 {

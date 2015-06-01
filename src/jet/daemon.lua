@@ -166,7 +166,7 @@ local create_daemon = function(options)
   local fetch = function(peer,message)
 
     local params = message.params
-    local fetch_id = checked(params,'id','string')
+    local fetch_id = params.id
     local queue_notification
     local notify = function(nparams)
       queue_notification(nparams)
@@ -235,7 +235,7 @@ local create_daemon = function(options)
   -- removes all ressources associsted wth the fetcher.
   local unfetch = function(peer,message)
     local params = message.params
-    local fetch_id = checked(params,'id','string')
+    local fetch_id = params.id
     local fetcher = peer.fetchers[fetch_id]
     peer.fetchers[fetch_id] = nil
     case_insensitives[fetcher] = nil
