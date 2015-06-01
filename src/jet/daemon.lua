@@ -38,7 +38,7 @@ local create_daemon = function(options)
   local options = options or {}
   local port = options.port or 11122
   local loop = options.loop or ev.Loop.default
-
+  
   -- logging functions
   local log = options.log or noop
   local info = options.info or noop
@@ -47,26 +47,26 @@ local create_daemon = function(options)
   -- all connected peers (clients)
   -- key and value are peer itself (table)
   local peers = {}
-
+  
   -- all elements which have been added
   -- key is (unique) path, value is element (table)
   local elements = {}
-
+  
   -- holds info about all pending request
   -- key is (daemon generated) unique id, value is table
   -- with original id and receiver (peer) and request
   -- timeout timer.
   local routes = {}
-
+  
   -- global for tracking the neccassity of lower casing
   -- paths on publish
   local has_case_insensitives
   -- holds all case insensitive fetchers
   -- key is fetcher (table), value is true
   local case_insensitives = {}
-
+  
   local radixtree = jradix.new()
-
+  
   -- routes an incoming response to the requestor (peer)
   -- stops the request timeout eventually
   local route_response = function(peer,message)
@@ -80,11 +80,11 @@ local create_daemon = function(options)
       log('unknown route id:',jencode(message))
     end
   end
-
+  
   -- make often refered globals local to speed up lookup
   local pcall = pcall
   local pairs = pairs
-
+  
   -- publishes a notification
   local publish = function(path,event,value,element)
     local lpath = has_case_insensitives and path:lower()
@@ -95,14 +95,14 @@ local create_daemon = function(options)
       end
     end
   end
-
+  
   -- flush all outstanding / queued messages to the peer socket
   local flush_peers = function()
     for peer in pairs(peers) do
       peer:flush()
     end
   end
-
+  
   -- checks if the "params" table has the key "key" with type "typename".
   -- if so, returns the value, else throws invalid params error.
   local checked = function(params,key,typename)
@@ -121,7 +121,7 @@ local create_daemon = function(options)
       error(invalid_params({missingParam=key,got=params}))
     end
   end
-
+  
   -- checks if the "params" table has the key "key" with type "typename".
   -- if tyoe mismatches throws invalid params error, else returns the
   -- value or nil if not present.
@@ -139,7 +139,7 @@ local create_daemon = function(options)
       end
     end
   end
-
+  
   -- dispatches the "change" jet call.
   -- updates the internal cache (elements table)
   -- and publishes a change event.
@@ -158,15 +158,16 @@ local create_daemon = function(options)
       error(invalid_params({foreignPath=path}))
     end
   end
-
+  
   -- dispatches the "fetch" jet call.
   -- creates a fetch operation and optionally a sorter.
   -- all elements are inputed as "fake" add events. The fetchop
   -- is associated with the element if the fetchop "shows interest"
   local fetch = function(peer,message)
-
+    
     local params = message.params
-    local fetch_id = checked(params,'id','string')
+    local fetch_id = params['id']
+    
     local queue_notification
     local notify = function(nparams)
       queue_notification(nparams)
@@ -184,14 +185,14 @@ local create_daemon = function(options)
     if not params_ok then
       error(invalid_params({fetchParams = params, reason = fetcher}))
     end
-
+    
     peer.fetchers[fetch_id] = fetcher
-
+    
     if is_case_insensitive then
       case_insensitives[fetcher] = true
       has_case_insensitives = true
     end
-
+    
     if not flush then
       if message.id then
         peer:queue({
@@ -200,7 +201,7 @@ local create_daemon = function(options)
         })
       end
     end
-
+    
     local cq = peer.queue
     queue_notification = function(nparams)
       cq(peer,{
@@ -218,7 +219,7 @@ local create_daemon = function(options)
         elements[path].fetchers[fetcher] = true
       end
     end
-
+    
     initializing = false
     if flush then
       if message.id then
@@ -230,27 +231,28 @@ local create_daemon = function(options)
       flush()
     end
   end
-
+  
   -- dispatches the "unfetch" jet call.
   -- removes all ressources associsted wth the fetcher.
   local unfetch = function(peer,message)
     local params = message.params
-    local fetch_id = checked(params,'id','string')
+    local fetch_id = params['id']
+    
     local fetcher = peer.fetchers[fetch_id]
     peer.fetchers[fetch_id] = nil
     case_insensitives[fetcher] = nil
     has_case_insensitives = not is_empty_table(case_insensitives)
-
+    
     for _,element in pairs(elements) do
       element.fetchers[fetcher] = nil
     end
   end
-
+  
   -- counter to make the routed request more unique.
   -- addresses situation if a peer makes two requests with
   -- same message.id.
   local rcount = 0
-
+  
   -- routes / forwards a request ("call","set") to the peer of the corresponding element
   -- specified by "params.path".
   -- creates an entry in the "route" table and sets up a timer
@@ -288,7 +290,7 @@ local create_daemon = function(options)
         id = id,-- maybe nil
         method = path,
       }
-
+      
       local value = params.value
       if value ~= nil then
         req.params = {value = value}
@@ -308,7 +310,7 @@ local create_daemon = function(options)
       log('route failed',jencode(error))
     end
   end
-
+  
   local add = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
@@ -325,9 +327,9 @@ local create_daemon = function(options)
     }
     elements[path] = element
     radixtree.add(path)
-
+    
     local lpath = has_case_insensitives and path:lower()
-
+    
     -- filter out fetchers, which will never ever
     -- match / have interest in this element (fetchers, which
     -- don't depend on the value of the element).
@@ -344,7 +346,7 @@ local create_daemon = function(options)
       end
     end
   end
-
+  
   local remove = function(peer,message)
     local params = message.params
     local path = checked(params,'path','string')
@@ -361,7 +363,7 @@ local create_daemon = function(options)
       error(invalid_params({foreignPath=path}))
     end
   end
-
+  
   local config = function(peer,message)
     local params = message.params
     if params.peer then
@@ -402,7 +404,7 @@ local create_daemon = function(options)
     end
     peer.debug = params.debug
   end
-
+  
   local sync = function(f)
     local sc = function(peer,message)
       local ok,result,dont_auto_reply = pcall(f,peer,message)
@@ -433,7 +435,7 @@ local create_daemon = function(options)
     end
     return sc
   end
-
+  
   local async = function(f)
     local ac = function(peer,message)
       local ok,err = pcall(f,peer,message)
@@ -456,7 +458,7 @@ local create_daemon = function(options)
     end
     return ac
   end
-
+  
   local services = {
     config = sync(config),
     add = sync(add),
@@ -470,7 +472,7 @@ local create_daemon = function(options)
         return message.params
       end)
   }
-
+  
   local dispatch_request = function(peer,message)
     local error
     local service = services[message.method]
@@ -493,7 +495,7 @@ local create_daemon = function(options)
         error = error,
     })
   end
-
+  
   local dispatch_notification = function(peer,message)
     local service = services[message.method]
     if service then
@@ -503,7 +505,7 @@ local create_daemon = function(options)
       end
     end
   end
-
+  
   local dispatch_single_message = function(peer,message)
     if message.id then
       if message.method then
@@ -523,7 +525,7 @@ local create_daemon = function(options)
         error = invalid_request(message)
     })
   end
-
+  
   local dispatch_message = function(peer,msg)
     local ok,err = pcall(
       function()
@@ -553,7 +555,7 @@ local create_daemon = function(options)
     end
     flush_peers()
   end
-
+  
   local create_peer = function(ops)
     local peer = {}
     peer.release = function(_)
@@ -611,16 +613,16 @@ local create_daemon = function(options)
     peer.fetchers = {}
     peer.encode = cjson.encode
     peer.decode = cjson.decode
-
+    
     return peer
   end
-
+  
   local accept_tcp = function(jsock)
     local peer = create_peer({
         close = function() jsock:close() end,
         send = function(msg) jsock:send(msg) end,
     })
-
+    
     jsock:on_message(function(_,message_string)
         dispatch_message(peer,message_string)
       end)
@@ -634,7 +636,7 @@ local create_daemon = function(options)
       end)
     peers[peer] = peer
   end
-
+  
   local accept_websocket = function(ws)
     local peer
     peer = create_peer({
@@ -651,7 +653,7 @@ local create_daemon = function(options)
           ws:send(msg,type)
         end,
     })
-
+    
     ws:on_message(function(_,message_string)
         dispatch_message(peer,message_string)
       end)
@@ -665,10 +667,10 @@ local create_daemon = function(options)
       end)
     peers[peer] = peer
   end
-
+  
   local websocket_server
   local server
-
+  
   local daemon = {
     start = function()
       server = jsocket.listener({
@@ -677,7 +679,7 @@ local create_daemon = function(options)
           loop = loop,
           on_connect = accept_tcp
       })
-
+      
       if options.ws_port then
         local websocket_ok,err = pcall(function()
             websocket_server = require'websocket'.server.ev.listen({
@@ -702,10 +704,12 @@ local create_daemon = function(options)
       end
     end
   }
-
+  
   return daemon
 end
 
 return {
   new = create_daemon,
 }
+
+
